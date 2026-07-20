@@ -1,0 +1,14 @@
+{
+  "terziario": [null,
+    { "coins": 1 }, null, { "coins": 1 }, null,
+    null, null, { "pv": 2 }, null,
+    { "coins": 1 }, null, { "res": 1 }, { "milestone": true },
+    null, null, { "pv": 3 }, { "coins": 1 }
+  ],
+  "secondario": [null,
+    { "res": 1 }, null, { "coins": 1 }, null,
+    null, null, { "pv": 2 }, null,
+    { "res": 1 }, null, { "coins": 1 }, null,
+    { "milestone": true }, { "pv": 3 }, null, { "coins": 2 }
+  ]
+}

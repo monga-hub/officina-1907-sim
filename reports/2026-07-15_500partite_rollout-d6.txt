@@ -1,0 +1,519 @@
+=== MODALITÀ ===
+
+Personalizzata
+
+500 partite
+IA Rollout d6 r1
+
+OFFICINA 1907 — SIMULAZIONE 500/500 partite, 4 AI (15/07/2026, 01:42:41)
+Impostazioni: marchi tracciato riproducono ogni attivazione · PV commesse 5/3 · 9/7 · 13/13 · marchi iniziali 10/10/10/10 · conversioni finali 10m=1PV, 2R=1PV · fine partita si completa il giro · commesse posto unico · acquisto scontato ON · scioperi -3PV
+Tracciato: 1=m×carta 4=R 6=2PV 7=slot1 8=MILESTONE1 10=2PV 11=slot2 12=MILESTONE2 14=3PV 15=slot3 16=MILESTONE3
+Questo report non decide quali regole cambiare: individua fenomeni osservati e propone quali esperimenti valgono il prossimo A/B.
+Livelli di evidenza: 🟢 osservazione · 🟡 correlazione · 🔵 causale (solo da A/B).
+
+=== DESIGN ALERT ===
+🟡 Posti: spread vittorie 11% (27%/29%/26%/18%).
+🟢 Durata 40.8 turni (min 31, max 50) — stabile.
+🟢 Assunzione occupa il 31% delle azioni.
+🟢 Il 5% delle risorse prodotte non genera alcun valore (vero spreco — vendita/scambio non conta).
+🟢 Il 3% dei giocatori abbandona un tracciato (pos ≤4).
+🟢 Il 13% dei marchi disponibili resta inutilizzato.
+🟢 Il 0% dei giocatori chiude senza commesse.
+🟢 Canale grandi: 28% dei completamenti.
+
+— IPOTESI AUTOMATICHE (🟢 osservazione · 🟡 correlazione · 🔵 causale) —
+(🔵 causale non emerge da un singolo batch: solo dagli A/B — es. milestone/gate. Confidenza ★ = campione × effetto.)
+🟡 [★★★☆] Posizione↔vittoria: 2° 29% vs 4° 18% (spread 11%). Correlazione — il simulatore suggerisce un A/B a setup identico per distinguere turn-order (causale) da campione.
+🟡 [★★★★] Il vantaggio del 2° si concentra sui Commesse (37.1 vs 34.1, Δ 3.1 PV). Correlazione, non causa.
+🟢 [★★★☆] Mix completamenti: grandi 28%, medie 35%, piccole 36%.
+🟢 [★★★★] Direzione Sotto poco comprata: 100% finisce con 0 Macchinari. Suggerisce: valutare se il lato Sotto offre valore competitivo (o A/B su costo/potenza per stabilirlo).
+🟢 [★★★★] Direzione Sopra quasi sempre riempita (96% a 2 carte): il lato Sopra è chiaramente conveniente.
+
+=== 1. RITMO DELLA PARTITA — come scorre una partita? ===
+
+— DURATA — turni a testa: media 40.8, mediana 41, min 31, max 50 · clock finale medio 16.5 · 37.0 azioni/giocatore
+— PRIMA COMMESSA — turno medio 12.9, mediana 12 · giocatori senza commesse: 0/2000 (0%)
+
+— TIMELINE PV (vincitore vs media campo) —
+R 1 | vincitore   1.0 | campo   1.0 | Δ   0.0
+R 3 | vincitore   1.2 | campo   0.9 | Δ   0.3
+R 6 | vincitore   2.8 | campo   2.6 | Δ   0.2
+R 9 | vincitore   5.0 | campo   4.2 | Δ   0.8
+R12 | vincitore   8.0 | campo   6.3 | Δ   1.6
+R15 | vincitore  12.2 | campo   9.0 | Δ   3.3
+R18 | vincitore  17.1 | campo  12.3 | Δ   4.8
+R21 | vincitore  22.5 | campo  16.0 | Δ   6.6
+R24 | vincitore  28.5 | campo  20.2 | Δ   8.3
+R27 | vincitore  35.4 | campo  24.9 | Δ  10.5
+R30 | vincitore  42.8 | campo  29.9 | Δ  12.9
+R33 | vincitore  51.6 | campo  35.4 | Δ  16.2
+R36 | vincitore  60.0 | campo  41.7 | Δ  18.3
+R39 | vincitore  66.6 | campo  47.0 | Δ  19.6
+(Δ crescente dal principio = il vincitore parte davanti; Δ che esplode a fine = rimonta/finale)
+
+— RITMO DI GIOCO (fase investimento → conversione) —
+indicatore            | vincitori | ultimi | campo
+Tempo 1ª commessa     |    12.0   |  13.8  | 12.9
+Tempo 1ª grande       |    30.5   |  35.2  | 33.1
+Fine costruzione      |    38.9   |  39.3  | 39.1
+Inizio conversione    |    40.2   |  40.1  | 40.3
+Ultima commessa       |    39.2   |  34.6  | 37.1
+Burstiness (CV gap)   |     0.5   |   0.3  |  0.4
+(vincitori: smettono di costruire ~t39, ultima commessa ~t39 → 0 turni di sola conversione)
+
+— RITMO COMMESSE (gap medio turni fra completamenti consecutivi) —
+piccola→media: 9.1 turni (1198 casi)
+piccola→piccola: 6.1 turni (980 casi)
+media→grande: 9.2 turni (955 casi)
+media→media: 7.3 turni (797 casi)
+piccola→grande: 10.9 turni (698 casi)
+grande→grande: 6.5 turni (632 casi)
+media→piccola: 4.9 turni (588 casi)
+grande→media: 5.6 turni (315 casi)
+grande→piccola: 4.9 turni (91 casi)
+
+— TEMPO DI COSTRUZIONE (turno medio dell'ultima azione) —
+ultimo lavoratore (reparto): 38.5 · ultima carta Direzione: 30.8 · ultima commessa: 37.1 · durata media 40.8 round
+(se le ultime carte cadono a metà partita mentre le commesse proseguono: si costruisce presto e poi si sfrutta)
+
+— ULTIMO SLOT REPARTO/DIREZIONE (turno medio di riempimento) —
+Sopra: 1° 10.6 · 2° 18.8 · 3° 25.3  (media sui 3 reparti)
+Sotto: 1° 18.6 · 2° 26.8  (media sui 3 reparti)
+Direzione Welfare (Sopra): 1° 10.5 · 2° 22.7
+Direzione Macchinario (Sotto): 1° — · 2° —
+(se tutti gli slot si riempiono ben prima di t31-40 (dove i marchi/attivazione accelerano di più, vedi sopra) mentre i marchi continuano a crescere, la fabbrica piena NON è il lavandino dell'economia — l'accelerazione continua a motore già completo.)
+
+— HEATMAP AZIONI PER FASE (% delle azioni della fase) —
+Fase       | Assunzione | Produzione |    Servizi |  Sindacato |      Borsa
+1° quarto  |        51% |        26% |         8% |         9% |         5%
+2° quarto  |        30% |        30% |         7% |        14% |        20%
+3° quarto  |        27% |        28% |         7% |        17% |        21%
+finale     |        20% |        26% |         7% |        21% |        26%
+
+— DOVE FINISCONO I TURNI (ripartizione azioni · 🟢20-40% 🟡<10% 🔴>40%) —
+🟢 Assunzione 31% · 🟢 Produzione 27% · 🟡 Servizi 7% · 🟢 Sindacato 15% · 🟢 Borsa 19%
+
+=== 2. ECONOMIA — il motore produce ricchezza sana? ===
+
+— MARCHI MEDI A INIZIO ROUND —
+R 1 |  10.0 m █████
+R 3 |   3.0 m ██
+R 6 |   1.9 m █
+R 9 |   2.2 m █
+R12 |   2.5 m █
+R15 |   2.6 m █
+R18 |   3.0 m █
+R21 |   3.4 m ██
+R24 |   3.9 m ██
+R27 |   4.3 m ██
+R30 |   5.0 m ███
+R33 |   5.7 m ███
+R36 |   6.9 m ███
+R39 |   8.0 m ████
+
+— ECONOMIA MARCHI (media per giocatore) —
+guadagnati 65.7 · spesi 65.7 · rimasti 10.0 (🟢 13% del disponibile resta inutilizzato)
+spesa: lavoratori 59% · direzione 21% · movimento 10% · sindacato 8% · borsa 2%
+(se la Direzione è una fetta minima e i marchi finiscono quasi tutti nei lavoratori, quei 5m di costo non ripagano)
+("inutilizzato" sopra = marchi mai spesi durante il turno, ma a fine partita convertono comunque in PV — non necessariamente sprecati. Il vero spreco marchi, sotto, è il resto che non converte nemmeno lì.)
+vero spreco marchi: 6681 marchi a fine partita non convertono in PV nemmeno nella conversione finale (resto oltre coinsPerPV=10) — 🟢 5% del guadagnato
+
+— BILANCIO MARCHI — DA DOVE NASCE LA RICCHEZZA (media/giocatore · % dei marchi guadagnati) —
+(fatto grezzo: risponde a "quale meccanismo immette ricchezza". In questo gioco i marchi entrano SOLO da queste vie — macchinari/Direzione/tessere/obiettivi danno risorse o PV, non marchi.)
+  produzione Chimica         + 15.4   23%
+  produzione Tessile         + 14.0   21%
+  produzione Metallurgica    + 13.1   20%
+  └ produzione reparto (caselle ⓜ del tracciato riprodotte attivando): 65%
+  tracciati (bonus di salita) +  0.4    1%
+  LAVORATORI (effetti carte Sotto del reparto), per tipo:
+    lav. «prendi N monete»   +  2.6    4%
+    lav. marchi × nazionalità +  0.0    0%
+    lav. marchi × icona      +  4.7    7%
+    lav. marchi × tensione   +  0.7    1%
+  └ lavoratori totale: 12% dei marchi
+  scambio (vendita risorse)  + 12.8   20%
+  tile tracciato (trigger a installazione) +  1.9    3%
+  ─────────  FONTI +65.7  →  IMPIEGHI −65.7  →  residuo netto -0.0 (finali−iniziali)
+(NB: le caselle ⓜ del tracciato che riproducono ad ogni attivazione contano in "produzione"; "tracciati" = solo il bonus una-tantum di salita. Impieghi = riga "spesa" sopra.)
+
+=== DA DOVE NASCE L'ACCELERAZIONE (marchi/round per fonte, 347 partite arrivate al turno 40) ===
+(non è una spiegazione del "perché": scompone il totale in fonti e mostra quale cresce più in fretta tra inizio e fine partita. Da qui l'A/B si mira sulla fonte che accelera, non su tutte.)
+Fonte                | t1-20 | t21-30 | t31-40 | fattore
+Produzione reparto   |   0.6 |   1.2 |   1.6 | ×2.8
+Vendita/scambio      |   0.4 |   0.3 |   0.3 | ×0.7
+Lavoratori icona     |   0.0 |   0.1 |   0.2 |   —
+Lavoratori nazione   |   0.0 |   0.0 |   0.0 |   —
+Lavoratori tensione  |   0.0 |   0.0 |   0.0 |   —
+Lavoratori fissi     |   0.0 |   0.1 |   0.1 |   —
+Bonus tracciato      |   0.0 |   0.0 |   0.0 |   —
+(fattore = tasso t31-40 ÷ tasso t1-20. "—" = fonte trascurabile in t1-20 (<0.05/round), il rapporto non è significativo.)
+
+— MARCHI MEDI PER ATTIVAZIONE PRODUZIONE, PER FINESTRA —
+t1-20: 2.4 · t21-30: 4.7 · t31-40: 5.9
+(se questo numero cresce, ogni attivazione rende di più — caselle migliori del tracciato raggiunte col tempo. Se resta piatto mentre "Produzione reparto" sopra accelera, il motore non è più efficiente: si attiva più spesso e basta — guarda le azioni Produzione/round nella HEATMAP.)
+
+— CASELLE ⓜ ATTIVE (media a fine finestra) — Caso A vs Caso B dell'accelerazione —
+t20: 3.0 · t30: 3.0 · t40: 3.0
+(caselle che producono marchi già raggiunte sul tracciato: riproducono a ogni attivazione. Se cresce nello stesso ritmo di "Produzione reparto" sopra → l'accelerazione nasce dalla posizione sul tracciato (Caso A). Se "marchi/attivazione" sopra cresce più di questo numero → il moltiplicatore per casella sta crescendo, non solo il conteggio caselle (Caso B, es. lavoratori×icona).)
+
+— PRODUZIONE PER FINESTRA: RISORSE vs MARCHI —
+risorse/round       |   0.4 |   0.6 |   0.7
+marchi/attivazione  |   2.4 |   4.7 |   5.9  (da MARCHI MEDI sopra, stessa scala di confronto)
+(colonne: t1-20 · t21-30 · t31-40. Se le risorse/round crescono quanto i marchi/attivazione, entrambe seguono la stessa causa — la posizione sul tracciato. Se le risorse restano piatte mentre i marchi accelerano, la crescita è specifica ai marchi.)
+
+— RISORSE PRODOTTE vs SPESE (per settore) —
+Tessile     : prodotte  15660 · spese  16068 · usate 103% · surplus -408
+Metallurgica: prodotte  14577 · spese  15090 · usate 104% · surplus -513
+Chimica     : prodotte  17094 · spese  16031 · usate  94% · surplus 1063
+(un settore molto prodotto ma poco speso = risorsa in eccesso / commesse che non la chiedono)
+
+— DESTINAZIONE DELLE RISORSE — due canali di valore, non uno solo (commesse E vendita/scambio) —
+Commesse    84%  (39948 risorse)
+Mercato     11%  (vendute o scambiate — estraggono valore altrove, non sprecate)
+Perse      🟢   5%  (2266 risorse — vero spreco: nessun valore estratto in nessuna forma)
+(prodotte in totale: 47331. "Mercato" NON è un problema: è il secondo canale di valorizzazione delle risorse, previsto dal design — vedi SCAMBI sotto per il dettaglio. Solo "Perse" segnala davvero uno spreco.)
+
+— BILANCIO RISORSE — DA DOVE NASCONO / DOVE VANNO (media/giocatore · % del rispettivo totale) —
+(fatto grezzo, nessuna interpretazione: risponde a "quale meccanismo immette risorse, e dove finiscono")
+  FONTI                        IMPIEGHI
+  produzione  + 14.4   51%       commesse  − 20.0   85%
+  tracciati   +  3.6   13%       vendita   −  1.0    4%
+  macchinari  +  0.0    0%       scambio   −  2.6   11%
+  bonus       +  3.4   12%
+  acquisto    +  1.4    5%
+  scambio     +  3.0   11%
+  trackTile   +  2.1    8%
+  ─────────  FONTI +28.1  →  IMPIEGHI −23.6  →  residuo +4.5 in mano a fine (→ conversione PV o sprecate)
+(produzione/tracciati/macchinari/bonus = create · acquisto/scambio = convertite da marchi/altre risorse. Per capire quale leva sposta una fonte: leverMap/indicatorTable.)
+
+— SCAMBI — CHE CONVERSIONI AVVENGONO DAVVERO (eventi, non ammontare) —
+("scambio" nel bilancio sopra è un'unica etichetta per 3 meccaniche diverse: qui sono separate.)
+  risorsa → risorsa        5607 eventi   54%  (2.8/giocatore)
+  marchi → risorsa         2777 eventi   27%  (1.4/giocatore)
+  risorsa → marchi         2064 eventi   20%  (1.0/giocatore)
+(conta l'evento di scambio, non le unità mosse — vedi BILANCIO RISORSE sopra per le quantità.)
+
+— UTILIZZO DELLE CONVERSIONI — BORSA vs CARTE LAVORATORE (eventi/giocatore) —
+BORSA (azione fissa nel menu, non richiede carte):
+  vendi risorsa → 3 marchi ........... 0.9
+  2 risorse → 1 a scelta ............. 1.8
+LAVORATORI (bonus delle carte Sotto installate, per direzione — non per quantità f1→f2):
+  risorsa → risorsa ................... 1.0
+  marchi → risorsa ..................... 1.4
+  risorsa → marchi ..................... 0.1
+(non ancora scomposto per quantità esatta f1→f2 di ogni carta, es. "1→1" vs "2→2" — richiederebbe una chiave per formula invece che per direzione.)
+
+=== BORSA: ESCI SENZA COMMESSE (homebrew 13/07/2026) — la scelta è reale o irrilevante? ===
+Visite (per giocatore, per visita — mutuamente esclusive):
+  con commessa ................ 52%
+  con bonus fisso .............. 48%
+(se "con bonus" è vicino a 0, il bonus è troppo debole o l'IA preferisce sempre le Commesse quando può — greedy completa una commessa appena possibile, vedi ai.js chooseBorsa step 1. Se sale al 30-50%, la scelta è reale.)
+
+Quando sceglie il bonus (posizione nella partita, % delle visite-con-bonus):
+  prima metà       65%
+  seconda metà     26%
+  ultimi 5 turni   9%
+(se cresce verso fine partita, il bonus funziona da acceleratore quando le Commesse non convengono più — non un rifiuto generico delle Commesse.)
+
+Refresh gratuito — quale mercato, ed è servito a qualcosa?
+  scelta: Welfare 0% · banchi operai 0%  (0 refresh totali)
+  mercato PRIMA del refresh: 0 acquistabili 0% · 1 0% · 2+ 0%
+  (se refresha con 2+ carte già acquistabili, probabilmente sta sbagliando — il mercato non era morto.)
+  refresh efficace (porta a un acquisto Welfare/Assunzione entro i suoi 2 turni successivi): 0%
+  (il refresh in sé non vale niente — vale solo se cambia davvero una decisione a valle.)
+
+Conversioni durante la visita, prima di decidere (0 = entra solo per il bonus, non sfrutta la Borsa):
+  0    73%
+  1    17%
+  2    10%
+  3+   0%
+
+Marchi guadagnati per visita-con-bonus (bonus fisso + eventuali vendite prima): media 3.3
+
+— CONVERSIONI DISPONIBILI vs USATE — le carte lavoratore sono testo morto o no? —
+carte conversione (formula 'scambia') installate a fine partita: 2.1/giocatore
+quante volte la carta era in gioco all'attivazione (disponibile) vs quante volte si è davvero attivata (usata):
+  risorsa → risorsa  disponibile   4353  ·  usata   1938  ·  🟡 45% utilizzo
+  marchi → risorsa   disponibile   3171  ·  usata   2777  ·  🟢 88% utilizzo
+  risorsa → marchi   disponibile    401  ·  usata    238  ·  🟢 59% utilizzo
+(risorsa→risorsa e risorsa→marchi "a scelta": disponibile = quante volte proposta la scelta, usata = quante volte l'IA ha accettato — riflette sia se conveniva sia se il giocatore poteva permettersela.
+ marchi→risorsa e le carte a settore fisso: disponibile = quante volte la carta era in gioco all'attivazione, usata = quante volte c'erano abbastanza marchi/risorse per pagarla — nessuna scelta dell'IA qui, solo un vincolo di cassa.)
+(non ancora misurato: l'azione Borsa fissa non ha un "disponibile" comparabile — è una scelta di nodo/turno, non un auto-fire — e se una risorsa convertita finisce davvero in una commessa, che richiede tracciare la singola unità.)
+
+— PERCHÉ NON CONVERTE — la ragione del rifiuto, non solo il conteggio (carte "a scelta") —
+(letta direttamente dalla decisione dell'IA nel momento in cui rifiuta, non ricostruita a posteriori: la causa esatta, non una correlazione.)
+  risorsa → risorsa: 2415 rifiuti
+     72%  nessun surplus da cedere (1748)
+     28%  nessuna commessa richiede altre risorse ora (667)
+  marchi → risorsa: 394 rifiuti
+    100%  marchi insufficienti (394)
+  risorsa → marchi: 163 rifiuti
+    100%  nessun surplus da cedere (163)
+(risorsa→risorsa: "nessun surplus da cedere" = non aveva niente in eccesso al momento; "nessuna commessa richiede altre risorse ora" = tutte le commesse attive/sbloccate hanno già ciò che serve — è distribuzione della domanda, non economia; "il surplus coincide col fabbisogno" = l'unica risorsa in eccesso è anche l'unica richiesta, scambio impossibile per costruzione.)
+
+— "NESSUNA COMMESSA RICHIEDE" — quanto è forte, e dove nasce —
+(scompone i rifiuti "nessuna commessa richiede" di cui sopra: quale settore resta bloccato senza destinazione, e quante commesse aveva davanti in quel momento.)
+  settore in eccesso senza destinazione:
+    Tessile         40%  (266)
+    Chimica         33%  (220)
+    Metallurgica    27%  (181)
+  commesse attive/sbloccate in quel momento (quante ne aveva davanti quando ha rifiutato):
+    0   commesse    46%  (306)
+    1   commesse     1%  (6)
+    2   commesse     2%  (12)
+    3+  commesse    51%  (343)
+(se il rifiuto si concentra su 0-1 commesse davanti, il problema è quantità/varietà a mercato — leva: contractMarket/contractCount. Se succede anche con 3+ commesse davanti, il mercato è già vario ma nessuna di quelle in vista chiede quel settore — leva: struttura dei requisiti-commessa, non quantità.)
+
+— IN CHE FASE SUCCEDE — comportamento fisiologico o problema vero? —
+(fase rispetto alla PROPRIA prima/ultima commessa completata in quella partita: se il rifiuto è quasi tutto in costruzione, prima di aver completato qualunque commessa, è normale non avere ancora un bersaglio — non un difetto da correggere.)
+  costruzione (prima della 1ª commessa propria) ...  37%  (245)
+  conversione (tra 1ª e ultima commessa propria) ..  59%  (395)
+  finale (dopo l'ultima commessa propria) .........   4%  (27)
+(se "costruzione" domina, il 78% visto sopra è in gran parte fisiologico: l'IA viene interpellata su una conversione anche quando nessuna commessa esiste ancora per costruzione del motore stesso — la domanda arriva nel momento sbagliato, non la risposta. Se "conversione" o "finale" pesano parecchio, il rifiuto avviene anche a bersagli già in gioco: lì il problema è reale, non di tempismo.)
+
+— IL GATE MACCHINARI SPOSTA LE AZIONI BORSA NEL TEMPO, O LE RIDUCE? —
+(gate = turno in cui il giocatore installa il 1° Macchinario, cioè quando sblocca i tier Borsa. Chi non lo installa mai resta fuori da questa tabella — vedi DIREZIONE per quanti sono.)
+giocatori che sbloccano almeno 1 Macchinario: 0 · mai: 2000 (100%)
+finestra (relativa al gate)  | eventi Borsa | round-giocatore | azioni Borsa/round
+  prima del gate                     0                0        0.00
+  3 turni dopo il gate               0                0        0.00
+  resto della partita                0                0        0.00
+("azioni Borsa/round" = eventi ÷ round-giocatore disponibili in quella finestra, normalizza finestre di lunghezza diversa. Un tasso "3 turni dopo" molto più alto di "prima" = il gate comprime l'uso nel tempo, non lo riduce; se "resto" ≈ "prima", il gate non cambia la decisione a lungo termine, solo il timing iniziale.)
+
+— EFFICIENZA MEDIA (per commessa completata) —
+Produzioni/commessa: media 2.7 · vincitori 1.8 · ultimi 3.5
+Risorse/commessa:    media 5.8 · vincitori 6.1 · ultimi 5.8
+(se vincitori < ultimi, i vincitori convertono meglio produzione in commesse)
+
+=== 3. STRATEGIE — chi gioca come, e perché vince? ===
+
+— STRATEGIE OSSERVATE (🟢 classificazione euristica, soglie dichiarate — non archetipi appresi) —
+definizioni: Rush = 1ª commessa entro il 35% della partita e ≥3 commesse · Costruttore precoce = fine costruzione entro il 55% e consegne oltre l'80% · Convertitore continuo = consegne regolari (CV gap <0.4, ≥3 commesse) · Generalista = il resto
+strategia             | % campo | % vincitori | win%
+Rush commesse         |     62% |         74% |  30%
+Convertitore continuo |     14% |          9% |  16%
+Generalista           |     23% |         16% |  18%
+(win% per strategia = 🟡 correlazione: l'AI sceglie in base al contesto, non a caso — nessuna causa)
+
+— DIFFERENZA VINCITORI vs MEDIA CAMPO —
+Produzioni/commessa: -39% (vinc 1.8 vs 3.0) — negativo = vincitori più efficienti
+Risorse/commessa:    +6% (vinc 6.1 vs 5.7)
+Marchi finali:       +57% (vinc 13.7 vs 8.7)
+PV Commesse:         +19.5 PV · PV Obiettivi: +0.4 PV · PV Tracciati: +1.5 PV
+
+— ORIGINE DEI PUNTI (composizione % dei PV) —
+          |  Commesse | Obiettivi | Tracciati |    Marchi |   Risorse
+vincitori |       62% |       13% |       22% |        1% |        3%
+ultimi    |       50% |       18% |       29% |        1% |        3%
+(dopo una modifica al regolamento: mostra se i vincitori vincono ancora sulle Commesse o se il gioco si è spostato)
+
+=== 4. BILANCIAMENTO — le leve: posti, taglie, tracciati, tessere, bonus, reparti ===
+
+— PV PER POSIZIONE DI TURNO —
+Posto | Win% | PV tot | Commesse | Obiettivi | Tracciati | Marchi | Risorse
+  1°  |  27% |   62.9 |     36.6 |      10.1 |      16.4 |    0.6 | 1.7
+  2°  |  29% |   64.2 |     37.1 |      10.4 |      16.6 |    0.7 | 1.6
+  3°  |  26% |   62.9 |     35.5 |      10.1 |      16.8 |    0.7 | 1.7
+  4°  |  18% |   60.7 |     34.1 |      10.1 |      16.5 |    0.7 | 1.6
+
+— DISTRIBUZIONE PUNTEGGI (per rango finale) —
+1° 80.6 · 2° 65.2 · 3° 57.3 · 4° 47.6
+ultimo classificato: 47.6 · gap 1°-ultimo: 32.9 · dev.std media entro-partita: 12.7
+
+— FABBRICA E NODI (aggregati) —
+Assunzioni: Sopra 16350 (62%) · Sotto 10132 (38%) · attivazioni reparto/giocatore: 10.2
+attivazioni per settore (media/giocatore): Tessile 3.3 · Metallurgica 3.3 · Chimica 3.5
+Sindacato (media/giocatore): Tratt 5.7 · Refresh 1.5 · Sblocca 1.7 · AbbTens 0.5 · AcqScont 1.7 · scioperi subiti 2.0
+
+— COMMESSE — prima della partita: piccola 89% · media 11% · grande 0%
+piccole : 2995 completamenti (36% del clock), turno medio 17.2
+medie   : 2925 completamenti (35% del clock), turno medio 25.5
+grandi  : 2334 completamenti (28% del clock), turno medio 34.8
+
+— COMMESSE PER TAGLIA (completate vs rimaste non completate) —
+piccole : completate 2995 (100%) · a mercato non prese 5 · mai pescate 0
+medie   : completate 2925 (98%) · a mercato non prese 75 · mai pescate 0
+grandi  : completate 2334 (78%) · a mercato non prese 666 · mai pescate 0
+(molte grandi mai completate = troppo dure/care; molte piccole a mercato non prese = ignorate)
+
+— COMMESSE PER GIOCATORE (distribuzione a fine partita) —
+≤1: 0% · 2: 6% · 3: 26% · 4: 34% · 5: 20% · 6+: 14% · media 4.1
+
+— TRACCIATI (pos finale /16) —
+terziario : media 13.1, mediana 14 · milestone 96%
+secondario: media 13.0, mediana 14 · milestone 95%
+primario  : media 12.8, mediana 14 · milestone 94%
+più arretrato: media 10.5 · abbandonato (≤4): 3% · tutte e 3 le milestone: 86%
+milestone per giocatore: 0: 0% · 1: 1% · 2: 14% · 3: 86%
+(questa "milestone" è la SOGLIA FINALE del proprio tracciato per reparto, non i 3 mercati tile sotto — sono due concetti diversi che condividono solo il nome.)
+
+=== MERCATO TILE TRACCIATO — quanto viene usato? (2.0, homebrew 14/07/2026) ===
+(sblocco = il reparto ha raggiunto la milestone che apre il mercato; "compra" = tra chi sblocca, quanti riempiono davvero lo slot invece di lasciarlo vuoto.)
+Mercato 1: sblocca 95% dei reparti · tra chi sblocca, compra 50% · turno medio acquisto 15.8
+  Marchi per tensione     49% delle scelte · win% 17%
+  Marchi per carta        17% delle scelte · win% 45%
+  2 marchi fissi          34% delle scelte · win% 23%
+Mercato 2: sblocca 71% dei reparti · tra chi sblocca, compra 51% · turno medio acquisto 26.9
+  2 risorse fisse         40% delle scelte · win% 26%
+  Risorsa per carta       21% delle scelte · win% 71%
+  Risorsa per tensione    38% delle scelte · win% 17%
+Mercato 3: sblocca 19% dei reparti · tra chi sblocca, compra 17% · turno medio acquisto 32.9
+  Risorsa per tensione    61% delle scelte · win% 28%
+  2 risorse fisse         21% delle scelte · win% 52%
+  Marchi per tensione     12% delle scelte · win% 41%
+  Risorsa per carta        2% delle scelte · win% 80%
+  2 marchi fissi           3% delle scelte · win% 50%
+
+— WIN RATE PER TESSERA (Piano Industriale) — 25 tessere con ≥3 apparizioni —
+Tessera | partite | win% | affidabilità
+pf7  Piano 7      |     76 |  34% | ★★★★★
+pf24 Piano 24     |     78 |  33% | ★★★★★
+pf6  Piano 6      |     79 |  33% | ★★★★★
+pf23 Piano 23     |     89 |  31% | ★★★★★
+pf20 Piano 20     |     86 |  29% | ★★★★★
+pf11 Piano 11     |     90 |  29% | ★★★★★
+pf10 Piano 10     |     77 |  29% | ★★★★★
+pf1  Piano 1      |     64 |  28% | ★★★★☆
+pf17 Piano 17     |     79 |  28% | ★★★★★
+pf16 Piano 16     |     87 |  28% | ★★★★★
+pf3  Piano 3      |     79 |  27% | ★★★★★
+pf12 Piano 12     |     72 |  26% | ★★★★★
+pf14 Piano 14     |     86 |  26% | ★★★★★
+pf13 Piano 13     |     84 |  24% | ★★★★★
+pf9  Piano 9      |     68 |  24% | ★★★★☆
+pf2  Piano 2      |     90 |  23% | ★★★★★
+pf4  Piano 4      |     81 |  22% | ★★★★★
+pf25 Piano 25     |     91 |  22% | ★★★★★
+pf5  Piano 5      |     69 |  22% | ★★★★☆
+pf15 Piano 15     |     78 |  21% | ★★★★★
+pf18 Piano 18     |     75 |  19% | ★★★★★
+pf21 Piano 21     |     70 |  19% | ★★★★★
+pf22 Piano 22     |     88 |  17% | ★★★★★
+pf8  Piano 8      |     78 |  17% | ★★★★★
+pf19 Piano 19     |     86 |  16% | ★★★★★
+(migliore pf7 34% vs peggiore pf19 16% — se il gap è grande, tessere sbilanciate. Affidabilità = solo il campione (n partite), non dice se lo scarto è vero — vedi SCHEDA TESSERE sotto per gli outlier.)
+
+— SCHEDA TESSERE: OUTLIER (win% o completamento a ≥2σ dalla norma, ≥8 partite) — da dove nasce lo scarto —
+pf14 Piano 14 — win 26% su 86 partite (0.1σ win · -2.2σ facilità) [FACILITÀ] ★★★★★
+  obiettivo1 (7PV)  69%  «4 lavoratori Polacchi installati in fabbrica»
+  obiettivo2 (7PV)   0%  «Direzione con almeno 2 carte Sopra e 2 carte Sotto»
+  obiettivo3 (?PV) —  «?»
+  PV medi: obiettivi 4.8 · commesse 40.3 · tracciati 16.6 · commesse/partita 4.5
+(PRESTAZIONI = vince più/meno del dovuto — guarda i PV medi: se sono alti anche fuori dagli obiettivi, il vantaggio è nella strategia che incentiva, non nella tessera. FACILITÀ = i suoi obiettivi sono più facili/duri delle altre 31 tessere — se un obiettivo è molto più alto degli altri due, è quello a spiegarlo: abbassa il suo PV o alza la soglia.)
+
+— DISTRIBUZIONE TESSERE (25 con ≥8 partite, max tra i due z-score) —
+🟢 normali (<1σ): 13 · 🟡 lievi (1-2σ): 11 · 🔴 outlier (≥2σ): 1
+(bersaglio: la maggioranza in 🟢, solo poche tessere in 🔴 — non serve arrivare a zero 🔴, serve che restino eccezioni.)
+
+— OBIETTIVI PIANO INDUSTRIALE (50 obiettivi, ≥3 apparizioni) — completati in media 73% —
+🟡 troppo facili (>85%): 15 · 🟢 bilanciati (40-85%): 30 · troppo difficili (<40%): 5
+facili: pf21#1 93% · pf15#2 92% · pf25#2 91% · pf10#2 91% · pf20#2 90% · pf18#2 89% · pf23#2 89% · pf10#1 88% · pf11#2 88% · pf16#2 87% · +5 altri
+difficili: pf19#2 0% · pf9#2 0% · pf24#2 0% · pf14#2 0% · pf4#2 0%
+
+— FAMIGLIE DI OBIETTIVO (10 mattoni distinti, ≥3 apparizioni) — bilancia questi, non le 96 combinazioni —
+mattoni                          | tessere | completamento | win medio tessere
+Direzione piena (2Sopra+2Sotto)   |       5 | 🔴   0%     |  24%
+4 lavoratori Polacchi             |       5 | 🟢  71%     |  25%
+4 lavoratori Italiani             |       5 | 🟢  72%     |  24%
+4 lavoratori Spagnoli             |       5 | 🟢  77%     |  24%
+4 lavoratori Francesi             |       5 | 🟢  79%     |  27%
+4 lavoratori Tedeschi             |       5 | 🟢  82%     |  24%
+Metallurgica leader + milestone   |       5 | 🟢  83%     |  26%
+Tessile leader + milestone        |       5 | 🔴  85%     |  27%
+Chimica leader + milestone        |       5 | 🔴  86%     |  23%
+2 reparti pieni (3Sopra+2Sotto)   |       5 | 🔴  90%     |  24%
+(bersaglio: la maggior parte 40-85% di completamento — un mattone fuori qui è fuori su OGNI tessera che lo contiene, non è colpa della tessera specifica. "win medio tessere" alto con completamento normale = probabile sinergia con gli altri obiettivi della stessa tessera, non un problema del mattone da solo — guarda quali tessere lo ospitano in SCHEDA TESSERE.)
+
+— CLASSIFICA FACILITÀ (obiettivi 1/2/3 · media · z vs le altre tessere) — 8 con media più alta ("regalo") —
+pf21  93% /  87% /   — · media 90% · 1.0σ
+pf10  88% /  91% /   — · media 90% · 1.0σ
+pf16  85% /  87% /   — · media 86% · 0.8σ
+pf20  80% /  90% /   — · media 85% · 0.7σ
+pf23  81% /  89% /   — · media 85% · 0.7σ
+pf25  77% /  91% /   — · media 84% · 0.7σ
+pf7   80% /  87% /   — · media 84% · 0.6σ
+pf15  74% /  92% /   — · media 83% · 0.6σ
+
+— BONUS LAVORATORE (frequenza scelta + win% di chi lo prende) —
+Bonus                | preso | win%
+scambia-risorsa→risorsa |  6859 |  25%
+prendi-risorsa       |  5445 |  25%
+risorse×tensione     |  3556 |  27%
+scambia-marchi→risorsa |  3490 |  25%
+marchi×icona         |  1893 |  23%
+marchi×tensione      |  1803 |  23%
+prendi-marchi        |  1748 |  25%
+scambia-risorsa→marchi |  1688 |  28%
+Mai scelti: marchi×nazione
+
+— FABBRICA FINALE (sviluppo dei reparti, cap 5 = 3 Sopra + 2 Sotto) —
+Completati (5/5): 63% · Quasi completi (4/5): 21% · Medi (3/5): 11% · Poco sviluppati (≤2): 4%
+
+— DIREZIONE (carte installate, cap 2+2) —
+Sopra: 77% = 3+ carte (0:0% 1:3% 2:20% 3+:77%)
+Sotto: 100% = 0 carte (0:100% 1:0% 2:0% 3+:0%)
+
+— MACCHINARI: ACCESSO O VALORE? — perché una parte del campo non ne installa —
+("mai visto" = non ha mai avuto un Macchinario acquistabile in vista quando era a Servizi → problema di ACCESSO, non di scelta. "Visto ma ignorato" = poteva comprarlo, non l'ha fatto → problema di VALORE, l'IA lo giudica non conveniente rispetto alle alternative.)
+  mai visto un Macchinario acquistabile .........  100%  (2000)
+  visto ma ignorato (mai installato) ............    0%  (0)
+  installato (≥1 Macchinario) ....................    0%  (0)
+
+— MACCHINARI: CON vs SENZA — la media nasconde due giochi diversi? —
+  metrica                      senza Macchinario   con Macchinario   (n=2000 / 0)
+  durata (turni)                     40.8               0.0
+  azioni Borsa/giocatore              2.7               0.0
+  commesse/giocatore                  4.1               0.0
+  % vittorie                          25%                0%
+  risorse vendute/giocatore           1.0               0.0
+(se le due colonne divergono parecchio, la media generale del report sta mediando due popolazioni diverse — le metriche aggregate sopra vanno lette con cautela.)
+
+— MACCHINARI: CAUSA, SELEZIONE O SOGLIA? — quando arriva il vantaggio —
+(3 letture compatibili con "chi li ha vince di più": A-causa (il macchinario stesso aiuta a vincere), B-selezione (chi è già forte se li può permettere), C-soglia (serve un motore già maturo per sfruttarli). Non distingue tra loro da sola, ma restringe.)
+turno medio 1° Macchinario: vincitori n/d (n=0) · resto del campo n/d (n=0)
+(se i vincitori lo installano molto prima del campo, è più coerente con A/causa o C/soglia raggiunta presto. Se il turno è simile ma vincono comunque di più, è più coerente con B/selezione — un giocatore già forte lo aggiunge senza che sia lui a farli vincere.)
+vittorie per numero di Macchinari a fine partita:
+  0 Macchinari: win%  25%  (n=2000)
+  1 Macchinari: win%   0%  (n=0)
+  2 Macchinari: win%   0%  (n=0)
+(se il vantaggio compare già con 1 solo Macchinario, il primo è già sufficiente — più coerente con A/causa. Se compare solo a 2, servono entrambi per contare — più coerente con C/soglia: non basta averne uno, serve un motore che li sfrutti entrambi.)
+
+— RISORSE PRODOTTE DOPO L'ACQUISTO (Direzione) — stesso turno, stessa partita, comprato vs non ancora —
+(per ogni carta: risorse totali generate DA QUEL MOMENTO in poi da chi la compra, contro chi, nella STESSA partita e allo STESSO turno, non l'ha ancora comprata. Isola il vantaggio già accumulato prima dell'acquisto e il ritmo della partita — non un A/B randomizzato, ma il confronto più stretto possibile senza rigiocare la partita due volte.)
+Welfare 1 (Direzione Sopra, 1ª carta)      -0.5 risorse  (dopo acquisto: 19.8, n=1994 · controllo: 20.4, n=2574)
+Welfare 2 (Direzione Sopra, 2ª carta)      -1.7 risorse  (dopo acquisto: 13.7, n=1926 · controllo: 15.4, n=2873)
+Macchinario 1 (Direzione Sotto, 1ª carta)  dati insufficienti (n=0/0)
+Macchinario 2 (Direzione Sotto, 2ª carta)  dati insufficienti (n=0/0)
+
+— MACCHINARIO: GARANTITO DALLA FORMULA vs REALMENTE OTTENUTO —
+(il Macchinario è deterministico — non serve un gruppo di controllo: paga perUse risorse a inizio turno per usesMax turni, automatico. "Garantito" = usesMax×perUse se il giocatore avesse avuto tutti i turni; "realizzato" = risorse effettive via resGainedBy.macchinari, che include il taglio se la partita finisce prima di esaurire gli usi.)
+garantito (formula): 6.0 risorse/carta · realizzato (osservato, per carta posseduta): 0.0 risorse/carta  (0% del garantito, n=0 carte)
+(se il realizzato è molto sotto il garantito, molte partite finiscono prima che il Macchinario esaurisca i suoi usi — comprato tardi, non un difetto della carta.)
+
+— PV PER 5 MARCHI INVESTITI (Direzione) — misura indiretta, non ROI puro: leggere insieme a RISORSE sopra —
+(stesso metodo delle risorse, ma sui PV finali. Se le risorse sopra sono positive/forti ma i PV qui sono deboli o negativi, il problema NON è la carta: è a valle — mercato, conversioni, o l'AI che non sfrutta le risorse in più. Se anche le risorse sono deboli, il problema è la carta stessa.)
+Welfare 1 (Direzione Sopra, 1ª carta)      -1.2 PV/5 marchi  (dopo acquisto: 55.7 PV, n=1994 · controllo: 56.9 PV, n=2574)
+Welfare 2 (Direzione Sopra, 2ª carta)      -2.9 PV/5 marchi  (dopo acquisto: 42.8 PV, n=1926 · controllo: 45.7 PV, n=2873)
+Macchinario 1 (Direzione Sotto, 1ª carta)  dati insufficienti
+Macchinario 2 (Direzione Sotto, 2ª carta)  dati insufficienti
+(costo medio carta usato per la normalizzazione: 5.0 marchi. "Controllo" = altri giocatori della stessa partita, allo stesso turno, che non avevano ancora comprato quella carta specifica — non "senza quella carta", ma "non ancora quella carta": chi controlla potrebbe comprarla il turno dopo, o spendere quei marchi altrove.)
+
+— TEMPISTICA vs CARTA — quanto pesa il MOMENTO dell'acquisto —
+(la carta non può ridurre la produzione futura per costruzione (avanza solo il tracciato, mai indietro) — se il delta risorse sopra è negativo, sta misurando la scelta "comprare ora invece di fare altro", non la carta in sé. Qui: turno medio d'acquisto e produzioni residue — quante "Attiva reparto" restano DOPO l'acquisto per trasformare il bonus in produzione. Poche produzioni residue = la carta non ha avuto il tempo materiale di ripagarsi, è tempismo. Molte produzioni residue e ritorno ancora debole = è la carta.)
+Welfare 1 (Direzione Sopra, 1ª carta)      turno medio acquisto: 10.5 · turni residui: 30.4 · produzioni residue: 7.8  (n=1994)
+Welfare 2 (Direzione Sopra, 2ª carta)      turno medio acquisto: 22.7 · turni residui: 18.2 · produzioni residue: 4.7  (n=1926)
+Macchinario 1 (Direzione Sotto, 1ª carta)  dati insufficienti
+Macchinario 2 (Direzione Sotto, 2ª carta)  dati insufficienti
+
+=== 5. INDICATORI FUORI RANGE — scostamenti dai bersagli ===
+(🟢 dato osservato vs un bersaglio che decidi TU in INDICATOR_TARGETS. Il simulatore misura la distanza, non sa quale sia il valore giusto.)
+Indicatore                        | Target   | Valore | Stato | Scostamento
+Direzione Sotto a 0 carte         |     <40% |   100% | 🔴    | ██████████ +60pp sopra
+marchi inutilizzati (quota)       |  10%–20% |    11% | 🟢    | —
+% risorse sprecate                |     <25% |     5% | 🟢    | —
+% azioni Servizi                  |   5%–10% |     7% | 🟢    | —
+quota grandi (dei completamenti)  |  20%–35% |    28% | 🟢    | —
+durata (turni)                    |    30–45 |   40.8 | 🟢    | —
+
+1 indicatori fuori range. Per scoprire quali leve li riavvicinano (MISURATO, non ipotizzato): indicatorTable(cfg, leve).
+(i bersagli sono placeholder tuoi: modificali in INDICATOR_TARGETS. Il simulatore non li conosce, li confronta soltanto.)
