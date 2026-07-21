@@ -528,7 +528,10 @@ export function buildFamilyTiles(families) {
 // testarle col Ricalcola, senza dover scorrere tutte le combinazioni. Sola lettura: si editano i mattoni sopra,
 // queste si aggiornano da sole.
 export function buildShowcaseTiles(families) {
-  return families[0].map((_, i) => ({ id: `pfshow${i + 1}`, name: `Piano Nuovo ${i + 1}`, objectives: families.map(fam => fam[i]) }));
+  // famiglie di lunghezza diversa (es. 6 nazioni × 5 industria): itero sulla più corta così ogni
+  // riga-esempio ha un obiettivo per famiglia, mai undefined.
+  const n = Math.min(...families.map(f => f.length));
+  return Array.from({ length: n }, (_, i) => ({ id: `pfshow${i + 1}`, name: `Piano Nuovo ${i + 1}`, objectives: families.map(fam => fam[i]) }));
 }
 
 function FamilyEditor({ families, setFamilies, baseCfg }) {
@@ -550,7 +553,7 @@ function FamilyEditor({ families, setFamilies, baseCfg }) {
           <tbody>
             {families.map((fam, fi) => fam.map((o, oi) => (
               <tr key={`${fi}-${oi}`}>
-                {oi === 0 && <td rowSpan={5}>{FAMILY_LABELS[fi]}</td>}
+                {oi === 0 && <td rowSpan={fam.length}>{FAMILY_LABELS[fi]}</td>}
                 <td>{oi + 1}</td>
                 <td style={{ textAlign: 'left', maxWidth: 260 }}><small>{describeCond(o.cond)}</small></td>
                 <td><input type="number" min="1" max="20" value={o.pv} onChange={e => updObj(fi, oi, { pv: Math.max(1, Math.min(20, Number(e.target.value) || 1)) })} style={{ width: 52 }} /></td>
@@ -772,6 +775,15 @@ function BorsaFabbricheEditor({ bf, setBf }) {
           ? 'si fonda solo con marchi, nessun credito-milestone e nessun settore proprio; la forza verso un settore = quante tue fabbriche sono adiacenti alle risorse di quel colore'
           : 'ogni milestone di reparto dà un credito per fondare una fabbrica di quel settore, accanto a una risorsa dello stesso colore; forza = fabbriche di quel settore'}</span>
       </label>
+      {bf.neutralFactory !== false && (
+        <label style={{ display: 'block', margin: '4px 0' }}>
+          <button className={bf.milestoneGate ? 'sel' : ''} onClick={() => upd({ milestoneGate: true })}>Cancello milestone ON</button>
+          <button className={!bf.milestoneGate ? 'sel' : ''} onClick={() => upd({ milestoneGate: false })}>OFF</button>
+          <span className="hint" style={{ marginLeft: 8 }}>{bf.milestoneGate
+            ? 'fondi solo se hai crediti-milestone non spesi (1 per ogni milestone attraversata, qualsiasi reparto). Ritarda la 1ª fabbrica alla 1ª milestone. NB: nel probe non ha domato lo snowball'
+            : 'nessun cancello: fondi appena hai i marchi (attuale)'}</span>
+        </label>
+      )}
       <h4>Risorsa immediata alla fondazione</h4>
       <label style={{ display: 'block', margin: '4px 0' }}>
         <button className={bf.foundingResource !== false ? 'sel' : ''} onClick={() => upd({ foundingResource: true })}>Attiva</button>
@@ -803,8 +815,14 @@ function BorsaFabbricheEditor({ bf, setBf }) {
       <label style={{ display: 'block', margin: '4px 0' }}>
         <button className={bf.factoryActivates ? 'sel' : ''} onClick={() => upd({ factoryActivates: true })}>Attiva</button>
         <button className={!bf.factoryActivates ? 'sel' : ''} onClick={() => upd({ factoryActivates: false })}>Disattiva</button>
-        <span className="hint" style={{ marginLeft: 8 }}>{bf.factoryActivates ? 'attivando un reparto, le carte Sotto scattano N volte = forza verso quel settore (max 3)' : 'le carte Sotto scattano una volta (normale)'}</span>
+        <span className="hint" style={{ marginLeft: 8 }}>{bf.factoryActivates ? 'attivando un reparto, le carte Sotto scattano N volte = forza verso quel settore' : 'le carte Sotto scattano una volta (normale)'}</span>
       </label>
+      {bf.factoryActivates && (
+        <label style={{ display: 'block', margin: '4px 0' }}>
+          Tetto del moltiplicatore: {num(bf.factoryMultCap ?? 3, v => upd({ factoryMultCap: Math.max(0, Math.min(9, Number(v) || 0)) }))}
+          <span className="hint" style={{ marginLeft: 8 }}>{(bf.factoryMultCap ?? 3) === 0 ? 'nessun tetto: le Sotto scattano quante volte la forza' : `le Sotto scattano al massimo ${bf.factoryMultCap ?? 3}× anche con forza superiore`} · 0 = illimitato</span>
+        </label>
+      )}
       <h4>Maggioranza territoriale</h4>
       <label style={{ display: 'block', margin: '4px 0' }}>
         <button className={bf.majorityBonus?.enabled ? 'sel' : ''} onClick={() => upd({ majorityBonus: { pv: 10, ...bf.majorityBonus, enabled: true } })}>Attiva</button>
@@ -924,26 +942,33 @@ const IMPORT_FIELDS = [
   ['tileMode', 'officina1907-tilemode-v1'],
   ['families', 'officina1907-families-v2'],
 ];
+// Scrive un JSON di configurazione esportata nelle chiavi localStorage (senza toccare lo stato React).
+// Usata sia dall'import manuale sia dal bootstrap baseline (main.jsx). Ritorna i campi scritti.
+export function writeConfigToLS(json) {
+  const applied = [];
+  for (const [key, lsKey] of IMPORT_FIELDS) {
+    if (json[key] === undefined) continue;
+    saveLS(lsKey, json[key]);
+    applied.push(key);
+  }
+  // json.tracks è lo shape per initGame ({terziario,secondario,primario}, sempre stesso array ora):
+  // l'editor ne salva solo uno, sono identici.
+  if (Array.isArray(json.tracks?.terziario) && json.tracks.terziario.length === 17) {
+    saveEditorTrack(json.tracks.terziario, json.tracks.terziario.length === 13 ? 'unito' : 'classico');
+    applied.push('tracks');
+  }
+  return applied;
+}
+
 function ImportConfig({ setters }) {
   const [raw, setRaw] = useState('');
   const [msg, setMsg] = useState(null);
   const apply = () => {
     let json;
     try { json = JSON.parse(raw); } catch { setMsg({ ok: false, text: 'JSON non valido — controlla di aver incollato tutto il testo esportato.' }); return; }
-    const applied = [];
-    for (const [key, lsKey] of IMPORT_FIELDS) {
-      if (json[key] === undefined) continue;
-      saveLS(lsKey, json[key]);
-      setters[key](json[key]);
-      applied.push(key);
-    }
-    // json.tracks è lo shape per initGame ({terziario,secondario,primario}, sempre stesso array ora):
-    // l'editor ne salva solo uno, sono identici.
-    if (Array.isArray(json.tracks?.terziario) && json.tracks.terziario.length === 17) {
-      saveEditorTrack(json.tracks.terziario, json.tracks.terziario.length === 13 ? 'unito' : 'classico');
-      setters.tracks(json.tracks.terziario);
-      applied.push('tracks');
-    }
+    const applied = writeConfigToLS(json);
+    for (const [key] of IMPORT_FIELDS) if (json[key] !== undefined) setters[key](json[key]);
+    if (applied.includes('tracks')) setters.tracks(json.tracks.terziario);
     setMsg(applied.length
       ? { ok: true, text: `Importati ${applied.length} campi: ${applied.join(', ')}.` }
       : { ok: false, text: 'Nessun campo riconosciuto in questo JSON — è davvero una configurazione esportata da qui?' });

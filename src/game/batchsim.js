@@ -777,13 +777,61 @@ function organizeReport(preamble, body, dashboard, researchVerbose, verboseNotes
   return out;
 }
 
+
+// ===== CONFIGURAZIONE — intestazione dell'esperimento (21/07/2026) =====
+// Dump completo delle leve che cambiano il gioco, così due report si confrontano riga-per-riga e si
+// distingue "differenza da regola cambiata" da "variabilità statistica". Il fingerprint in cima è un
+// hash della config: stesso hash = stessa config (solo il seed/campione differisce); hash diverso = una
+// regola è cambiata, e le righe sotto dicono quale.
+function configFingerprint(obj) {
+  const str = JSON.stringify(obj);
+  let h = 5381;
+  for (let i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) >>> 0;
+  return h.toString(16).padStart(8, '0').slice(0, 8);
+}
+function configBlock(cfg, P) {
+  const bf = cfg.borsaFabbriche || {};
+  const tr = cfg.tracks?.terziario || [];
+  const trackLen = tr.length - 1;
+  const milestones = tr.map((c, i) => (c && c.milestone) ? i : null).filter(x => x != null).join('/');
+  const ai = cfg.aiRollout ? `Rollout d${cfg.aiRollout.depth} r${cfg.aiRollout.rollouts}` : 'Greedy';
+  // n nazionalità dell'obiettivo (dalle tessere: prima cond workers_nation)
+  let natN = '?';
+  const tiles = cfg.tiles || [];
+  for (const t of tiles) for (const o of (t.objectives || [])) if (o.cond?.type === 'workers_nation') { natN = o.cond.n; break; }
+  // moltiplicatore fabbrica: cap effettivo (0/1 = spento)
+  const mult = !bf.factoryActivates ? 'OFF' : (bf.factoryMultCap ?? 3) <= 1 ? 'OFF (cap≤1)' : `×${bf.factoryMultCap ?? 3} max`;
+  const factModel = bf.enabled === false ? 'SPENTE'
+    : (bf.neutralFactory !== false ? `neutra${bf.milestoneGate ? '+cancello-milestone' : ''}` : 'legata-settore');
+
+  // oggetto canonico per il fingerprint: SOLO le leve, niente seed/nGames/data
+  const fp = configFingerprint({
+    trackLen, milestones, contractPV: cfg.contractPV, conv: cfg.conversions,
+    coins: (cfg.startingCoins || []).slice(0, P), strike: cfg.strikePenaltyPV,
+    coinsRepeat: cfg.coinsRepeat, singlePlace: cfg.singlePlace,
+    fact: { model: factModel, mult, cost: bf.costCurve, founding: bf.foundingResource, majority: bf.majorityBonus?.enabled ? bf.majorityBonus.pv : 0, passive: bf.passiveIncome },
+    market: cfg.contractMarket, clock: cfg.clockThreshold, natN,
+    tratt: cfg.trattativa, borsa: cfg.borsa,
+  });
+
+  const L = [];
+  L.push('███ CONFIGURAZIONE — intestazione dell\'esperimento');
+  L.push(`fingerprint  ${fp}   (stesso hash = stessa config · hash diverso = una regola è cambiata)`);
+  L.push(`IA           ${ai} · ${P} giocatori`);
+  L.push(`Tracciato    ${trackLen} caselle · milestone a ${milestones} · marchi/attivazione ${cfg.coinsRepeat ? 'sì' : 'no'}`);
+  L.push(`Commesse     PV ${['small', 'medium', 'large'].map(s => cfg.contractPV[s].join('/')).join(' · ')} · ${cfg.singlePlace ? 'posto unico' : '1°+2°'} · mercato ${cfg.contractMarket ?? 2}/taglia · clock ${cfg.clockThreshold ? Object.values(cfg.clockThreshold).join('/') : '8/12/16'}`);
+  L.push(`Fabbriche    ${factModel} · moltiplicatore ${mult} · costo ${bf.costCurve ? bf.costCurve.join('/') : '—'} · risorsa-fondazione ${bf.foundingResource !== false ? 'sì' : 'no'} · maggioranza ${bf.majorityBonus?.enabled ? bf.majorityBonus.pv + 'PV' : 'off'}`);
+  L.push(`Economia     marchi iniziali ${(cfg.startingCoins || []).slice(0, P).join('/') || '10×' + P} · conversioni ${cfg.conversions?.coinsPerPV ?? 10}m=1PV, ${cfg.conversions?.resPerPV ?? 2}R=1PV · scioperi -${cfg.strikePenaltyPV ?? 3}PV`);
+  L.push(`Obiettivi    nazionalità = ${natN} lavoratori`);
+  return L;
+}
+
 export function formatReport(games, cfg) {
   const ok = games.filter(g => !g.failed);
   const P = cfg.nPlayers ?? ok[0]?.results?.length ?? 4; // fallback: deriva dai giocatori di una partita (config esportate senza nPlayers)
   const L = [];
   L.push(`OFFICINA 1907 — SIMULAZIONE ${ok.length}/${games.length} partite, ${P} AI (${new Date().toLocaleString('it-IT')})`);
-  L.push(`Impostazioni: marchi tracciato ${cfg.coinsRepeat ? 'riproducono ogni attivazione' : 'solo attraversamento'} · PV commesse ${['small', 'medium', 'large'].map(s => cfg.contractPV[s].join('/')).join(' · ')} · marchi iniziali ${cfg.startingCoins ? cfg.startingCoins.slice(0, P).join('/') : '10/10/11/11'.split('/').slice(0, P).join('/')} · conversioni finali ${cfg.conversions?.coinsPerPV ?? 3}m=1PV, ${cfg.conversions?.resPerPV ?? 2}R=1PV · fine partita ${cfg.endOnTrigger ? 'immediata al trigger' : 'si completa il giro'} · commesse ${cfg.singlePlace ? 'posto unico' : '1°+2° posto'}${cfg.strikePenalty !== false ? ` · scioperi -${cfg.strikePenaltyPV ?? 3}PV` : ''}`);
-  L.push(`Tracciato: ${trackLine(cfg.tracks.terziario)}`);
+  for (const line of configBlock(cfg, P)) L.push(line);
   L.push('Questo report non decide quali regole cambiare: individua fenomeni osservati e propone quali esperimenti valgono il prossimo A/B.');
   L.push('Livelli di evidenza: 🟢 osservazione · 🟡 correlazione · 🔵 causale (solo da A/B).');
   L.push('');

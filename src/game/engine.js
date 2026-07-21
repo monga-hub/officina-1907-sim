@@ -193,8 +193,12 @@ function adjacentSectors(state, hex) {
 function factoryBuildableSectors(state, p) {
   if (!state.borsaFabbriche.enabled) return [];
   if (p.coins < factoryCost(state, p)) return [];
-  // neutra: nessun gate di credito né di settore — un unico pseudo-settore, i posti sono gli stessi per tutti
-  if (state.borsaFabbriche.neutralFactory) return factoryBuildSpots(state, null).length ? [null] : [];
+  // neutra: nessun gate di settore. Con milestoneGate ON serve un credito-milestone non speso (generico):
+  // creditiGuadagnati (ogni milestone attraversata, qualsiasi reparto) > fabbriche già costruite.
+  if (state.borsaFabbriche.neutralFactory) {
+    if (state.borsaFabbriche.milestoneGate && p.factoryCreditsEarned <= p.factories.length) return [];
+    return factoryBuildSpots(state, null).length ? [null] : [];
+  }
   return SECTORS.filter(s => (p.factoryCredits[s] || 0) > 0 && factoryBuildSpots(state, s).length > 0);
 }
 
@@ -1520,8 +1524,9 @@ function doActivate(state, p, sector) {
   // del reparto (floor 1 = comportamento normale, cap 3). Le fabbriche potenziano le attivazioni bonus.
   let sottoTimes = 1;
   if (state.borsaFabbriche.enabled && state.borsaFabbriche.factoryActivates) {
-    const nFab = factoryStrength(state, p, dept.sector);
-    sottoTimes = Math.min(3, Math.max(1, nFab));
+    const nFab = Math.max(1, factoryStrength(state, p, dept.sector));
+    const cap = state.borsaFabbriche.factoryMultCap ?? 3;   // 0 = illimitato
+    sottoTimes = cap > 0 ? Math.min(cap, nFab) : nFab;
   }
   const cards = dept.sotto.filter(id => !dept.blocked.includes(id));
   // passata BASE (1×): quello che scatterebbe anche senza fabbriche

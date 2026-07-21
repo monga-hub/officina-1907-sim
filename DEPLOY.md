@@ -39,3 +39,15 @@ git push
 ```
 
 Le modifiche di *regole/config* (editor) NON richiedono questo: si fanno dal telefono.
+
+## Config baseline (parte già impostata)
+
+La build include una **config baseline congelata** (`src/game/baseline-config.json`): fabbrica
+neutra, cancello-milestone OFF, slot 3/2, ecc. Al primo caricamento su un dispositivo la scrive
+automaticamente negli editor. Poi ogni modifica fatta dal telefono persiste normalmente (localStorage).
+
+- **Telefono nuovo / mai aperto** → parte già con questa config.
+- **Telefono che aveva la vecchia config** → al primo reload dopo il deploy la sovrascrive **una volta**.
+- **Cambi la baseline e vuoi riforzarla su tutti i dispositivi** → alza `BASELINE_VERSION` in
+  `src/main.jsx` (es. `v1`→`v2`), poi `./deploy.sh`. Al reload i dispositivi riapplicano la nuova baseline
+  una volta (sovrascrive gli edit locali di config — è voluto: "torna alla baseline").

@@ -94,12 +94,14 @@ export const BORSA_FABBRICHE_DEFAULT = {
   costCurve: [0, 0, 0, 0, 0, 0],                // costo della n-esima fabbrica (indice = fabbriche gia possedute); oltre = ultimo
   setupBalance: 'perColorePerIsola',            // 'bilanciato' | 'random' | 'perColorePerIsola'
   passiveIncome: false,                         // true: +1 risorsa/turno per fabbrica; false: solo la risorsa immediata alla fondazione
-  factoryActivates: true,                       // true: le carte Sotto scattano N volte = forza del settore (floor 1, cap 3)
+  factoryActivates: true,                       // true: le carte Sotto scattano N volte = forza del settore (floor 1)
+  factoryMultCap: 3,                            // tetto del moltiplicatore Sotto (0 = illimitato). Editabile.
   // Fabbrica NEUTRA (default 21/07/2026): si fonda solo con marchi (nessun credito-milestone, nessun settore
   // proprio); la sua forza verso un settore = quante fabbriche del giocatore sono adiacenti alle caselle-risorsa
   // di quel colore (contate dal lato risorsa). All'attivazione di un reparto conta solo la forza di quel settore.
   // false = vecchio modello: fabbrica legata a un settore, credito-milestone, adiacenza allo stesso colore.
   neutralFactory: true,
+  milestoneGate: false,                         // neutra + cancello: fondi solo se hai crediti-milestone non spesi (creditiGuadagnati > fabbricheCostruite). Generico, non per settore. Default OFF = invariato.
   foundingResource: true,                       // true: fondando incassi subito 1 risorsa (neutra: una per colore adiacente distinto)
   majorityBonus: { pv: 10, enabled: true },     // PV a fine partita a chi ha più fabbriche attorno a un giacimento (neutra: senza badare al settore)
   maps: {
