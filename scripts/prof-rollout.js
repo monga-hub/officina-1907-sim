@@ -1,0 +1,16 @@
+import { runOneGame } from '../src/game/batchsim.js';
+import { rolloutStats, resetRolloutStats } from '../src/game/ai.js';
+resetRolloutStats();
+const N = parseInt(process.argv[2]||'5',10);
+const t0 = performance.now();
+for (let g=0; g<N; g++) runOneGame({ headless:true, seed:7000+g, aiRollout:{depth:6,rollouts:1}, players:Array.from({length:4},(_,i)=>({name:`AI ${i+1}`,isAI:true})) });
+const total = performance.now()-t0;
+const rs = rolloutStats;
+console.log(`${N} partite d6 in ${(total/1000).toFixed(1)}s → ${(total/N/1000).toFixed(2)}s/partita`);
+console.log(`decisioni rollout ${rs.decisionsRollout} · greedy ${rs.decisionsGreedy}`);
+console.log(`playForward ${rs.playForwardCalls} · steps simulati ${rs.stepsSimulated}`);
+console.log(`applyCommand: ${(rs.msApplyCommand/1000).toFixed(1)}s (${(100*rs.msApplyCommand/total).toFixed(0)}% del totale)`);
+console.log(`evaluate: ${rs.evaluateCalls} chiamate, ${(rs.msEvaluate/1000).toFixed(1)}s (${(100*rs.msEvaluate/total).toFixed(0)}%)`);
+const logs = rs.perDecisionLog;
+const avgCand = logs.reduce((a,l)=>a+l.nCandidates,0)/logs.length;
+console.log(`decisioni rollout: ${logs.length} · candidati medi ${avgCand.toFixed(1)} · ms medio/decisione ${(logs.reduce((a,l)=>a+l.ms,0)/logs.length).toFixed(1)}`);

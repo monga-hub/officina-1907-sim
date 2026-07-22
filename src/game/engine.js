@@ -1324,7 +1324,10 @@ function canPay(p, req) {
 // Clone ricorsivo per oggetti/array puri: molto più veloce di structuredClone sul hot path
 // (l'AI chiama applyCommand a ogni lookahead). Le chiavi in STATIC_KEYS sono immutabili dopo
 // initGame e vengono condivise per riferimento invece che clonate.
-const STATIC_KEYS = new Set(['tracks', 'milestonePos', 'marketUnlockPos', 'tileSlotPos', 'welfareById', 'trackTileById', 'rules', 'nations', 'nodeBanks', 'bankIds']);
+// borsaFabbriche/factoryMap/factoryHexById/factoryHexes/hexResource: geometria+config, scritte solo in
+// initGame (verificato: nessun write nel path di applyCommand) → condivise per riferimento invece di clonate.
+// L'occupazione delle fabbriche vive in hexFactory (mutabile), non qui.
+const STATIC_KEYS = new Set(['tracks', 'milestonePos', 'marketUnlockPos', 'tileSlotPos', 'welfareById', 'trackTileById', 'rules', 'nations', 'nodeBanks', 'bankIds', 'borsaFabbriche', 'factoryMap', 'factoryHexById', 'factoryHexes', 'hexResource']);
 function deepClone(o) {
   if (o === null || typeof o !== 'object') return o;
   if (Array.isArray(o)) { const n = o.length, a = new Array(n); for (let i = 0; i < n; i++) a[i] = deepClone(o[i]); return a; }
