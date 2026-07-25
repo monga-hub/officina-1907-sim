@@ -632,6 +632,7 @@ const REPORT_MAP = [
   ['FABBRICA E NODI', 2, '🟢', 'Costruzione'], ['MERCATO TILE TRACCIATO', 2, '🔵', 'Progressione'], ['CARTE SOTTO vs TILE', 2, '🔵', 'Progressione'],
   // il moltiplicatore non parla della mappa ma del valore delle carte Sotto: sta nel motore
   ['BORSA A FABBRICHE — MOLTIPLICATORE', 2, '🔵', 'Completamento'],
+  ['CICLO DEL MOTORE', 2, '🔵', 'Completamento'],
   // blocco Direzione/Impiegati (storicamente "macchinari"): sviluppo del motore, non economia
   ['MACCHINARI: ACCESSO O VALORE', 2, '🔵', 'Costruzione'], ['MACCHINARI: CON vs SENZA', 2, '⚪', 'Costruzione'],
   ['MACCHINARI: CAUSA, SELEZIONE O SOGLIA', 2, '⚪', 'Costruzione'], ["RISORSE PRODOTTE DOPO L'ACQUISTO", 2, '⚪', 'Costruzione'],
@@ -1900,6 +1901,40 @@ export function formatReport(games, cfg) {
     const resFab = avg(fbGames.flatMap(g => g.borsaFabbriche.resFromFactory));
     L.push(`ogni fabbrica sforna il PROPRIO settore (specializzazione). Risorse da fabbrica ${resFab.toFixed(1)}/giocatore — vedi "% risorse sprecate" e "RISORSE PRODOTTE vs SPESE" sopra per capire se finiscono in commesse o in surplus morto.`);
     L.push('');
+  }
+
+  // CICLO DEL MOTORE — produzioni tra commesse consecutive. Cadenza di CONVERSIONE (costa meno azioni fare
+  // la prossima commessa?), concetto DISTINTO dall'accelerazione economica sopra (ogni azione vale di più).
+  // Possono coesistere: produzione più ricca MA stesso numero di produzioni per commessa.
+  {
+    const trendCount = { cala: 0, piatto: 0, sale: 0 }; let trendTot = 0;
+    const intervalSum = [], intervalN = [];
+    for (const g of ok) {
+      for (let seat = 0; seat < P; seat++) {
+        const cs = (g.contracts[seat] || []).map(c => c.turn).filter(Boolean).sort((a, b) => a - b);
+        if (cs.length < 2) continue;
+        const acts = (g.activateLog || []).filter(a => a.seat === seat).map(a => a.turn).sort((a, b) => a - b);
+        const seq = []; let prev = 0;
+        for (const t of cs) { seq.push(acts.filter(a => a > prev && a <= t).length); prev = t; }
+        for (let k = 0; k < seq.length; k++) { intervalSum[k] = (intervalSum[k] || 0) + seq[k]; intervalN[k] = (intervalN[k] || 0) + 1; }
+        const body = seq.slice(1);
+        if (body.length >= 2) {
+          const h = Math.floor(body.length / 2), av = a => a.reduce((x, y) => x + y, 0) / a.length;
+          const d = av(body.slice(-h)) - av(body.slice(0, h));
+          trendCount[d <= -0.75 ? 'cala' : d >= 0.75 ? 'sale' : 'piatto']++; trendTot++;
+        }
+      }
+    }
+    if (trendTot) {
+      L.push('=== CICLO DEL MOTORE — ogni nuova commessa costa meno azioni? ===');
+      L.push('(produzioni spese tra una commessa e la successiva, aggregato su tutti i giocatori-partita. Engine builder sano = la sequenza CALA. È la cadenza di CONVERSIONE in commesse: concetto distinto dall\'accelerazione economica sopra — ogni produzione può valere di più e servire comunque lo stesso numero di produzioni per commessa.)');
+      L.push(`Trend (esclude avvio→1ª): 📉 cala ${pct(trendCount.cala / trendTot)} · ➖ piatto ${pct(trendCount.piatto / trendTot)} · 📈 sale ${pct(trendCount.sale / trendTot)}  (n=${trendTot} giocatori-partita con ≥3 commesse)`);
+      const labels = ['avvio→1ª', '1ª→2ª', '2ª→3ª', '3ª→4ª', '4ª→5ª', '5ª→6ª', '6ª→7ª'];
+      L.push('Produzioni medie per intervallo:');
+      for (let k = 0; k < intervalSum.length && k < labels.length; k++) if (intervalN[k] >= 5) L.push(`  ${labels[k].padEnd(9)} ${(intervalSum[k] / intervalN[k]).toFixed(1)}  (n=${intervalN[k]})`);
+      L.push('(se i numeri dopo avvio→1ª restano piatti o salgono, il costo-azioni della conversione non cala: la promessa dell\'engine builder non è mantenuta — indipendentemente da quanto rende ogni produzione.)');
+      L.push('');
+    }
   }
 
   L.push('=== MERCATO TILE TRACCIATO — quanto viene usato? (2.0, homebrew 14/07/2026) ===');

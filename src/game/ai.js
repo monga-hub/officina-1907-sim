@@ -338,6 +338,19 @@ function neededResource(p, needs) {
 
 // ----- fase movimento: lookahead nodo → miglior azione -----
 function chooseMove(state, p) {
+  // chooseProduction: produrre è gratis e non finisce il turno → fallo prima di muovere, scegliendo il colore utile.
+  const prod = legalCommands(state).filter(c => c.type === 'produceFactory');
+  if (prod.length) {
+    const needs = resourceNeeds(state, p);
+    const want = neededResource(p, needs); // colore col fabbisogno-commesse maggiore, o null
+    let best = null;
+    for (const c of prod) {
+      const gap = (needs[c.sector] || 0) - p.resources[RESOURCE_OF[c.sector]];
+      const score = (c.sector === want ? 100 : 0) + gap - (p.resources[RESOURCE_OF[c.sector]] || 0) * 0.1 + noise(state, p.id, 'prod-' + c.sector) * 0.3;
+      if (!best || score > best.score) best = { cmd: c, score };
+    }
+    return best.cmd;
+  }
   const moves = legalCommands(state).filter(c => c.type === 'move');
   const moveCost = profileOf(p).moveCost;
   let best = null;

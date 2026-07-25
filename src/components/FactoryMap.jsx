@@ -8,7 +8,7 @@ const S = 24, SQ3 = Math.sqrt(3);
 function center(c, r) { return [30 + SQ3 * S * (c + 0.5 * (r & 1)), 28 + 1.5 * S * r]; }
 function pts(cx, cy) { let a = []; for (let i = 0; i < 6; i++) { const g = Math.PI / 180 * (60 * i - 30); a.push((cx + S * Math.cos(g)).toFixed(1) + ',' + (cy + S * Math.sin(g)).toFixed(1)); } return a.join(' '); }
 
-export default function FactoryMap({ state, legal, dispatch }) {
+export default function FactoryMap({ state, legal, dispatch, majorityByRes = {} }) {
   const active = new Set(state.factoryHexes || []);
   const hexes = (state.factoryMap || FACTORY_MAP).hexes.filter(h => active.has(h.id));
   if (!hexes.length) return null;
@@ -27,8 +27,9 @@ export default function FactoryMap({ state, legal, dispatch }) {
           const fact = state.hexFactory[h.id];
           const resSector = state.hexResource[h.id];
           const spot = spotCmds[h.id];
+          const majWinner = h.type === 'risorsa' ? majorityByRes[h.id] : undefined; // null=pareggio, id=vincitore
           let fill = 'rgba(255,255,255,0.04)', stroke = 'rgba(200,180,150,0.25)', sw = 1.5;
-          if (h.type === 'risorsa') { fill = SECTOR_COLORS[resSector] || '#4a3a22'; stroke = '#e8c98a'; sw = 2; }
+          if (h.type === 'risorsa') { fill = SECTOR_COLORS[resSector] || '#4a3a22'; stroke = majWinner != null ? colorOf(majWinner) : '#e8c98a'; sw = majWinner != null ? 4 : 2; }
           else if (fact) { fill = colorOf(fact.playerId); stroke = SECTOR_COLORS[fact.sector] || '#fff'; sw = 3; }
           else if (spot) { fill = 'rgba(120,200,120,0.18)'; stroke = '#6fd66f'; sw = 2.5; }
           return (
@@ -36,9 +37,10 @@ export default function FactoryMap({ state, legal, dispatch }) {
               <polygon points={pts(cx, cy)} fill={fill} stroke={stroke} strokeWidth={sw}
                 style={{ cursor: spot ? 'pointer' : 'default' }}
                 onClick={() => spot && dispatch(spot[0])}>
-                <title>{h.type === 'risorsa' ? `Risorsa ${resSector ? RESOURCE_OF[resSector] : '?'}` : fact ? `Fabbrica ${fact.sector}` : spot ? `Fonda: ${spot.map(c => c.sector).join('/')}` : h.id}</title>
+                <title>{h.type === 'risorsa' ? `Risorsa ${resSector ? RESOURCE_OF[resSector] : '?'}${majWinner != null ? ` · giacimento vinto da ${state.players[majWinner]?.name}` : ''}` : fact ? `Fabbrica ${fact.sector}` : spot ? `Fonda: ${spot.map(c => c.sector).join('/')}` : h.id}</title>
               </polygon>
-              {h.type === 'risorsa' && <text x={cx} y={cy + 4} textAnchor="middle" fontSize="11" fontWeight="700" fill="#1a130c" style={{ pointerEvents: 'none' }}>R</text>}
+              {h.type === 'risorsa' && majWinner == null && <text x={cx} y={cy + 4} textAnchor="middle" fontSize="11" fontWeight="700" fill="#1a130c" style={{ pointerEvents: 'none' }}>R</text>}
+              {h.type === 'risorsa' && majWinner != null && <text x={cx} y={cy + 5} textAnchor="middle" fontSize="14" style={{ pointerEvents: 'none' }}>👑</text>}
               {fact && <text x={cx} y={cy + 4} textAnchor="middle" fontSize="12" fontWeight="700" fill="#fff" style={{ pointerEvents: 'none' }}>🏭</text>}
               {spot && <text x={cx} y={cy + 4} textAnchor="middle" fontSize="14" fontWeight="700" fill="#6fd66f" style={{ pointerEvents: 'none' }}>+</text>}
             </g>

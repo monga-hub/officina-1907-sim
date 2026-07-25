@@ -152,6 +152,16 @@ export default function FactoryBoard({ state, player, isCurrent }) {
                 </div>
               ))}
             </div>}
+            {player.contractEngines?.length > 0 && (
+              <div className="dept-row">
+                <small>Commesse-motore {player.contractEngines.length}</small>
+                {player.contractEngines.map((e, i) => (
+                  <div key={i} className="chip welfare" style={{ borderLeft: `3px solid ${SECTOR_COLORS[e.sector]}`, opacity: e.usesLeft > 0 ? 1 : 0.4 }} title={`A inizio turno produce ${RESOURCE_OF[e.sector]} × fabbriche che toccano ${e.sector}. Usi residui: ${e.usesLeft ?? 0}`}>
+                    🏭 {RESOURCE_OF[e.sector]} {e.usesLeft > 0 ? '·'.repeat(e.usesLeft) : '✓'}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
           <div className="won">
             {player.contractsWon.map((c, i) => (

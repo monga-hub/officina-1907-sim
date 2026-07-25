@@ -20,6 +20,16 @@ export default function ActionPanel({ state, dispatch }) {
     <div className="actions">
       <h3>Azioni — {p.name}</h3>
       {state.phase === 'move' && <p className="hint">Clicca un nodo della Città per spostare il Procuratore (slot 1 gratis, slot 2 = 1 marco; alla Borsa puoi restare).</p>}
+      {state.phase === 'move' && legal.some(c => c.type === 'produceFactory') && (
+        <div style={{ margin: '6px 0' }}>
+          <p className="hint" style={{ marginBottom: 4 }}>Produzione a scelta (gratis, 1/turno): una fabbrica produce…</p>
+          {legal.filter(c => c.type === 'produceFactory').map(c => (
+            <button key={c.sector} onClick={() => dispatch(c)} style={{ borderLeft: `4px solid ${SECTOR_COLORS[c.sector]}` }}>
+              {RESOURCE_OF[c.sector]} ({c.sector})
+            </button>
+          ))}
+        </div>
+      )}
       {state.phase === 'action' && <NodeActions state={state} p={p} legal={legal} dispatch={dispatch} />}
       {state.phase === 'borsa' && <BorsaActions state={state} p={p} legal={legal} dispatch={dispatch} />}
     </div>

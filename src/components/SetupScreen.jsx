@@ -96,7 +96,9 @@ function PlanciaEditor({ slots, setSlots, tension, setTension, track, setTrack, 
   );
 }
 
-function CommesseEditor({ count, setCount, market, setMarket, pv, setPV, milestoneReq, setMilestoneReq }) {
+function CommesseEditor({ count, setCount, market, setMarket, pv, setPV, milestoneReq, setMilestoneReq, contractEngine, setContractEngine, contractEngineUses, setContractEngineUses }) {
+  const updEngine = v => { setContractEngine(v); saveLS('officina1907-contractengine-v1', v); };
+  const updUses = v => { const x = Math.max(1, Math.min(9, Number(v) || 1)); setContractEngineUses(x); saveLS('officina1907-contractengineuses-v1', x); };
   const updCount = (size, v) => { const next = { ...count, [size]: Math.max(1, Math.min(COMBO_MAX[size], Number(v) || 1)) }; setCount(next); saveLS('officina1907-contractcount-v4', next); };
   const updPV = (size, v) => { const next = structuredClone(pv); next[size][0] = Math.max(0, Math.min(99, Number(v) || 0)); setPV(next); saveLS('officina1907-contractpv-v1', next); };
   const updMarket = v => { const x = Math.max(1, Math.min(12, Number(v) || 1)); setMarket(x); saveLS('officina1907-market-v2', x); };
@@ -104,6 +106,18 @@ function CommesseEditor({ count, setCount, market, setMarket, pv, setPV, milesto
   return (
     <div className="track-editor">
       <p className="hint">Pool per taglia = combo in duplice copia (piccole {COMBO_MAX.small}, medie {COMBO_MAX.medium}) o singola (grandi {COMBO_MAX.large}). A inizio partita il pool è mescolato e ne vengono estratte «Carte nel mazzo» (max = pool) per formare il mazzo di gioco. «Scoperte» = quante visibili a inizio partita (si rinfrescano a completamento). «Milestone» = milestone di tracciato (0-3) per completare una commessa di quella taglia. Salvato nel browser.</p>
+      <h4 style={{ textAlign: 'left' }}>Commessa completata → carta-motore sotto la Direzione</h4>
+      <label style={{ display: 'block', margin: '4px 0 10px' }}>
+        <button className={contractEngine ? 'sel' : ''} onClick={() => updEngine(true)}>Attiva</button>
+        <button className={!contractEngine ? 'sel' : ''} onClick={() => updEngine(false)}>Disattiva</button>
+        <span className="hint" style={{ marginLeft: 8 }}>{contractEngine ? 'ogni commessa completata va sotto la Direzione: a inizio turno produce la sua risorsa dominante × fabbriche che toccano quel colore (forza-settore)' : 'le commesse completate danno solo PV'}</span>
+      </label>
+      {contractEngine && (
+        <label style={{ display: 'block', margin: '4px 0 10px' }}>
+          Usi (cubetti) per carta-motore: <input type="number" min="1" max="9" value={contractEngineUses} onChange={e => updUses(e.target.value)} style={{ width: 44 }} />
+          <span className="hint" style={{ marginLeft: 8 }}>produce per {contractEngineUses} turni, poi si esaurisce</span>
+        </label>
+      )}
       <table className="pv-editor">
         <thead><tr><th>Taglia</th><th>Carte nel mazzo</th><th>PV vincitore</th><th>Milestone richieste</th></tr></thead>
         <tbody>
@@ -784,6 +798,15 @@ function BorsaFabbricheEditor({ bf, setBf }) {
             : 'nessun cancello: fondi appena hai i marchi (attuale)'}</span>
         </label>
       )}
+      {bf.neutralFactory !== false && (
+        <label style={{ display: 'block', margin: '4px 0' }}>
+          <button className={bf.cardGate ? 'sel' : ''} onClick={() => upd({ cardGate: true })}>Gate carte reparto ON</button>
+          <button className={!bf.cardGate ? 'sel' : ''} onClick={() => upd({ cardGate: false })}>OFF</button>
+          <span className="hint" style={{ marginLeft: 8 }}>{bf.cardGate
+            ? 'fabbriche vicino a una risorsa di un colore ≤ carte Sopra nel reparto di quel settore: 1 carta Sopra = 1 fabbrica di quel colore, 2 = 2, ecc.'
+            : 'nessun gate carte'}</span>
+        </label>
+      )}
       <h4>Risorsa immediata alla fondazione</h4>
       <label style={{ display: 'block', margin: '4px 0' }}>
         <button className={bf.foundingResource !== false ? 'sel' : ''} onClick={() => upd({ foundingResource: true })}>Attiva</button>
@@ -810,6 +833,12 @@ function BorsaFabbricheEditor({ bf, setBf }) {
         <button className={bf.passiveIncome !== false ? 'sel' : ''} onClick={() => upd({ passiveIncome: true })}>Attiva</button>
         <button className={bf.passiveIncome === false ? 'sel' : ''} onClick={() => upd({ passiveIncome: false })}>Disattiva</button>
         <span className="hint" style={{ marginLeft: 8 }}>{bf.passiveIncome === false ? 'solo la risorsa immediata alla fondazione, niente rendita' : '+1 risorsa/turno per fabbrica + quella immediata'}</span>
+      </label>
+      <h4>Produzione a scelta (1/turno)</h4>
+      <label style={{ display: 'block', margin: '4px 0' }}>
+        <button className={bf.chooseProduction ? 'sel' : ''} onClick={() => upd({ chooseProduction: true })}>Attiva</button>
+        <button className={!bf.chooseProduction ? 'sel' : ''} onClick={() => upd({ chooseProduction: false })}>Disattiva</button>
+        <span className="hint" style={{ marginLeft: 8 }}>{bf.chooseProduction ? 'a inizio turno il giocatore sceglie 1 risorsa da produrre (tra i colori adiacenti alle sue fabbriche), gratis' : 'nessuna produzione a scelta'}</span>
       </label>
       <h4>Fabbriche potenziano le attivazioni</h4>
       <label style={{ display: 'block', margin: '4px 0' }}>
@@ -932,6 +961,8 @@ const IMPORT_FIELDS = [
   ['contractCount', 'officina1907-contractcount-v4'],
   ['contractMarket', 'officina1907-market-v2'],
   ['contractMilestoneReq', 'officina1907-contractmsreq-v2'],
+  ['contractEngine', 'officina1907-contractengine-v1'],
+  ['contractEngineUses', 'officina1907-contractengineuses-v1'],
   ['welfareEnabled', 'officina1907-welfareenabled-v1'],
   ['tiles', 'officina1907-tiles-v2'],
   ['trackTiles', 'officina1907-tracktiles-v2'],
@@ -992,6 +1023,7 @@ export default function SetupScreen({ onStart }) {
     { name: 'Quarto', isAI: true, boardId: 'p6', personality: 'neutro' },
   ]);
   const [seed, setSeed] = useState('');
+  const [aiStrong, setAiStrong] = useState(false); // IA forte = rollout d6 (default off: greedy, veloce)
   const [trattativa, setTrattativa] = useState(loadTrattativa);
   const [borsa, setBorsa] = useState(loadBorsa);
   const [borsaExit, setBorsaExit] = useState(loadBorsaExit);
@@ -1012,6 +1044,8 @@ export default function SetupScreen({ onStart }) {
   const [count, setCount] = useState(loadCount);
   const [market, setMarket] = useState(loadMarket);
   const [milestoneReq, setMilestoneReq] = useState(loadMilestoneReq);
+  const [contractEngine, setContractEngine] = useState(() => loadLS('officina1907-contractengine-v1', false));
+  const [contractEngineUses, setContractEngineUses] = useState(() => loadLS('officina1907-contractengineuses-v1', 3));
   const [tiles, setTiles] = useState(loadTiles);
   const [families, setFamilies] = useState(loadFamilies);
   const [tileMode, setTileMode] = useState(() => loadLS('officina1907-tilemode-v1', 'families'));
@@ -1035,7 +1069,7 @@ export default function SetupScreen({ onStart }) {
     borsaFabbriche: { ...borsaFabbriche, maps: { 2: borsaFabbriche.maps?.[2] || DEFAULT_FACTORY_MAPS[2], 3: borsaFabbriche.maps?.[3] || DEFAULT_FACTORY_MAPS[3], 4: borsaFabbriche.maps?.[4] || DEFAULT_FACTORY_MAPS[4] } },
     strikePenaltyPV: strikePV,
     slots, startTension: tension, contractCount: count, contractMarket: market,
-    contractMilestoneReq: milestoneReq,
+    contractMilestoneReq: milestoneReq, contractEngine, contractEngineUses,
     // toggle in "Editor nuovo mazzo": mazzo unificato 84 carte (lavoratori+impiegati), 6 nazioni (+Greci),
     // 5 mazzetti fisici (nodeBanks) al posto delle coppie di nazioni adiacenti. Niente più azione separata
     // a Servizi per gli Impiegati — sempre Welfare/Macchinari classico lì (servicesMode di default).
@@ -1059,6 +1093,7 @@ export default function SetupScreen({ onStart }) {
   const start = () => {
     onStart({
       ...cfg(),
+      aiRollout: aiStrong ? { depth: 6, rollouts: 1 } : null, // gioco singolo: greedy (default) o rollout d6
       seed: seed.trim() === '' ? undefined : (Number(seed) || 0),
       players: players.slice(0, n).map(p => ({ name: p.name.trim() || undefined, isAI: p.isAI, boardId: p.boardId || undefined, personality: p.isAI ? p.personality : undefined })),
     });
@@ -1111,6 +1146,9 @@ export default function SetupScreen({ onStart }) {
         </table>
         <label className="seed">Seed (opzionale): <input value={seed} onChange={e => setSeed(e.target.value)} placeholder="casuale" /></label>
         <label style={{ display: 'block', margin: '8px 0' }}>
+          <input type="checkbox" checked={aiStrong} onChange={e => setAiStrong(e.target.checked)} /> IA forte (rollout d6 — gioca meglio, ogni mossa AI più lenta). Spenta = greedy, istantanea.
+        </label>
+        <label style={{ display: 'block', margin: '8px 0' }}>
           Piano Industriale:{' '}
           <button className={tileMode === 'classic' ? 'sel' : ''} onClick={() => setTileModeAndSave('classic')}>Tessere fisse ({tiles.length})</button>
           <button className={tileMode === 'families' ? 'sel' : ''} onClick={() => setTileModeAndSave('families')}>Nuovo (6 nazionalità × 5 industria, 30 combinazioni)</button>
@@ -1140,7 +1178,7 @@ export default function SetupScreen({ onStart }) {
           ))}
         </div>
         {open === 'plancia' && <PlanciaEditor slots={slots} setSlots={setSlots} tension={tension} setTension={setTension} track={track} setTrack={setTrack} trackModel={trackModel} setTrackModel={setTrackModel} />}
-        {open === 'commesse' && <CommesseEditor count={count} setCount={setCount} market={market} setMarket={setMarket} pv={contractPV} setPV={setContractPV} milestoneReq={milestoneReq} setMilestoneReq={setMilestoneReq} />}
+        {open === 'commesse' && <CommesseEditor count={count} setCount={setCount} market={market} setMarket={setMarket} pv={contractPV} setPV={setContractPV} milestoneReq={milestoneReq} setMilestoneReq={setMilestoneReq} contractEngine={contractEngine} setContractEngine={setContractEngine} contractEngineUses={contractEngineUses} setContractEngineUses={setContractEngineUses} />}
         {open === 'tratt' && <TrattativaEditor tratt={trattativa} setTratt={setTrattativa} />}
         {open === 'borsa' && <BorsaEditor borsa={borsa} setBorsa={setBorsa} borsaExit={borsaExit} setBorsaExit={setBorsaExit} borsaRefresh={borsaRefresh} setBorsaRefresh={setBorsaRefresh} />}
         {open === 'borsafabbriche' && <BorsaFabbricheEditor bf={borsaFabbriche} setBf={setBorsaFabbriche} />}
@@ -1158,7 +1196,7 @@ export default function SetupScreen({ onStart }) {
           contractPV: setContractPV, conversions: setConversions, strikePenaltyPV: setStrikePV,
           startingCoins: setStartCoins, trattativa: setTrattativa, borsa: setBorsa, borsaExit: setBorsaExit, borsaRefresh: setBorsaRefresh, borsaFabbriche: setBorsaFabbriche, slots: setSlots,
           startTension: setTension, contractCount: setCount, contractMarket: setMarket,
-          contractMilestoneReq: setMilestoneReq, welfareEnabled: setWelfareEnabled, tiles: setTiles,
+          contractMilestoneReq: setMilestoneReq, contractEngine: setContractEngine, contractEngineUses: setContractEngineUses, welfareEnabled: setWelfareEnabled, tiles: setTiles,
           trackTiles: setTrackTiles, trackTileCap: setTrackTileCap,
           clockThreshold: setClocks, indicatorTargets: setTargets, tracks: setTrack,
           newWorkers: setNewWorkers, tileMode: setTileMode, families: setFamilies,

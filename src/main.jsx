@@ -8,7 +8,7 @@ import './styles.css';
 // Config baseline: al primo avvio (o dopo un bump di versione) scrive la config congelata
 // nelle chiavi localStorage, come se l'utente l'avesse importata. Dopo, gli edit dell'utente
 // persistono normalmente. Per riforzare la baseline dopo un cambio, alza BASELINE_VERSION.
-const BASELINE_VERSION = 'v1';
+const BASELINE_VERSION = 'v2';
 try {
   if (localStorage.getItem('officina1907-baseline-applied') !== BASELINE_VERSION) {
     baseline.newWorkers = baseline.newWorkers || baseline.workers; // l'import legge newWorkers; il file tiene solo workers

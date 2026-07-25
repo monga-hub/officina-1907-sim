@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import FactoryBoard from './FactoryBoard.jsx';
-import { totalResources, describeCond } from '../game/engine.js';
+import FactoryMap from './FactoryMap.jsx';
+import { totalResources, describeCond, factoryMajorityWinner } from '../game/engine.js';
 import { CONTRACTS, SECTOR_COLORS, NODES, SECTORS } from '../game/data.js';
+import { economy, buildStory, buildEvents, buildDiagnosis, buildAnomalies, factoryStats, matchHeadline, matchNormality, matchTurningPoints, matchLesson, productionCadence } from '../game/matchReport.js';
 
 const SIZE_LABEL = { small: 'Piccola', medium: 'Media', large: 'Grande' };
 const RES_DOT = { Tessile: '🧵', Metallurgica: '⚒', Chimica: '⚗' };
@@ -23,12 +25,44 @@ function buildReport(state) {
     `conversioni ${state.rules.coinsPerPV}ⓜ=1PV, ${state.rules.resPerPV}R=1PV`,
   ];
   L.push('Impostazioni: ' + opt.join(' · '));
+  L.push('');
+  L.push('▶ ' + matchHeadline(state));
+  const nrm = matchNormality(state);
+  L.push(`${nrm.level} Andamento ${nrm.label}${nrm.reasons.length ? ' — ' + nrm.reasons.join(' · ') : ''}`);
+  L.push('💡 Cosa imparare: ' + matchLesson(state));
+  L.push('');
+  L.push('═══ STORIA DELLA PARTITA ═══');
+  buildStory(state).forEach(s => L.push('• ' + s));
+  L.push('');
+  L.push('═══ DECISIONI CHE HANNO CAMBIATO LA PARTITA ═══');
+  matchTurningPoints(state).forEach(tp => L.push('  ' + tp));
+  L.push('');
+  L.push('═══ MOMENTI DECISIVI ═══');
+  buildEvents(state).forEach(ev => L.push('  ' + ev));
+  L.push('');
+  L.push('═══ PERCHÉ ═══');
+  buildDiagnosis(state).forEach(d => { L.push(d.head); d.reasons.forEach(x => L.push('  – ' + x)); });
+  L.push('');
+  const cad = productionCadence(state).filter(c => c.seq.length >= 2);
+  if (cad.length) {
+    L.push('═══ CICLO DEL MOTORE (produzioni tra commesse; cala = engine builder sano) ═══');
+    cad.forEach(c => L.push(`  ${c.name}: ${c.seq.join('→')}${c.trend ? ` (${c.trend} ${c.delta > 0 ? '+' : ''}${c.delta})` : ''}`));
+    L.push('');
+  }
+  L.push('═══ ANOMALIE ═══');
+  buildAnomalies(state).forEach(a => L.push('  ' + a));
+  L.push('');
+  L.push('─────────────────────────────────────────');
+  L.push('DETTAGLIO COMPLETO (per approfondire)');
+  L.push('─────────────────────────────────────────');
   L.push(`Vince ${r[0].name} con ${r[0].total} PV.`);
   L.push('');
-  L.push('Classifica (PV: Commesse / Piano Ind. / Tracciati / Marchi / Risorse / Scioperi = Totale):');
+  const showFac = r.some(x => x.pvFactoryMajority), showBor = r.some(x => x.pvBorsa);
+  L.push(`Classifica (PV: Commesse / Piano Ind. / Tracciati${showFac ? ' / Fabbriche' : ''}${showBor ? ' / Borsa' : ''} / Marchi / Risorse / Scioperi = Totale):`);
   r.forEach((x, i) => {
     const p = players[x.playerId];
-    L.push(`${i + 1}° ${x.name} [${p.boardName}] — ${x.pvContracts}/${x.pvObjectives}/${x.pvTrack}/${x.pvCoins}/${x.pvResources}/${x.pvStrikes || 0} = ${x.total} PV · ${p.coins}ⓜ, ${totalResources(p)} risorse, ${p.activations} attivazioni rimasti`);
+    const parts = [x.pvContracts, x.pvObjectives, x.pvTrack, ...(showFac ? [x.pvFactoryMajority || 0] : []), ...(showBor ? [x.pvBorsa || 0] : []), x.pvCoins, x.pvResources, x.pvStrikes || 0];
+    L.push(`${i + 1}° ${x.name} [${p.boardName}] — ${parts.join('/')} = ${x.total} PV · ${p.coins}ⓜ, ${totalResources(p)} risorse, ${p.activations} attivazioni rimasti`);
   });
   L.push('');
   players.forEach(p => {
@@ -62,29 +96,6 @@ function buildReport(state) {
   L.push('— ANALISI DEI RISULTATI —');
   buildAnalysis(state).forEach(line => L.push('• ' + line));
   return L.join('\n');
-}
-
-// Efficienza economica: quanto un giocatore ha CONVERTITO produzione in punti (non solo accumulato).
-function economy(p) {
-  const resProd = SECTORS.reduce((a, s) => a + (p.resGen?.[s] || 0), 0);
-  const resSpent = SECTORS.reduce((a, s) => a + (p.resSpent?.[s] || 0), 0);
-  const gained = p.coinsGained || 0;
-  const spent = (p.coinsStart || 0) + gained - p.coins; // marchi spesi = iniziali + guadagnati − finali
-  const nc = p.contractsWon.length;
-  const per = x => (nc > 0 ? (x / nc).toFixed(1) : '—');
-  // cadenza commesse: sequenza dei turni + gap (la media sola inganna con 2-3 commesse)
-  const turns = p.contractsWon.map(c => c.turn).filter(Boolean).sort((a, b) => a - b);
-  const gaps = turns.slice(1).map((t, i) => t - turns[i]);
-  const span = turns.length ? `t${turns[0]}${turns.length > 1 ? `→t${turns[turns.length - 1]}` : ''}` : '—';
-  const seqStr = turns.length ? turns.map(t => 't' + t).join('→') : '—';
-  const gapStr = gaps.length ? gaps.join('/') : '—';
-  return {
-    resProd, resSpent, effRes: resProd > 0 ? Math.round((100 * resSpent) / resProd) : 0,
-    gained, spent, final: p.coins, prod: p.activations, nc,
-    prodPerC: per(p.activations), resPerC: per(resProd), span, seqStr, gapStr,
-    start: p.coinsStart || 0,
-    by: p.coinsSpentBy || { lavoratori: 0, direzione: 0, sindacato: 0, borsa: 0, movimento: 0 },
-  };
 }
 
 // Osservazioni auto-generate dalla singola partita.
@@ -213,19 +224,143 @@ export default function EndScreen({ state, onRestart }) {
     }
   };
 
+  const showFacPV = r.some(x => x.pvFactoryMajority);   // colonne PV opzionali: solo se qualcuno le ha
+  const showBorsaPV = r.some(x => x.pvBorsa);
+
   return (
     <div className="setup wide">
       <h1>Fine partita</h1>
       <p className="tagline">Vince <b>{r[0].name}</b> con {r[0].total} Punti Vittoria!</p>
       <button className="primary" onClick={copy}>{copied ? '✓ Copiato!' : '📋 Copia risultati (per la chat)'}</button>
 
-      <div className="track-editor" style={{ textAlign: 'left', marginTop: 12 }}>
-        <h3 style={{ marginTop: 0 }}>Analisi dei risultati</h3>
-        <ul>{buildAnalysis(state).map((line, i) => <li key={i}>{line}</li>)}</ul>
+      {(() => { const n = matchNormality(state); return (
+        <div className="track-editor" style={{ textAlign: 'left', marginTop: 12 }}>
+          <p style={{ fontSize: 17, fontWeight: 600, margin: '0 0 8px' }}>{matchHeadline(state)}</p>
+          <p style={{ margin: 0 }}>{n.level} Andamento <b>{n.label}</b>{n.reasons.length ? ' — ' + n.reasons.join(' · ') : '.'}</p>
+        </div>
+      ); })()}
+
+      <div className="track-editor" style={{ textAlign: 'left', marginTop: 12, borderLeft: '3px solid #c9a24a' }}>
+        <h3 style={{ marginTop: 0 }}>💡 Cosa imparare da questa partita</h3>
+        <p style={{ margin: 0, fontStyle: 'italic' }}>{matchLesson(state)}</p>
+        <p className="hint" style={{ marginTop: 6 }}>Lettura interpretativa (le sezioni sopra sono osservazioni: numeri a confronto, senza deduzioni).</p>
       </div>
+
+      <div className="track-editor" style={{ textAlign: 'left', marginTop: 12 }}>
+        <h3 style={{ marginTop: 0 }}>📖 Storia della partita</h3>
+        <ul>{buildStory(state).map((line, i) => <li key={i}>{line}</li>)}</ul>
+      </div>
+
+      <div className="track-editor" style={{ textAlign: 'left', marginTop: 12 }}>
+        <h3 style={{ marginTop: 0 }}>🔀 Decisioni che hanno cambiato la partita</h3>
+        <ul>{matchTurningPoints(state).map((line, i) => <li key={i}>{line}</li>)}</ul>
+      </div>
+
+      <div className="track-editor" style={{ textAlign: 'left', marginTop: 12 }}>
+        <h3 style={{ marginTop: 0 }}>⏱ Momenti decisivi</h3>
+        <ul>{buildEvents(state).map((line, i) => <li key={i}>{line}</li>)}</ul>
+      </div>
+
+      <div className="track-editor" style={{ textAlign: 'left', marginTop: 12 }}>
+        <h3 style={{ marginTop: 0 }}>🎯 Perché</h3>
+        {buildDiagnosis(state).map((d, i) => (
+          <div key={i} style={{ marginBottom: 8 }}>
+            <b>{d.head}</b>
+            <ul style={{ marginTop: 4 }}>{d.reasons.map((x, j) => <li key={j}>{x}</li>)}</ul>
+          </div>
+        ))}
+      </div>
+
+      <div className="track-editor" style={{ textAlign: 'left', marginTop: 12 }}>
+        <h3 style={{ marginTop: 0 }}>⚠ Anomalie</h3>
+        <ul>{buildAnomalies(state).map((line, i) => <li key={i}>{line}</li>)}</ul>
+      </div>
+
+      {(() => {
+        const cad = productionCadence(state).filter(c => c.seq.length >= 2);
+        if (!cad.length) return null;
+        const TREND = { cala: '📉 cala', piatto: '➖ piatto', sale: '📈 sale' };
+        const fmt = d => (d > 0 ? '+' : '') + d;
+        return (
+          <div className="track-editor" style={{ textAlign: 'left', marginTop: 12 }}>
+            <h3 style={{ marginTop: 0 }}>⚙ Ciclo del motore — ogni commessa costa meno azioni?</h3>
+            <p className="hint">Attivazioni spese per arrivare a ogni commessa (avvio→1ª, poi 1ª→2ª, …). Engine builder sano: la sequenza <b>cala</b> (es. 6→4→3→2). <b>Piatta</b> (5→5→5) = il motore non riduce il costo-azioni di una nuova commessa. Misura la cadenza di <i>conversione</i> — distinta dall'accelerazione economica (marchi/produzione).</p>
+            <table className="results">
+              <thead><tr><th>Giocatore</th><th>Produzioni per commessa (avvio→1ª→…)</th><th className="sep">Andamento</th></tr></thead>
+              <tbody>
+                {cad.map(c => (
+                  <tr key={c.name}>
+                    <td style={{ color: c.color }}>{c.name}</td>
+                    <td>{c.seq.join(' → ')}</td>
+                    <td className="sep">{c.trend ? `${TREND[c.trend]} (${fmt(c.delta)} produzioni)` : '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+      })()}
+
+      {(() => {
+        const mb = state.borsaFabbriche?.majorityBonus;
+        const showMaj = state.borsaFabbriche?.enabled && mb?.enabled;
+        const majorityByRes = {};
+        if (showMaj) for (const rid of Object.keys(state.hexResource || {})) majorityByRes[rid] = factoryMajorityWinner(state, rid, state.hexResource[rid]);
+        const wonBy = {}; // playerId → n giacimenti vinti
+        for (const w of Object.values(majorityByRes)) if (w != null) wonBy[w] = (wonBy[w] || 0) + 1;
+        return (
+          <div className="track-editor" style={{ textAlign: 'left', marginTop: 12 }}>
+            <h3 style={{ marginTop: 0 }}>🗺 Mappa territoriale — chi ha costruito dove{showMaj ? ' · 👑 giacimenti' : ''}</h3>
+            <FactoryMap state={state} legal={[]} dispatch={() => {}} majorityByRes={majorityByRes} />
+            <div style={{ fontSize: 12, color: '#c9b89a', marginTop: 6 }}>
+              Fabbriche: {players.map(p => <span key={p.id} style={{ marginRight: 12 }}><span style={{ display: 'inline-block', width: 11, height: 11, background: p.color, verticalAlign: 'middle' }} /> {p.name} ({(p.factories || []).length}{showMaj && wonBy[p.id] ? ` · 👑${wonBy[p.id]}=${wonBy[p.id] * mb.pv}PV` : ''})</span>)}
+            </div>
+            {showMaj && <p className="hint" style={{ marginTop: 4 }}>👑 = giacimento vinto ({mb.pv} PV l'uno, bordo col colore del vincitore). Casella-risorsa senza corona = pareggio, nessuno prende i PV.</p>}
+          </div>
+        );
+      })()}
+
+      <details style={{ marginTop: 16, textAlign: 'left' }}>
+      <summary style={{ cursor: 'pointer', fontWeight: 700, padding: '8px 0' }}>📊 Dettaglio completo — tutti i numeri</summary>
+
+      {(() => {
+        const fs = factoryStats(state);
+        if (!fs.buildableTot) return null;
+        const pct = x => Math.round(100 * x) + '%';
+        return (
+          <>
+            <h3 style={{ textAlign: 'left' }}>Fabbriche — telemetrica territoriale</h3>
+            <p className="hint" style={{ textAlign: 'left' }}>Saturazione mappa {fs.occupied}/{fs.buildableTot} ({pct(fs.saturation)}) · fabbriche a contatto con un avversario (land-grab) {pct(fs.landGrabShare)}{fs.majOn ? ` · giacimenti: ${fs.giacimenti.won} vinti / ${fs.giacimenti.tie} pareggio / ${fs.giacimenti.empty} senza fabbrica` : ''}.</p>
+            <div style={{ overflowX: 'auto' }}>
+            <table className="results">
+              <thead>
+                <tr><th>Giocatore</th><th>Fabbriche</th><th>Turni fondazione</th><th>Turno medio</th><th className="sep">Per settore</th><th># settori</th><th className="sep">Crediti milestone</th><th>A contatto avv.</th>{fs.majOn && <th className="sep">Giacimenti 👑</th>}{fs.majOn && <th>PV maggioranza</th>}</tr>
+              </thead>
+              <tbody>
+                {fs.perPlayer.map(x => (
+                  <tr key={x.id}>
+                    <td style={{ color: x.color }}>{x.name}</td>
+                    <td>{x.n}</td>
+                    <td>{x.turns.length ? x.turns.map(t => 't' + t).join('→') : '—'}</td>
+                    <td>{x.avgTurn ?? '—'}</td>
+                    <td className="sep">{Object.entries(x.bySector).map(([s, n]) => `${s} ${n}`).join(' · ') || '—'}</td>
+                    <td>{x.nSectors}</td>
+                    <td className="sep">{x.creditsEarned}</td>
+                    <td>{x.contested}</td>
+                    {fs.majOn && <td className="sep">{x.giacimenti}</td>}
+                    {fs.majOn && <td>{x.majPV}</td>}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            </div>
+          </>
+        );
+      })()}
+
       <table className="results">
         <thead>
-          <tr><th></th><th>Giocatore</th><th>Commesse</th><th>Piano Ind.</th><th>Tracciati</th><th>Marchi</th><th>Risorse</th><th>Scioperi</th><th>Totale PV</th>
+          <tr><th></th><th>Giocatore</th><th>Commesse</th><th>Piano Ind.</th><th>Tracciati</th>{showFacPV && <th>Fabbriche</th>}{showBorsaPV && <th>Borsa</th>}<th>Marchi</th><th>Risorse</th><th>Scioperi</th><th>Totale PV</th>
             <th className="sep">ⓜ rimasti</th><th>Risorse rimaste</th><th>Attivazioni reparto</th></tr>
         </thead>
         <tbody>
@@ -234,7 +369,9 @@ export default function EndScreen({ state, onRestart }) {
             return (
               <tr key={x.playerId} className={i === 0 ? 'winner' : ''}>
                 <td>{i + 1}°</td><td style={{ color: p.color }}>{x.name}</td>
-                <td>{x.pvContracts}</td><td>{x.pvObjectives}</td><td>{x.pvTrack}</td><td>{x.pvCoins}</td><td>{x.pvResources}</td>
+                <td>{x.pvContracts}</td><td>{x.pvObjectives}</td><td>{x.pvTrack}</td>
+                {showFacPV && <td>{x.pvFactoryMajority || 0}</td>}{showBorsaPV && <td>{x.pvBorsa || 0}</td>}
+                <td>{x.pvCoins}</td><td>{x.pvResources}</td>
                 <td>{x.pvStrikes || 0}</td>
                 <td><b>{x.total}</b></td>
                 <td className="sep">{p.coins}</td><td>{totalResources(p)}</td><td>{p.activations}</td>
@@ -292,6 +429,9 @@ export default function EndScreen({ state, onRestart }) {
         </tbody>
       </table>
       </div>
+
+      <details style={{ marginTop: 12 }}>
+      <summary style={{ cursor: 'pointer', fontWeight: 700, padding: '6px 0' }}>🔬 Verbose — tabelle per giocatore (nodi, attivazioni, plance, sindacato, grafici)</summary>
 
       <h3 style={{ textAlign: 'left' }}>Visite ai nodi della mappa</h3>
       <table className="results">
@@ -410,6 +550,8 @@ export default function EndScreen({ state, onRestart }) {
       <div className="final-boards">
         {players.map(p => <FactoryBoard key={p.id} state={state} player={p} isCurrent={false} />)}
       </div>
+      </details>
+      </details>
 
       <button className="primary" onClick={onRestart}>Nuova partita</button>
     </div>

@@ -24,6 +24,9 @@ const CELL_TYPES = [
   { key: 'tm1', cell: { tileSlot: 1, milestone: true, opensMarket: 1 }, label: '□🏛1', desc: 'casella doppia — slot tile + milestone che apre il mercato 1' },
   { key: 'tm2', cell: { tileSlot: 2, milestone: true, opensMarket: 2 }, label: '□🏛2', desc: 'casella doppia — slot tile + milestone che apre il mercato 2' },
   { key: 'tm3', cell: { tileSlot: 3, milestone: true, opensMarket: 3 }, label: '□🏛3', desc: 'casella doppia — slot tile + milestone che apre il mercato 3' },
+  // in fondo per non spostare gli indici hardcoded in typeIndexOf
+  { key: 'cf', cell: { coinsPerFactory: 1 }, label: 'ⓜ×🏭', desc: '1 marco per fabbrica posseduta adiacente alla risorsa del settore prodotto (forza-settore)' },
+  { key: 'rf', cell: { resPerFactory: 1 }, label: '⚙R×🏭', desc: '1 risorsa del reparto per fabbrica posseduta adiacente alla risorsa del settore prodotto (forza-settore)' },
 ];
 
 function typeIndexOf(cell) {
@@ -34,6 +37,8 @@ function typeIndexOf(cell) {
   if (cell.coins === 2) return 2;
   if (cell.res) return 3;
   if (cell.coinsPerIcon) return 4;
+  if (cell.coinsPerFactory) return 16;
+  if (cell.resPerFactory) return 17;
   if (cell.pv === 2) return 5;
   if (cell.pv === 3) return 6;
   if (cell.tileSlot === 1) return 7;

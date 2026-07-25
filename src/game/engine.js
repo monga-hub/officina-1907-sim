@@ -171,15 +171,32 @@ function setupFactoryResources(state, rnd) {
 }
 // esagoni costruibili dove il giocatore può fondare una fabbrica di settore `sector`:
 // vuoti, sull'isola attiva, adiacenti a una risorsa dello stesso colore (ancoraggio condiviso: la risorsa non si consuma)
-function factoryBuildSpots(state, sector) {
+// gate "carte reparto": quante fabbriche del giocatore toccano una risorsa di quel colore, e quante carte
+// ha installato nel reparto di quel settore (Sopra+Sotto) — il secondo è il tetto del primo.
+function factoriesNearSector(state, p, sector) {
+  let n = 0;
+  for (const f of (p.factories || [])) if ((state.factoryMap.adj[f.hex] || []).some(nb => state.hexResource[nb] === sector)) n++;
+  return n;
+}
+function cardsInDeptSector(p, sector) { const d = deptOfSector(p, sector); return d ? d.sopra.length : 0; } // solo carte Sopra
+// hex ammesso dal cardGate: OGNI colore adiacente ha ancora spazio (carte reparto > fabbriche già vicine a quel
+// colore). Stretto: la fabbrica tocca quei colori, quindi ognuno deve avere una carta libera — garantisce
+// l'invariante fabbriche-vicine(C) ≤ carte-reparto(C) per ogni colore.
+function hexCardGated(state, p, hexId) {
+  return adjacentSectors(state, hexId).every(c => factoriesNearSector(state, p, c) < cardsInDeptSector(p, c));
+}
+function factoryBuildSpots(state, sector, p) {
   const out = [];
   const neutral = state.borsaFabbriche?.neutralFactory;
+  const cardGate = p && neutral && state.borsaFabbriche?.cardGate;
   for (const id of state.factoryHexes) {
     const h = state.factoryHexById[id];
     if (h.type !== 'costruibile' || state.hexFactory[id]) continue;
     // neutra: basta essere adiacente a UNA risorsa qualsiasi; legacy: allo stesso colore del settore
     const anchored = (state.factoryMap.adj[id] || []).some(n => neutral ? state.hexResource[n] : state.hexResource[n] === sector);
-    if (anchored) out.push(id);
+    if (!anchored) continue;
+    if (cardGate && !hexCardGated(state, p, id)) continue; // gate carte reparto (neutra)
+    out.push(id);
   }
   return out;
 }
@@ -187,6 +204,20 @@ function factoryBuildSpots(state, sector) {
 function adjacentSectors(state, hex) {
   const set = new Set();
   for (const n of (state.factoryMap.adj[hex] || [])) if (state.hexResource[n]) set.add(state.hexResource[n]);
+  return [...set];
+}
+// settore dominante di una commessa (req = array di settori): il più richiesto, pareggio → il primo
+function dominantSector(req) {
+  const c = {};
+  for (const s of req) c[s] = (c[s] || 0) + 1;
+  let best = req[0], n = 0;
+  for (const s of req) if (c[s] > n) { n = c[s]; best = s; }
+  return best;
+}
+// modalità chooseProduction: colori che il giocatore può far produrre — unione dei colori adiacenti alle sue fabbriche
+function producibleSectors(state, p) {
+  const set = new Set();
+  for (const f of (p.factories || [])) for (const s of adjacentSectors(state, f.hex)) set.add(s);
   return [...set];
 }
 // settori per cui il giocatore ha un credito (milestone raggiunta) E almeno un posto libero E i marchi
@@ -197,7 +228,7 @@ function factoryBuildableSectors(state, p) {
   // creditiGuadagnati (ogni milestone attraversata, qualsiasi reparto) > fabbriche già costruite.
   if (state.borsaFabbriche.neutralFactory) {
     if (state.borsaFabbriche.milestoneGate && p.factoryCreditsEarned <= p.factories.length) return [];
-    return factoryBuildSpots(state, null).length ? [null] : [];
+    return factoryBuildSpots(state, null, p).length ? [null] : [];
   }
   return SECTORS.filter(s => (p.factoryCredits[s] || 0) > 0 && factoryBuildSpots(state, s).length > 0);
 }
@@ -319,11 +350,13 @@ export function initGame(config) {
       node: 'Borsa', prevNode: null,
       depts,
       direzione: { sopra: [], sotto: [], slotTurn: { sopra: [null, null], sotto: [null, null] } }, // sotto: [{id, usesLeft}]
+      contractEngines: [], // commesse completate messe sotto la Direzione: ogni turno danno 1 risorsa del settore dominante × fabbriche che toccano quel colore (config contractEngine)
       tile: (config.forcedTile && i === (config.forcedSeat ?? 0)) ? config.forcedTile : tiles.pop(),
       achieved: [false, false, false],
       contractsWon: [], // {cardId, size, place(0|1), pv}
       maxActivationCoins: 0,
       activations: 0,             // quante volte ha usato "Attiva reparto"
+      activationTurns: [],        // turno di ogni attivazione — per il "ciclo del motore" (produzioni tra commesse)
       activationsBySector: Object.fromEntries(SECTORS.map(s => [s, 0])), // attivazioni per settore/reparto
       tensionReductions: 0,       // quante volte ha abbassato la Tensione al Sindacato (Trattativa fase 3)
       sindacato: { trattative: 0, unblock: 0 }, // sotto-azioni Trattativa
@@ -456,6 +489,8 @@ export function initGame(config) {
     snakeOrder: !!config.snakeOrder,     // true: ordine a serpentina (0,1,2,3 poi 3,2,1,0...) — chi è ultimo in un round è primo nel successivo (A/B vantaggio posizionale)
     singlePlace: !!config.singlePlace,   // true: la commessa ha un solo vincitore (PV 1°) e si rinfresca subito, niente 2° posto
     slots: mergeSlots(config.slots),     // cap Sopra/Sotto per reparto + Direzione (editabile)
+    contractEngine: !!config.contractEngine, // commessa completata → carta-motore sotto Direzione (risorsa/turno per forza-settore dominante)
+    contractEngineUses: Math.max(1, Math.min(9, config.contractEngineUses || 3)), // usi (cubetti) per carta-motore prima che si esaurisca
     // requisito milestone per completare commesse di ogni taglia (0-3): quante milestone di tracciato servono
     contractMilestoneReq: { small: 0, medium: 0, large: 0, ...(config.contractMilestoneReq || {}) },
     // nodo Servizi: 'welfare' (vecchio: compra Welfare/Macchinari) o 'struttura' (nuovo: compra carte struttura)
@@ -1006,6 +1041,7 @@ function startTurn(state) {
   state.sellUsedThisVisit = 0;
   state.convertUsedThisVisit = 0;
   state.activationCoins = null;
+  state.producedThisTurn = false; // Borsa a fabbriche modalità chooseProduction: 1 produzione a scelta/turno
   // Borsa a fabbriche: reddito passivo a inizio turno (1 risorsa del settore per fabbrica). Gate: passiveIncome.
   // Se spento, resta solo la risorsa immediata alla fondazione (doBuildFactory), niente rendita.
   if (state.borsaFabbriche.enabled && state.borsaFabbriche.passiveIncome !== false) {
@@ -1015,6 +1051,20 @@ function startTurn(state) {
       for (const f of p.factories) addRes(p, f.sector, 1, 'fabbrica');
       if (p.factories.length) log(state, `${p.name}: le fabbriche producono ${p.factories.map(f => RESOURCE_OF[f.sector]).join(' + ')}.`);
     }
+  }
+  // Carte-motore da commesse completate (sotto la Direzione): ogni turno 1 uso (cubetto) → risorsa dominante ×
+  // fabbriche che toccano quel colore, finché la carta ha usi residui (usesLeft).
+  if (state.contractEngine && p.contractEngines.length) {
+    let tot = 0;
+    for (const e of p.contractEngines) {
+      if (e.usesLeft <= 0) continue;
+      const n = factoryStrength(state, p, e.sector);
+      if (n <= 0) continue; // nessuna fabbrica di quel colore: non produce e NON consuma un cubetto (la carta aspetta)
+      addRes(p, e.sector, n, 'fabbrica');
+      e.usesLeft -= 1;
+      tot += n;
+    }
+    if (tot > 0) log(state, `${p.name}: le commesse sotto la Direzione producono ${tot} risorse.`);
   }
   // Produzione dei Macchinari (Direzione, lato Sotto) a inizio turno
   for (const m of p.direzione.sotto) {
@@ -1131,6 +1181,10 @@ export function legalCommands(state) {
   }
 
   if (state.phase === 'move') {
+    // Borsa a fabbriche, modalità chooseProduction: 1 produzione a scelta/turno, gratis, prima di muovere.
+    if (state.borsaFabbriche.enabled && state.borsaFabbriche.chooseProduction && !state.producedThisTurn) {
+      for (const sector of producibleSectors(state, p)) cmds.push({ type: 'produceFactory', sector });
+    }
     for (const node of NODES) {
       if (node === p.node) continue; // nodo diverso ogni turno (Borsa inclusa: niente turni consecutivi in Borsa)
       if (node === 'Borsa') { cmds.push({ type: 'move', node, cost: 0 }); continue; }
@@ -1160,7 +1214,7 @@ export function legalCommands(state) {
       // hai un credito-milestone, un posto libero adiacente a una risorsa dello stesso colore, e i marchi.
       if (state.borsaFabbriche.enabled) {
         for (const sector of factoryBuildableSectors(state, p)) {
-          for (const hex of factoryBuildSpots(state, sector)) cmds.push({ type: 'buildFactory', sector, hex });
+          for (const hex of factoryBuildSpots(state, sector, p)) cmds.push({ type: 'buildFactory', sector, hex });
         }
       }
       // Borsa a indici: un'azione per indice per quadrimestre (÷ investitori conta i GIOCATORI, quindi
@@ -1407,6 +1461,13 @@ export function applyCommand(prev, cmd) {
       log(state, `${p.name} sposta il Procuratore a ${cmd.node}.`);
       return state;
     }
+    case 'produceFactory': {
+      // gratis, una/turno: non cambia fase né finisce il turno — il giocatore muove comunque dopo
+      addRes(p, cmd.sector, 1, 'fabbrica');
+      state.producedThisTurn = true;
+      log(state, `${p.name}: una fabbrica produce ${RESOURCE_OF[cmd.sector]} (scelta).`);
+      return state;
+    }
     case 'hire':
       return doHire(state, p, cmd);
     case 'activate':
@@ -1515,6 +1576,7 @@ function doHire(state, p, cmd) {
 function doActivate(state, p, sector) {
   const dept = deptOfSector(p, sector);
   p.activations += 1;
+  p.activationTurns.push(state.turn);
   p.activationsBySector[sector] = (p.activationsBySector[sector] || 0) + 1;
   noteIndexEvent(state, 'attivazioni', sector);
   state.activationCoins = 0;
@@ -1660,7 +1722,7 @@ function doBuildFactory(state, p, cmd) {
   const cost = factoryCost(state, p);
   const neutral = state.borsaFabbriche.neutralFactory;
   // scelta contesa vs alternative: quanti altri siti legali erano liberi da avversari (telemetria batchsim)
-  const legal = factoryBuildSpots(state, cmd.sector);
+  const legal = factoryBuildSpots(state, cmd.sector, p);
   const chosenContested = isContestedSpot(state, cmd.hex, p.id);
   const nUncontestedAlt = legal.filter(h => h !== cmd.hex && !isContestedSpot(state, h, p.id)).length;
   (state.factoryChoiceLog ||= []).push({ chosenContested, nUncontestedAlt });
@@ -1819,6 +1881,12 @@ function doContract(state, p, cmd) {
   slot.places[place] = p.id;
   const pv = slot.card.pv[place];
   p.contractsWon.push({ cardId: slot.card.id, size: cmd.size, place, pv, reqIndex: cmd.reqIndex, req: [...req], turn: state.turn });
+  // carta-motore sotto la Direzione: da ora produce ogni turno la risorsa dominante × forza-settore (config)
+  if (state.contractEngine) {
+    const sector = dominantSector(req);
+    p.contractEngines.push({ sector, size: cmd.size, cardId: slot.card.id, usesLeft: state.contractEngineUses });
+    log(state, `${p.name}: la commessa va sotto la Direzione — produrrà ${RESOURCE_OF[sector]} per ${state.contractEngineUses} turni.`);
+  }
   state.contractsThisVisit += 1;
   log(state, `${p.name} completa una Commessa ${cmd.size === 'small' ? 'piccola' : cmd.size === 'medium' ? 'media' : 'grande'} (${place + 1}° posto, ${pv} PV). Clock +1.`);
   // rinfresca quando la carta è esaurita: single-place o tutte le sue commesse completate
