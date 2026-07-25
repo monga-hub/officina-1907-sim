@@ -3,7 +3,7 @@
 import {
   SECTORS, RESOURCE_OF, NATIONS, NODES, NODE_BANKS, BOARDS, ROLE_SLOTS_SOPRA,
   TRACKS, SETUP, STARTING_COINS, TENSION_LIMIT,
-  CLOCK_THRESHOLD, CLOCK_REFRESH, MOVE_COSTS, MAX_CONTRACTS_PER_VISIT,
+  CLOCK_THRESHOLD, CLOCK_REFRESH, MOVE_COSTS, STAR_ADJ, MAX_CONTRACTS_PER_VISIT,
   DIREZIONE_MAX, UNBLOCK_COST, WORKERS, WELFARE, CONTRACTS, CONTRACT_COPIES, OBJECTIVE_TILES,
   TRACK_TILES, TRACK_TILE_CAP_DEFAULT, IMPIEGATI_BANK, IMPIEGATI_MARKET,
   BORSA_INDICI_DEFAULT, BORSA_FABBRICHE_DEFAULT, FACTORY_MAP, DEFAULT_FACTORY_MAPS,
@@ -491,6 +491,7 @@ export function initGame(config) {
     singlePlace: !!config.singlePlace,   // true: la commessa ha un solo vincitore (PV 1°) e si rinfresca subito, niente 2° posto
     slots: mergeSlots(config.slots),     // cap Sopra/Sotto per reparto + Direzione (editabile)
     contractEngine: !!config.contractEngine, // commessa completata → carta-motore sotto Direzione (risorsa/turno per forza-settore dominante)
+    starMovement: !!config.starMovement, // 2 giocatori: movimento a stella (pentagramma), +1 per scavallare a un nodo a fianco
     contractEngineUses: Math.max(1, Math.min(9, config.contractEngineUses || 3)), // usi (cubetti) per carta-motore prima che si esaurisca
     // requisito milestone per completare commesse di ogni taglia (0-3): quante milestone di tracciato servono
     contractMilestoneReq: { small: 0, medium: 0, large: 0, ...(config.contractMilestoneReq || {}) },
@@ -1191,7 +1192,7 @@ export function legalCommands(state) {
       if (node === 'Borsa') { cmds.push({ type: 'move', node, cost: 0 }); continue; }
       const occupants = state.players.filter(q => q.node === node).length;
       if (occupants >= 2) continue;
-      const cost = moveCost(p, node, occupants);
+      const cost = moveCost(p, node, occupants) + starScavallo(state, p, node);
       if (p.coins >= cost) cmds.push({ type: 'move', node, cost });
     }
     return cmds;
@@ -1368,6 +1369,13 @@ function moveCost(p, node, occupants) {
   if (occupants === 1 && (p.struttura || []).some(e => effectNodes(e, 'freeSecond_').includes(node))) return 0;
   return MOVE_COSTS[occupants];
 }
+// Movimento a stella (2 giocatori, opzionale): +1 per "scavallare" a un nodo NON collegato dalle punte.
+// Borsa esclusa; da Borsa (centro) nessun sovrapprezzo (raggiunge tutti). Si SOMMA al costo di 2° posto.
+function starScavallo(state, p, node) {
+  if (!(state.starMovement && state.nPlayers === 2)) return 0;
+  if (node === 'Borsa' || p.node === 'Borsa') return 0;
+  return (STAR_ADJ[p.node] || []).includes(node) ? 0 : 1;
+}
 
 function canPay(p, req) {
   const need = {};
@@ -1454,7 +1462,7 @@ export function applyCommand(prev, cmd) {
     }
     case 'move': {
       const occupants = state.players.filter(q => q.node === cmd.node).length;
-      spendCoins(p, 'movimento', moveCost(p, cmd.node, occupants)); // effetto struttura "2° posto gratis" incluso
+      spendCoins(p, 'movimento', moveCost(p, cmd.node, occupants) + starScavallo(state, p, cmd.node)); // struttura "2° posto gratis" + scavallo stella
       p.prevNode = p.node;
       p.node = cmd.node;
       p.nodeVisits[cmd.node] = (p.nodeVisits[cmd.node] || 0) + 1;

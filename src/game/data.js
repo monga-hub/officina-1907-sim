@@ -248,6 +248,15 @@ export const TENSION_LIMIT = 3;
 export const CLOCK_THRESHOLD = { 2: 8, 3: 12, 4: 16 };
 export const CLOCK_REFRESH = [3, 6, 9, 12, 15];
 export const MOVE_COSTS = [0, 1]; // slot 1 gratis, slot 2 = 1 marco
+// Movimento a stella (pentagramma, opzionale in 2 giocatori): da ogni nodo raggiungi gratis i 2 nodi collegati
+// dalle punte; gli altri 2 ("a fianco") costano +1 marco a scavallare. Borsa/Città esclusa (raggiungibile da tutti).
+export const STAR_ADJ = {
+  Metallurgica: ['Servizi', 'Sindacato'],
+  Tessile:      ['Chimica', 'Servizi'],
+  Chimica:      ['Tessile', 'Sindacato'],
+  Servizi:      ['Metallurgica', 'Tessile'],
+  Sindacato:    ['Metallurgica', 'Chimica'],
+};
 export const MAX_CONTRACTS_PER_VISIT = 2;
 export const DIREZIONE_MAX = { sopra: 3, sotto: 0 };
 export const UNBLOCK_COST = 3;

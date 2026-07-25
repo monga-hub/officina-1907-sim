@@ -883,7 +883,8 @@ function BorsaFabbricheEditor({ bf, setBf }) {
   );
 }
 
-function BorsaEditor({ borsa, setBorsa, borsaExit, setBorsaExit, borsaRefresh, setBorsaRefresh }) {
+function BorsaEditor({ borsa, setBorsa, borsaExit, setBorsaExit, borsaRefresh, setBorsaRefresh, starMovement, setStarMovement }) {
+  const updStar = v => { setStarMovement(v); saveLS('officina1907-starmovement-v1', v); };
   const upd = (key, field, value) => {
     const next = structuredClone(borsa);
     next[key][field] = field === 'enabled' ? value : Math.max(0, Math.min(20, Number(value) || 0));
@@ -898,6 +899,15 @@ function BorsaEditor({ borsa, setBorsa, borsaExit, setBorsaExit, borsaRefresh, s
   const updRefresh = enabled => { const next = { ...borsaRefresh, enabled }; setBorsaRefresh(next); saveLS('officina1907-borsarefresh-v1', next); };
   return (
     <div className="track-editor">
+      <h4 style={{ textAlign: 'left', marginTop: 0 }}>Movimento a stella (solo 2 giocatori)</h4>
+      <label style={{ display: 'block', margin: '4px 0 10px' }}>
+        <button className={starMovement ? 'sel' : ''} onClick={() => updStar(true)}>Attiva</button>
+        <button className={!starMovement ? 'sel' : ''} onClick={() => updStar(false)}>Disattiva</button>
+        <span className="hint" style={{ marginLeft: 8 }}>{starMovement
+          ? 'in 2 giocatori il Procuratore segue le punte della stella: 2 nodi raggiungibili gratis, gli altri 2 "a fianco" costano +1 (si somma al +1 del 2° posto). Città sempre raggiungibile.'
+          : 'movimento libero: qualsiasi nodo, costo solo per 2° posto (attuale)'}</span>
+      </label>
+      <hr />
       <p className="hint">Azioni disponibili entrando in Città, una sola volta ciascuna per visita. "give" = quante risorse cedi, "get" = quante ne ricevi (marchi per vendi, risorsa a scelta per scambia). Salvato nel browser.</p>
       <table className="pv-editor">
         <thead><tr><th>Azione</th><th>Attiva</th><th>give</th><th>get</th></tr></thead>
@@ -962,6 +972,7 @@ const IMPORT_FIELDS = [
   ['borsaFabbriche', BORSA_FABBRICHE_KEY],
   ['borsaExit', 'officina1907-borsaexit-v1'],
   ['borsaRefresh', 'officina1907-borsarefresh-v1'],
+  ['starMovement', 'officina1907-starmovement-v1'],
   ['slots', 'officina1907-slots-v1'],
   ['startTension', 'officina1907-tension-v1'],
   ['contractCount', 'officina1907-contractcount-v5'],
@@ -1035,6 +1046,7 @@ export default function SetupScreen({ onStart }) {
   const [borsa, setBorsa] = useState(loadBorsa);
   const [borsaExit, setBorsaExit] = useState(loadBorsaExit);
   const [borsaRefresh, setBorsaRefresh] = useState(loadBorsaRefresh);
+  const [starMovement, setStarMovement] = useState(() => loadLS('officina1907-starmovement-v1', false));
   const [borsaFabbriche, setBorsaFabbriche] = useState(loadBorsaFabbriche);
   const [strikePV, setStrikePV] = useState(loadStrikePV);
   const [trackModel, setTrackModelRaw] = useState(() => loadLS(TRACKMODEL_KEY, TRACK_MODEL_DEFAULT, v => !!TRACK_MODELS[v]));
@@ -1070,7 +1082,7 @@ export default function SetupScreen({ onStart }) {
     coinsRepeat: true, endOnTrigger: false, singlePlace: true, strikePenalty: true,
     trackModel,
     tracks: toGameTracks(track),
-    contractPV, conversions, startingCoins: startCoins, trattativa, borsa, borsaExit, borsaRefresh,
+    contractPV, conversions, startingCoins: startCoins, trattativa, borsa, borsaExit, borsaRefresh, starMovement,
     // maps sempre esplicite (custom o default) nell'export: altrimenti un export "non toccato" dipende
     // silenziosamente da DEFAULT_FACTORY_MAPS lato codice, e un futuro cambio lì rende l'export non riproducibile.
     borsaFabbriche: { ...borsaFabbriche, maps: { 2: borsaFabbriche.maps?.[2] || DEFAULT_FACTORY_MAPS[2], 3: borsaFabbriche.maps?.[3] || DEFAULT_FACTORY_MAPS[3], 4: borsaFabbriche.maps?.[4] || DEFAULT_FACTORY_MAPS[4] } },
@@ -1187,7 +1199,7 @@ export default function SetupScreen({ onStart }) {
         {open === 'plancia' && <PlanciaEditor slots={slots} setSlots={setSlots} tension={tension} setTension={setTension} track={track} setTrack={setTrack} trackModel={trackModel} setTrackModel={setTrackModel} />}
         {open === 'commesse' && <CommesseEditor count={count} setCount={setCount} market={market} setMarket={setMarket} pv={contractPV} setPV={setContractPV} milestoneReq={milestoneReq} setMilestoneReq={setMilestoneReq} contractEngine={contractEngine} setContractEngine={setContractEngine} contractEngineUses={contractEngineUses} setContractEngineUses={setContractEngineUses} />}
         {open === 'tratt' && <TrattativaEditor tratt={trattativa} setTratt={setTrattativa} />}
-        {open === 'borsa' && <BorsaEditor borsa={borsa} setBorsa={setBorsa} borsaExit={borsaExit} setBorsaExit={setBorsaExit} borsaRefresh={borsaRefresh} setBorsaRefresh={setBorsaRefresh} />}
+        {open === 'borsa' && <BorsaEditor borsa={borsa} setBorsa={setBorsa} borsaExit={borsaExit} setBorsaExit={setBorsaExit} borsaRefresh={borsaRefresh} setBorsaRefresh={setBorsaRefresh} starMovement={starMovement} setStarMovement={setStarMovement} />}
         {open === 'borsafabbriche' && <BorsaFabbricheEditor bf={borsaFabbriche} setBf={setBorsaFabbriche} />}
         {open === 'conv' && <ConversionsEditor conv={conversions} setConv={setConversions} strikePV={strikePV} setStrikePV={setStrikePV} />}
         {open === 'monete' && <StartCoinsEditor coins={startCoins} setCoins={setStartCoins} n={n} />}
@@ -1202,7 +1214,7 @@ export default function SetupScreen({ onStart }) {
         {open === 'import' && <ImportConfig setters={{
           contractPV: setContractPV, conversions: setConversions, strikePenaltyPV: setStrikePV,
           startingCoins: setStartCoins, trattativa: setTrattativa, borsa: setBorsa, borsaExit: setBorsaExit, borsaRefresh: setBorsaRefresh, borsaFabbriche: setBorsaFabbriche, slots: setSlots,
-          startTension: setTension, contractCount: setCount, contractMarket: setMarket,
+          startTension: setTension, contractCount: setCount, contractMarket: setMarket, starMovement: setStarMovement,
           contractMilestoneReq: setMilestoneReq, contractEngine: setContractEngine, contractEngineUses: setContractEngineUses, welfareEnabled: setWelfareEnabled, tiles: setTiles,
           trackTiles: setTrackTiles, trackTileCap: setTrackTileCap,
           clockThreshold: setClocks, indicatorTargets: setTargets, tracks: setTrack,
