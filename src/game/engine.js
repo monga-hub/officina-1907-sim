@@ -420,7 +420,8 @@ export function initGame(config) {
     for (let cp = 0; cp < copies; cp++) for (const card of split) pool.push({ ...card, id: `${card.id}_${cp}` });
     // Mescola il pool ed estrai N carte (contractCount) per formare il mazzo di gioco.
     let deck = shuffled(pool, rnd);
-    const wanted = config.contractCount?.[size];
+    // per numero di giocatori: contractCount[n][size] > vecchio flat contractCount[size]
+    const wanted = config.contractCount?.[n]?.[size] ?? config.contractCount?.[size];
     if (wanted != null) deck = deck.slice(0, Math.max(marketSize, wanted));
     const nSlots = Math.min(marketSize, deck.length);
     contracts[size] = { deck, active: Array.from({ length: nSlots }, () => makeContractSlot(deck)) };

@@ -36,10 +36,13 @@ export const loadTension = () => loadLS('officina1907-tension-v1', TENSION_DEFAU
 // «Carte nel mazzo» = quante estrarre a caso dal pool per formare il mazzo di gioco (max = pool).
 const COMBO_UNIQUE = { small: 7, medium: 6, large: 15 };
 const COMBO_MAX = { small: COMBO_UNIQUE.small * CONTRACT_COPIES.small, medium: COMBO_UNIQUE.medium * CONTRACT_COPIES.medium, large: COMBO_UNIQUE.large * CONTRACT_COPIES.large };
-const COUNT_DEFAULT = { small: 6, medium: 6, large: 6 };
+const COUNT_FLAT_DEFAULT = { small: 6, medium: 6, large: 6 };
+const COUNT_DEFAULT = { 2: { small: 6, medium: 6, large: 6 }, 3: { small: 6, medium: 6, large: 6 }, 4: { small: 6, medium: 6, large: 6 } };
+// migrazione: vecchio shape flat {small,medium,large} → per-giocatore {2:flat,3:flat,4:flat}
+const toPerPlayer = c => (c && (c.small != null || c.medium != null || c.large != null)) ? { 2: { ...c }, 3: { ...c }, 4: { ...c } } : { ...COUNT_DEFAULT, ...(c || {}) };
 const MARKET_DEFAULT = 2;
 const SIZE_ROWS = [['small', 'Piccole (3 risorse)'], ['medium', 'Medie (5 risorse)'], ['large', 'Grandi (7 risorse)']];
-export const loadCount = () => loadLS('officina1907-contractcount-v4', COUNT_DEFAULT);
+export const loadCount = () => toPerPlayer(loadLS('officina1907-contractcount-v5', loadLS('officina1907-contractcount-v4', COUNT_DEFAULT)));
 export const loadMarket = () => loadLS('officina1907-market-v2', MARKET_DEFAULT);
 // requisito milestone (0-3) per completare commesse di ogni taglia
 const MILESTONEREQ_DEFAULT = { small: 0, medium: 0, large: 0 };
@@ -99,7 +102,7 @@ function PlanciaEditor({ slots, setSlots, tension, setTension, track, setTrack, 
 function CommesseEditor({ count, setCount, market, setMarket, pv, setPV, milestoneReq, setMilestoneReq, contractEngine, setContractEngine, contractEngineUses, setContractEngineUses }) {
   const updEngine = v => { setContractEngine(v); saveLS('officina1907-contractengine-v1', v); };
   const updUses = v => { const x = Math.max(1, Math.min(9, Number(v) || 1)); setContractEngineUses(x); saveLS('officina1907-contractengineuses-v1', x); };
-  const updCount = (size, v) => { const next = { ...count, [size]: Math.max(1, Math.min(COMBO_MAX[size], Number(v) || 1)) }; setCount(next); saveLS('officina1907-contractcount-v4', next); };
+  const updCount = (np, size, v) => { const next = structuredClone(count); next[np] = { ...next[np], [size]: Math.max(1, Math.min(COMBO_MAX[size], Number(v) || 1)) }; setCount(next); saveLS('officina1907-contractcount-v5', next); };
   const updPV = (size, v) => { const next = structuredClone(pv); next[size][0] = Math.max(0, Math.min(99, Number(v) || 0)); setPV(next); saveLS('officina1907-contractpv-v1', next); };
   const updMarket = v => { const x = Math.max(1, Math.min(12, Number(v) || 1)); setMarket(x); saveLS('officina1907-market-v2', x); };
   const updMS = (size, v) => { const next = { ...milestoneReq, [size]: Math.max(0, Math.min(3, Number(v) || 0)) }; setMilestoneReq(next); saveLS('officina1907-contractmsreq-v2', next); };
@@ -118,13 +121,16 @@ function CommesseEditor({ count, setCount, market, setMarket, pv, setPV, milesto
           <span className="hint" style={{ marginLeft: 8 }}>produce per {contractEngineUses} turni, poi si esaurisce</span>
         </label>
       )}
+      <p className="hint">«Carte nel mazzo» ora è <b>per numero di giocatori</b>: 2👤 / 3👤 / 4👤 possono avere quantità diverse per taglia.</p>
       <table className="pv-editor">
-        <thead><tr><th>Taglia</th><th>Carte nel mazzo</th><th>PV vincitore</th><th>Milestone richieste</th></tr></thead>
+        <thead><tr><th>Taglia</th><th>Mazzo 2👤</th><th>Mazzo 3👤</th><th>Mazzo 4👤</th><th>PV vincitore</th><th>Milestone richieste</th></tr></thead>
         <tbody>
           {SIZE_ROWS.map(([size, label]) => (
             <tr key={size}>
               <td style={{ textAlign: 'left' }}>{label}</td>
-              <td><input type="number" min="1" max={COMBO_MAX[size]} value={count[size]} onChange={e => updCount(size, e.target.value)} style={{ width: 48 }} /> <small>/ {COMBO_MAX[size]}</small></td>
+              {[2, 3, 4].map(np => (
+                <td key={np}><input type="number" min="1" max={COMBO_MAX[size]} value={count[np]?.[size] ?? ''} onChange={e => updCount(np, size, e.target.value)} style={{ width: 44 }} /> <small>/{COMBO_MAX[size]}</small></td>
+              ))}
               <td><input type="number" min="0" max="99" value={pv[size][0]} onChange={e => updPV(size, e.target.value)} style={{ width: 48 }} /></td>
               <td>
                 <select value={milestoneReq[size]} onChange={e => updMS(size, e.target.value)}>
@@ -137,8 +143,8 @@ function CommesseEditor({ count, setCount, market, setMarket, pv, setPV, milesto
       </table>
       <label className="hint">Carte scoperte per taglia a inizio partita: <input type="number" min="1" max="12" value={market} onChange={e => updMarket(e.target.value)} style={{ width: 48 }} /></label>
       <div>
-        <button className="ghost" onClick={() => { const c = readDef('officina1907-contractcount-v4', COUNT_DEFAULT), m = readDef('officina1907-market-v2', MARKET_DEFAULT), p = readDef('officina1907-contractpv-v1', PV_DEFAULTS), ms = readDef('officina1907-contractmsreq-v2', MILESTONEREQ_DEFAULT); setCount({ ...c }); setMarket(m); setPV(structuredClone(p)); setMilestoneReq({ ...ms }); saveLS('officina1907-contractcount-v4', c); saveLS('officina1907-market-v2', m); saveLS('officina1907-contractpv-v1', p); saveLS('officina1907-contractmsreq-v2', ms); }}>Ripristina default</button>
-        <button className="ghost" onClick={() => { writeDef('officina1907-contractcount-v4', count); writeDef('officina1907-market-v2', market); writeDef('officina1907-contractpv-v1', pv); writeDef('officina1907-contractmsreq-v2', milestoneReq); }}>⭐ Rendi questi valori i default</button>
+        <button className="ghost" onClick={() => { const c = toPerPlayer(readDef('officina1907-contractcount-v5', COUNT_DEFAULT)), m = readDef('officina1907-market-v2', MARKET_DEFAULT), p = readDef('officina1907-contractpv-v1', PV_DEFAULTS), ms = readDef('officina1907-contractmsreq-v2', MILESTONEREQ_DEFAULT); setCount(structuredClone(c)); setMarket(m); setPV(structuredClone(p)); setMilestoneReq({ ...ms }); saveLS('officina1907-contractcount-v5', c); saveLS('officina1907-market-v2', m); saveLS('officina1907-contractpv-v1', p); saveLS('officina1907-contractmsreq-v2', ms); }}>Ripristina default</button>
+        <button className="ghost" onClick={() => { writeDef('officina1907-contractcount-v5', count); writeDef('officina1907-market-v2', market); writeDef('officina1907-contractpv-v1', pv); writeDef('officina1907-contractmsreq-v2', milestoneReq); }}>⭐ Rendi questi valori i default</button>
       </div>
     </div>
   );
@@ -958,7 +964,7 @@ const IMPORT_FIELDS = [
   ['borsaRefresh', 'officina1907-borsarefresh-v1'],
   ['slots', 'officina1907-slots-v1'],
   ['startTension', 'officina1907-tension-v1'],
-  ['contractCount', 'officina1907-contractcount-v4'],
+  ['contractCount', 'officina1907-contractcount-v5'],
   ['contractMarket', 'officina1907-market-v2'],
   ['contractMilestoneReq', 'officina1907-contractmsreq-v2'],
   ['contractEngine', 'officina1907-contractengine-v1'],
@@ -999,6 +1005,7 @@ function ImportConfig({ setters }) {
     try { json = JSON.parse(raw); } catch { setMsg({ ok: false, text: 'JSON non valido — controlla di aver incollato tutto il testo esportato.' }); return; }
     const applied = writeConfigToLS(json);
     for (const [key] of IMPORT_FIELDS) if (json[key] !== undefined) setters[key](json[key]);
+    if (json.contractCount !== undefined) setters.contractCount(toPerPlayer(json.contractCount)); // migra flat → per-giocatore
     if (applied.includes('tracks')) setters.tracks(json.tracks.terziario);
     setMsg(applied.length
       ? { ok: true, text: `Importati ${applied.length} campi: ${applied.join(', ')}.` }
