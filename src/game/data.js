@@ -104,6 +104,7 @@ export const BORSA_FABBRICHE_DEFAULT = {
   neutralFactory: true,
   milestoneGate: false,                         // neutra + cancello: fondi solo se hai crediti-milestone non spesi (creditiGuadagnati > fabbricheCostruite). Generico, non per settore. Default OFF = invariato.
   cardGate: false,                               // neutra + gate carte: fabbriche vicino a una risorsa di un colore ≤ carte Sopra nel reparto di quel settore. Default OFF.
+  allDeptGate: false,                            // neutra + gate globale: per fondare QUALSIASI fabbrica servi ≥1 carta Sopra in ogni reparto (i 3). Default OFF.
   foundingResource: true,                       // true: fondando incassi subito 1 risorsa (neutra: una per colore adiacente distinto)
   majorityBonus: { pv: 10, enabled: true },     // PV a fine partita a chi ha più fabbriche attorno a un giacimento (neutra: senza badare al settore)
   maps: {

@@ -228,6 +228,8 @@ function factoryBuildableSectors(state, p) {
   // creditiGuadagnati (ogni milestone attraversata, qualsiasi reparto) > fabbriche già costruite.
   if (state.borsaFabbriche.neutralFactory) {
     if (state.borsaFabbriche.milestoneGate && p.factoryCreditsEarned <= p.factories.length) return [];
+    // gate "carta in ogni reparto": per fondare qualsiasi fabbrica serve ≥1 carta Sopra in tutti e 3 i reparti
+    if (state.borsaFabbriche.allDeptGate && !DEPT_ROLES.every(r => p.depts[r].sopra.length >= 1)) return [];
     return factoryBuildSpots(state, null, p).length ? [null] : [];
   }
   return SECTORS.filter(s => (p.factoryCredits[s] || 0) > 0 && factoryBuildSpots(state, s).length > 0);

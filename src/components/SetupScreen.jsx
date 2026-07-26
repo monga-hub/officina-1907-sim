@@ -813,6 +813,15 @@ function BorsaFabbricheEditor({ bf, setBf }) {
             : 'nessun gate carte'}</span>
         </label>
       )}
+      {bf.neutralFactory !== false && (
+        <label style={{ display: 'block', margin: '4px 0' }}>
+          <button className={bf.allDeptGate ? 'sel' : ''} onClick={() => upd({ allDeptGate: true })}>Gate carta in ogni reparto ON</button>
+          <button className={!bf.allDeptGate ? 'sel' : ''} onClick={() => upd({ allDeptGate: false })}>OFF</button>
+          <span className="hint" style={{ marginLeft: 8 }}>{bf.allDeptGate
+            ? 'per fondare QUALSIASI fabbrica servi ≥1 carta Sopra in tutti e 3 i reparti'
+            : 'nessun gate globale'}</span>
+        </label>
+      )}
       <h4>Risorsa immediata alla fondazione</h4>
       <label style={{ display: 'block', margin: '4px 0' }}>
         <button className={bf.foundingResource !== false ? 'sel' : ''} onClick={() => upd({ foundingResource: true })}>Attiva</button>
