@@ -4,7 +4,7 @@ import {
   SECTORS, RESOURCE_OF, NATIONS, NODES, NODE_BANKS, BOARDS, ROLE_SLOTS_SOPRA,
   TRACKS, SETUP, STARTING_COINS, TENSION_LIMIT,
   CLOCK_THRESHOLD, CLOCK_REFRESH, MOVE_COSTS, STAR_ADJ, MAX_CONTRACTS_PER_VISIT,
-  DIREZIONE_MAX, UNBLOCK_COST, WORKERS, WELFARE, CONTRACTS, CONTRACT_COPIES, OBJECTIVE_TILES,
+  DIREZIONE_MAX, UNBLOCK_COST, WORKERS, WELFARE, CONTRACTS, expandContracts, OBJECTIVE_TILES,
   TRACK_TILES, TRACK_TILE_CAP_DEFAULT, IMPIEGATI_BANK, IMPIEGATI_MARKET,
   BORSA_INDICI_DEFAULT, BORSA_FABBRICHE_DEFAULT, FACTORY_MAP, DEFAULT_FACTORY_MAPS,
 } from './data.js';
@@ -330,7 +330,7 @@ export function initGame(config) {
       coinsGained: 0,             // marchi guadagnati durante la partita (funnel addCoins)
       // da dove nascono i marchi. bonus = SOLO effetti carte lavoratore (dept.sotto), splittati per tipo:
       // lavFisso=«prendi N monete» · lavNazioni=marchi×nazionalità · lavIcone=marchi×icona · lavTensione=marchi×tensione
-      coinsGainedBy: { ...Object.fromEntries(SECTORS.map(s => [s, 0])), tracciati: 0, lavFisso: 0, lavNazioni: 0, lavIcone: 0, lavTensione: 0, lavFabbrica: 0, scambio: 0, trackTile: 0 },
+      coinsGainedBy: { ...Object.fromEntries(SECTORS.map(s => [s, 0])), tracciati: 0, lavFisso: 0, lavNazioni: 0, lavIcone: 0, lavTensione: 0, lavFabbrica: 0, scambio: 0, trackTile: 0, commessa: 0 },
       coinsSpentBy: { lavoratori: 0, direzione: 0, sindacato: 0, borsa: 0, movimento: 0, azioni: 0 }, // dove sono finiti i marchi
       shares: {},      // Borsa a indici: { [indice]: true } per il quadrimestre CORRENTE (azzerato a ogni chiusura)
       // Borsa a fabbriche: credito per settore (una milestone = una fabbrica di quel settore) + fabbriche possedute
@@ -407,19 +407,17 @@ export function initGame(config) {
   // config.contractMarket = carte scoperte per taglia (regolamento v2: 2 per taglia = 6 in tutto).
   const contracts = {};
   const marketSize = config.singlePlace ? Math.max(1, config.contractMarket ?? 2) : 1;
+  // pool = lista carte fisiche (config.contracts è già espanso; default = espansione di CONTRACTS). Niente più ×copie qui.
+  const table = config.contracts || expandContracts(CONTRACTS);
   for (const size of ['small', 'medium', 'large']) {
     const pv = config.contractPV?.[size];
-    // Ogni carta canonica ha 2 commesse (reqs[0], reqs[1]): le dividiamo in 2 carte da 1 commessa.
-    const split = [];
-    for (const c of CONTRACTS[size]) {
+    // Ogni carta può avere 2 commesse (reqs[0], reqs[1]): le dividiamo in 2 carte da 1 commessa.
+    const pool = [];
+    for (const c of table[size]) {
       c.reqs.forEach((req, k) => {
-        split.push({ id: `${c.id}${k === 0 ? 'a' : 'b'}`, size, pv: pv ? [...pv] : [...c.pv], reqs: [req] });
+        pool.push({ id: `${c.id}${k === 0 ? 'a' : 'b'}`, size, pv: pv ? [...pv] : [...c.pv], reqs: [req], engine: c.engine ? { ...c.engine } : null });
       });
     }
-    // Pool = ogni combo in CONTRACT_COPIES[size] copie (piccole/medie ×2, grandi ×1), id univoco.
-    const copies = CONTRACT_COPIES[size] || 1;
-    const pool = [];
-    for (let cp = 0; cp < copies; cp++) for (const card of split) pool.push({ ...card, id: `${card.id}_${cp}` });
     // Mescola il pool ed estrai N carte (contractCount) per formare il mazzo di gioco.
     let deck = shuffled(pool, rnd);
     // per numero di giocatori: contractCount[n][size] > vecchio flat contractCount[size]
@@ -494,7 +492,7 @@ export function initGame(config) {
     slots: mergeSlots(config.slots),     // cap Sopra/Sotto per reparto + Direzione (editabile)
     contractEngine: !!config.contractEngine, // commessa completata → carta-motore sotto Direzione (risorsa/turno per forza-settore dominante)
     starMovement: !!config.starMovement, // 2 giocatori: movimento a stella (pentagramma), +1 per scavallare a un nodo a fianco
-    contractEngineUses: Math.max(1, Math.min(9, config.contractEngineUses || 3)), // usi (cubetti) per carta-motore prima che si esaurisca
+    // bonus carta-motore ora è PER-CARTA (contract.engine: {yield, amount, uses}); nessun valore globale, solo il master toggle contractEngine.
     // requisito milestone per completare commesse di ogni taglia (0-3): quante milestone di tracciato servono
     contractMilestoneReq: { small: 0, medium: 0, large: 0, ...(config.contractMilestoneReq || {}) },
     // nodo Servizi: 'welfare' (vecchio: compra Welfare/Macchinari) o 'struttura' (nuovo: compra carte struttura)
@@ -1056,19 +1054,19 @@ function startTurn(state) {
       if (p.factories.length) log(state, `${p.name}: le fabbriche producono ${p.factories.map(f => RESOURCE_OF[f.sector]).join(' + ')}.`);
     }
   }
-  // Carte-motore da commesse completate (sotto la Direzione): ogni turno 1 uso (cubetto) → risorsa dominante ×
-  // fabbriche che toccano quel colore, finché la carta ha usi residui (usesLeft).
+  // Carte-motore da commesse completate (sotto la Direzione): ogni turno 1 uso (cubetto) → quantità configurata
+  // (config contractEngineAmount) di risorsa dominante o marchi (contractEngineYield), finché ha usi residui.
   if (state.contractEngine && p.contractEngines.length) {
-    let tot = 0;
+    let totRes = 0, totCoins = 0;
     for (const e of p.contractEngines) {
       if (e.usesLeft <= 0) continue;
-      const n = factoryStrength(state, p, e.sector);
-      if (n <= 0) continue; // nessuna fabbrica di quel colore: non produce e NON consuma un cubetto (la carta aspetta)
-      addRes(p, e.sector, n, 'fabbrica');
+      const amt = e.amount || 1;
+      if (e.yield === 'coins') { addCoins(state, p, amt, 'commessa'); totCoins += amt; }
+      else { addRes(p, e.sector, amt, 'fabbrica'); totRes += amt; }
       e.usesLeft -= 1;
-      tot += n;
     }
-    if (tot > 0) log(state, `${p.name}: le commesse sotto la Direzione producono ${tot} risorse.`);
+    if (totRes > 0) log(state, `${p.name}: le commesse sotto la Direzione producono ${totRes} risorse.`);
+    if (totCoins > 0) log(state, `${p.name}: le commesse sotto la Direzione producono ${totCoins} ⓜ.`);
   }
   // Produzione dei Macchinari (Direzione, lato Sotto) a inizio turno
   for (const m of p.direzione.sotto) {
@@ -1895,8 +1893,14 @@ function doContract(state, p, cmd) {
   // carta-motore sotto la Direzione: da ora produce ogni turno la risorsa dominante × forza-settore (config)
   if (state.contractEngine) {
     const sector = dominantSector(req);
-    p.contractEngines.push({ sector, size: cmd.size, cardId: slot.card.id, usesLeft: state.contractEngineUses });
-    log(state, `${p.name}: la commessa va sotto la Direzione — produrrà ${RESOURCE_OF[sector]} per ${state.contractEngineUses} turni.`);
+    // bonus per-carta (slot.card.engine); fallback ai default globali per carte/config senza override
+    const eng = slot.card.engine || {};
+    const yld = eng.yield === 'coins' ? 'coins' : 'res';        // default: risorse dominanti
+    const amount = Math.max(1, Math.min(9, eng.amount || 1));   // default: 1/turno
+    const uses = Math.max(1, Math.min(9, eng.uses || 2));       // default: 2 turni
+    p.contractEngines.push({ sector, size: cmd.size, cardId: slot.card.id, usesLeft: uses, yield: yld, amount });
+    const yieldTxt = yld === 'coins' ? `${amount} ⓜ` : `${amount} ${RESOURCE_OF[sector]}`;
+    log(state, `${p.name}: la commessa va sotto la Direzione — produrrà ${yieldTxt} per ${uses} turni.`);
   }
   state.contractsThisVisit += 1;
   log(state, `${p.name} completa una Commessa ${cmd.size === 'small' ? 'piccola' : cmd.size === 'medium' ? 'media' : 'grande'} (${place + 1}° posto, ${pv} PV). Clock +1.`);

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { BOARDS, TRACK_MODELS, TRACK_MODEL_DEFAULT, BORSA_FABBRICHE_DEFAULT, FACTORY_MAP, DEFAULT_FACTORY_MAPS, SECTORS, SECTOR_COLORS, CONTRACT_COPIES, CLOCK_THRESHOLD, NATIONS, NATIONS_NUOVO, NEW_NODE_BANKS, OBJECTIVE_TILES, TENSION_LIMIT } from '../game/data.js';
+import { BOARDS, TRACK_MODELS, TRACK_MODEL_DEFAULT, BORSA_FABBRICHE_DEFAULT, FACTORY_MAP, DEFAULT_FACTORY_MAPS, SECTORS, SECTOR_COLORS, CONTRACTS, expandContracts, CLOCK_THRESHOLD, NATIONS, NATIONS_NUOVO, NEW_NODE_BANKS, TENSION_LIMIT } from '../game/data.js';
 import { describeCond } from '../game/engine.js';
 import { INDICATOR_TARGETS, INDICATOR_UNITS, recalcTile, starsFor, winZ } from '../game/batchsim.js';
 import TrackEditor, {
@@ -31,11 +31,8 @@ export const loadSlots = () => loadLS('officina1907-slots-v1', SLOTS_DEFAULT);
 export const loadTension = () => loadLS('officina1907-tension-v1', TENSION_DEFAULT);
 
 // --- Commesse: quante carte estrarre dal pool, quante scoperte, PV 1° posto ---
-// Combo per taglia (filtrate per difficoltà): piccole 7, medie 6, grandi 15.
-// Pool = combo × copie (CONTRACT_COPIES: piccole/medie ×2, grandi ×1) → piccole 14, medie 12, grandi 15.
-// «Carte nel mazzo» = quante estrarre a caso dal pool per formare il mazzo di gioco (max = pool).
-const COMBO_UNIQUE = { small: 7, medium: 6, large: 15 };
-const COMBO_MAX = { small: COMBO_UNIQUE.small * CONTRACT_COPIES.small, medium: COMBO_UNIQUE.medium * CONTRACT_COPIES.medium, large: COMBO_UNIQUE.large * CONTRACT_COPIES.large };
+// Pool = tutte le carte fisiche editabili (copie appiattite: small/medium 12, large 15). Il max di «Carte nel
+// mazzo» è dinamico (comboMax in CommesseEditor): dipende da quante commesse hai nella Composizione.
 const COUNT_FLAT_DEFAULT = { small: 6, medium: 6, large: 6 };
 const COUNT_DEFAULT = { 2: { small: 6, medium: 6, large: 6 }, 3: { small: 6, medium: 6, large: 6 }, 4: { small: 6, medium: 6, large: 6 } };
 // migrazione: vecchio shape flat {small,medium,large} → per-giocatore {2:flat,3:flat,4:flat}
@@ -99,28 +96,24 @@ function PlanciaEditor({ slots, setSlots, tension, setTension, track, setTrack, 
   );
 }
 
-function CommesseEditor({ count, setCount, market, setMarket, pv, setPV, milestoneReq, setMilestoneReq, contractEngine, setContractEngine, contractEngineUses, setContractEngineUses }) {
+function CommesseEditor({ count, setCount, market, setMarket, pv, setPV, milestoneReq, setMilestoneReq, contractEngine, setContractEngine, contracts, setContracts }) {
+  // pool reale = (somma commesse per taglia) × copie — si aggiorna quando aggiungi/togli commesse sotto.
+  const poolOf = size => contracts[size].reduce((a, c) => a + (c.reqs?.length || 0), 0);
+  const comboMax = { small: poolOf('small'), medium: poolOf('medium'), large: poolOf('large') };
   const updEngine = v => { setContractEngine(v); saveLS('officina1907-contractengine-v1', v); };
-  const updUses = v => { const x = Math.max(1, Math.min(9, Number(v) || 1)); setContractEngineUses(x); saveLS('officina1907-contractengineuses-v1', x); };
-  const updCount = (np, size, v) => { const next = structuredClone(count); next[np] = { ...next[np], [size]: Math.max(1, Math.min(COMBO_MAX[size], Number(v) || 1)) }; setCount(next); saveLS('officina1907-contractcount-v5', next); };
+  const updCount = (np, size, v) => { const next = structuredClone(count); next[np] = { ...next[np], [size]: Math.max(1, Math.min(comboMax[size], Number(v) || 1)) }; setCount(next); saveLS('officina1907-contractcount-v5', next); };
   const updPV = (size, v) => { const next = structuredClone(pv); next[size][0] = Math.max(0, Math.min(99, Number(v) || 0)); setPV(next); saveLS('officina1907-contractpv-v1', next); };
   const updMarket = v => { const x = Math.max(1, Math.min(12, Number(v) || 1)); setMarket(x); saveLS('officina1907-market-v2', x); };
   const updMS = (size, v) => { const next = { ...milestoneReq, [size]: Math.max(0, Math.min(3, Number(v) || 0)) }; setMilestoneReq(next); saveLS('officina1907-contractmsreq-v2', next); };
   return (
     <div className="track-editor">
-      <p className="hint">Pool per taglia = combo in duplice copia (piccole {COMBO_MAX.small}, medie {COMBO_MAX.medium}) o singola (grandi {COMBO_MAX.large}). A inizio partita il pool è mescolato e ne vengono estratte «Carte nel mazzo» (max = pool) per formare il mazzo di gioco. «Scoperte» = quante visibili a inizio partita (si rinfrescano a completamento). «Milestone» = milestone di tracciato (0-3) per completare una commessa di quella taglia. Salvato nel browser.</p>
+      <p className="hint">Pool per taglia = tutte le carte fisiche editabili sotto in «Composizione» = {comboMax.small}/{comboMax.medium}/{comboMax.large} (ogni copia è una carta a sé, editabile singolarmente). A inizio partita il pool è mescolato e ne vengono estratte «Carte nel mazzo» (max = pool) per formare il mazzo di gioco. «Scoperte» = quante visibili a inizio partita (si rinfrescano a completamento). «Milestone» = milestone di tracciato (0-3) per completare una commessa di quella taglia. Salvato nel browser.</p>
       <h4 style={{ textAlign: 'left' }}>Commessa completata → carta-motore sotto la Direzione</h4>
       <label style={{ display: 'block', margin: '4px 0 10px' }}>
         <button className={contractEngine ? 'sel' : ''} onClick={() => updEngine(true)}>Attiva</button>
         <button className={!contractEngine ? 'sel' : ''} onClick={() => updEngine(false)}>Disattiva</button>
-        <span className="hint" style={{ marginLeft: 8 }}>{contractEngine ? 'ogni commessa completata va sotto la Direzione: a inizio turno produce la sua risorsa dominante × fabbriche che toccano quel colore (forza-settore)' : 'le commesse completate danno solo PV'}</span>
+        <span className="hint" style={{ marginLeft: 8 }}>{contractEngine ? 'ogni commessa completata va sotto la Direzione e produce a inizio turno. Il bonus (risorse/marchi, quantità, turni) si edita per singola commessa nella tabella «Composizione» qui sotto.' : 'le commesse completate danno solo PV'}</span>
       </label>
-      {contractEngine && (
-        <label style={{ display: 'block', margin: '4px 0 10px' }}>
-          Usi (cubetti) per carta-motore: <input type="number" min="1" max="9" value={contractEngineUses} onChange={e => updUses(e.target.value)} style={{ width: 44 }} />
-          <span className="hint" style={{ marginLeft: 8 }}>produce per {contractEngineUses} turni, poi si esaurisce</span>
-        </label>
-      )}
       <p className="hint">«Carte nel mazzo» ora è <b>per numero di giocatori</b>: 2👤 / 3👤 / 4👤 possono avere quantità diverse per taglia.</p>
       <table className="pv-editor">
         <thead><tr><th>Taglia</th><th>Mazzo 2👤</th><th>Mazzo 3👤</th><th>Mazzo 4👤</th><th>PV vincitore</th><th>Milestone richieste</th></tr></thead>
@@ -129,7 +122,7 @@ function CommesseEditor({ count, setCount, market, setMarket, pv, setPV, milesto
             <tr key={size}>
               <td style={{ textAlign: 'left' }}>{label}</td>
               {[2, 3, 4].map(np => (
-                <td key={np}><input type="number" min="1" max={COMBO_MAX[size]} value={count[np]?.[size] ?? ''} onChange={e => updCount(np, size, e.target.value)} style={{ width: 44 }} /> <small>/{COMBO_MAX[size]}</small></td>
+                <td key={np}><input type="number" min="1" max={comboMax[size]} value={count[np]?.[size] ?? ''} onChange={e => updCount(np, size, e.target.value)} style={{ width: 44 }} /> <small>/{comboMax[size]}</small></td>
               ))}
               <td><input type="number" min="0" max="99" value={pv[size][0]} onChange={e => updPV(size, e.target.value)} style={{ width: 48 }} /></td>
               <td>
@@ -146,12 +139,85 @@ function CommesseEditor({ count, setCount, market, setMarket, pv, setPV, milesto
         <button className="ghost" onClick={() => { const c = toPerPlayer(readDef('officina1907-contractcount-v5', COUNT_DEFAULT)), m = readDef('officina1907-market-v2', MARKET_DEFAULT), p = readDef('officina1907-contractpv-v1', PV_DEFAULTS), ms = readDef('officina1907-contractmsreq-v2', MILESTONEREQ_DEFAULT); setCount(structuredClone(c)); setMarket(m); setPV(structuredClone(p)); setMilestoneReq({ ...ms }); saveLS('officina1907-contractcount-v5', c); saveLS('officina1907-market-v2', m); saveLS('officina1907-contractpv-v1', p); saveLS('officina1907-contractmsreq-v2', ms); }}>Ripristina default</button>
         <button className="ghost" onClick={() => { writeDef('officina1907-contractcount-v5', count); writeDef('officina1907-market-v2', market); writeDef('officina1907-contractpv-v1', pv); writeDef('officina1907-contractmsreq-v2', milestoneReq); }}>⭐ Rendi questi valori i default</button>
       </div>
+      <hr style={{ margin: '18px 0', borderColor: '#444' }} />
+      <ContractsEditor contracts={contracts} setContracts={setContracts} engineOn={contractEngine} />
     </div>
   );
 }
 
 const PV_DEFAULTS = { small: [5, 3], medium: [9, 7], large: [15, 13] };
 const PV_LABELS = { small: 'Piccole (3 risorse)', medium: 'Medie (5 risorse)', large: 'Grandi (7 risorse)' };
+
+// --- Editor composizione commesse: singola carta = quali/quante risorse (settori) servono. Override di
+// CONTRACTS (data.js): il motore legge config.contracts con fallback ai default. reqs[0] = multiset di settori,
+// l'ordine è irrilevante (doContract li spende uno a uno), quindi si edita come conteggio-per-settore.
+const CONTRACTS_LS_KEY = 'officina1907-contracts-v2'; // v2: pool completo (copie appiattite in carte distinte), v1 migrato espandendo
+const CANON_PV = { small: [5, 3], medium: [9, 7], large: [15, 13] };
+const countsOf = card => SECTORS.map(s => (card.reqs?.[0] || []).filter(x => x === s).length);
+const reqsFromCounts = counts => [SECTORS.flatMap((s, i) => Array(counts[i]).fill(s))];
+// bonus per-carta (carta-motore sotto la Direzione). Default quando manca: risorse dominanti, 1/turno, 2 turni.
+const ENGINE_DEFAULT = { yield: 'res', amount: 1, uses: 2 };
+const engOf = card => ({ ...ENGINE_DEFAULT, ...(card.engine || {}) });
+const validEng = e => e === undefined || e === null || (['res', 'coins'].includes(e.yield ?? 'res') && (e.amount == null || e.amount >= 1) && (e.uses == null || e.uses >= 1));
+const validContracts = v => v && ['small', 'medium', 'large'].every(sz =>
+  Array.isArray(v[sz]) && v[sz].every(c => c && c.id && Array.isArray(c.reqs) && Array.isArray(c.reqs[0]) && c.reqs[0].length >= 1 && c.reqs[0].every(s => SECTORS.includes(s)) && validEng(c.engine)));
+export const loadContracts = () => {
+  const v2 = loadLS(CONTRACTS_LS_KEY, null, validContracts);
+  if (v2) return v2;
+  const v1 = loadLS('officina1907-contracts-v1', null, validContracts); // vecchio formato = combo (pre-copie)
+  if (v1) return expandContracts(v1);   // migra: 6 combo × copie → 12 carte distinte editabili
+  return expandContracts(CONTRACTS);
+};
+
+function ContractsEditor({ contracts, setContracts, engineOn }) {
+  const save = next => { setContracts(next); saveLS(CONTRACTS_LS_KEY, next); };
+  const patchCard = (size, idx, patch) => save({ ...contracts, [size]: contracts[size].map((c, i) => i !== idx ? c : { ...c, ...patch }) });
+  const updCount = (size, idx, si, v) => {
+    const counts = countsOf(contracts[size][idx]);
+    counts[si] = Math.max(0, Math.min(9, Number(v) || 0));
+    if (counts.reduce((a, b) => a + b, 0) < 1) return; // mai una commessa a 0 risorse (sarebbe PV gratis)
+    patchCard(size, idx, { reqs: reqsFromCounts(counts) });
+  };
+  const updEng = (size, idx, patch) => patchCard(size, idx, { engine: { ...engOf(contracts[size][idx]), ...patch } });
+  const addCard = size => save({ ...contracts, [size]: [...contracts[size], { id: `${size}-c${Date.now().toString(36)}`, size, pv: [...CANON_PV[size]], reqs: [[SECTORS[0]]], engine: { ...ENGINE_DEFAULT } }] });
+  const removeCard = (size, idx) => { if (contracts[size].length <= 1) return; save({ ...contracts, [size]: contracts[size].filter((_, i) => i !== idx) }); };
+  return (
+    <>
+      <h4 style={{ textAlign: 'left' }}>Composizione commesse</h4>
+      <p className="hint">Quante risorse di ciascun settore servono per completare ogni commessa (l'ordine non conta), e il <b>bonus carta-motore</b> di ciascuna: cosa produce a inizio turno una volta messa sotto la Direzione (Risorse dominante / Marchi ⓜ), quanto per turno, per quanti turni. {engineOn ? 'Bonus attivo (master ON sopra).' : 'Bonus inerte finché non attivi il master «carta-motore» sopra.'} Aggiungi/togli commesse: il pool «Carte nel mazzo» si aggiorna da solo. PV governati sopra. Salvato nel browser.</p>
+      {SIZE_ROWS.map(([size, label]) => (
+        <div key={size} style={{ marginBottom: 14 }}>
+          <h4 style={{ textAlign: 'left', margin: '6px 0' }}>{label} — {contracts[size].length} combo</h4>
+          <table className="pv-editor">
+            <thead><tr><th>#</th>{SECTORS.map(s => <th key={s} style={{ color: SECTOR_COLORS[s] }}>{s}</th>)}<th>Tot</th><th>Bonus</th><th>Qtà</th><th>Turni</th><th></th></tr></thead>
+            <tbody>
+              {contracts[size].map((c, idx) => {
+                const counts = countsOf(c);
+                const eng = engOf(c);
+                return (
+                  <tr key={c.id}>
+                    <td>{idx + 1}</td>
+                    {SECTORS.map((s, si) => (
+                      <td key={s}><input type="number" min="0" max="9" value={counts[si]} onChange={e => updCount(size, idx, si, e.target.value)} style={{ width: 44 }} /></td>
+                    ))}
+                    <td><b>{counts.reduce((a, b) => a + b, 0)}</b></td>
+                    <td><button className="ghost" title={eng.yield === 'coins' ? 'Marchi' : 'Risorse (settore dominante)'} onClick={() => updEng(size, idx, { yield: eng.yield === 'coins' ? 'res' : 'coins' })} style={{ minWidth: 36 }}>{eng.yield === 'coins' ? 'ⓜ' : 'Ris'}</button></td>
+                    <td><input type="number" min="1" max="9" value={eng.amount} onChange={e => updEng(size, idx, { amount: Math.max(1, Math.min(9, Number(e.target.value) || 1)) })} style={{ width: 40 }} /></td>
+                    <td><input type="number" min="1" max="9" value={eng.uses} onChange={e => updEng(size, idx, { uses: Math.max(1, Math.min(9, Number(e.target.value) || 1)) })} style={{ width: 40 }} /></td>
+                    <td><button className="ghost" disabled={contracts[size].length <= 1} onClick={() => removeCard(size, idx)} title="Rimuovi">✕</button></td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          <button className="ghost" onClick={() => addCard(size)}>+ Aggiungi commessa {label.toLowerCase()}</button>
+        </div>
+      ))}
+      <button className="ghost" onClick={() => { const d = readDef(CONTRACTS_LS_KEY, expandContracts(CONTRACTS)); save(structuredClone(d)); }}>Ripristina composizione default</button>
+      <button className="ghost" onClick={() => writeDef(CONTRACTS_LS_KEY, contracts)}>⭐ Rendi questa composizione il default</button>
+    </>
+  );
+}
 
 function loadContractPV() {
   try {
@@ -442,13 +508,6 @@ function CondParams({ cond, onCh }) {
       return <small>—</small>; // no_blocked_end
   }
 }
-const TILES_LS_KEY = 'officina1907-tiles-v2';
-// struttura, non conteggio fisso: il motore itera p.tile.objectives per indice (nessun limite a 32/3) — le tessere
-// generate dal modo Famiglie (es. 25 × 2 obiettivi) sono valide quanto le 32 × 3 classiche, già testate su batch da 500.
-const validObjective = o => o && typeof o.pv === 'number' && o.cond && typeof o.cond.type === 'string';
-const validTiles = v => Array.isArray(v) && v.length > 0 && v.every(t => t && t.id && Array.isArray(t.objectives) && t.objectives.length > 0 && t.objectives.every(validObjective));
-export const loadTiles = () => loadLS(TILES_LS_KEY, OBJECTIVE_TILES, validTiles);
-
 // Scheda risultato di un Ricalcola: stesse metriche della SCHEDA TESSERE del report grande, ma su un batch mirato.
 // z-score win vs 1/P: confrontabile 1:1 col report grande (es. "+4.3σ → +1.1σ" dopo una modifica). La facilità
 // (regalo/muro) invece è relativa alle ALTRE 31 tessere: senza girare anche quelle qui non è calcolabile — restano
@@ -465,58 +524,6 @@ function TileCard({ r, P }) {
   );
 }
 
-function TilesEditor({ tiles, setTiles, baseCfg }) {
-  const save = next => { setTiles(next); saveLS(TILES_LS_KEY, next); };
-  const updObj = (ti, oi, patch) => save(tiles.map((t, i) => i !== ti ? t : { ...t, objectives: t.objectives.map((o, j) => j !== oi ? o : { ...o, ...patch }) }));
-  const [recalc, setRecalc] = useState({}); // tileId -> {running, progress:{done,total}, result}
-  const runRecalc = async (tile) => {
-    setRecalc(r => ({ ...r, [tile.id]: { running: true, progress: { done: 0, total: 150 } } }));
-    const result = await recalcTile(baseCfg, tile, { nGames: 150, onProgress: (done, total) => setRecalc(r => ({ ...r, [tile.id]: { running: true, progress: { done, total } } })) });
-    setRecalc(r => ({ ...r, [tile.id]: { running: false, result } }));
-  };
-  return (
-    <div className="track-editor">
-      <p className="hint">{tiles.length} tessere Piano Industriale (assegnate a caso a inizio partita, una per giocatore). Il testo è generato dalla condizione, non editabile — cambia PV/condizione/parametri e il testo si aggiorna da solo, niente da riscrivere a mano. "Ricalcola" gira 150 partite forzando questa tessera su un posto (rotante), per una stima rapida senza rifare le 500 partite intere — 4 AI fisse, resto delle regole = impostazioni correnti. Salvato nel browser.</p>
-      <div style={{ maxHeight: 420, overflowY: 'auto' }}>
-        <table className="pv-editor">
-          <thead><tr><th>Tessera</th><th>#</th><th>Testo (generato)</th><th>PV</th><th>Condizione</th><th>Parametri</th></tr></thead>
-          <tbody>
-            {tiles.map((t, ti) => {
-              const rc = recalc[t.id];
-              return t.objectives.map((o, oi) => (
-                <tr key={`${t.id}-${oi}`}>
-                  {oi === 0 && (
-                    <td rowSpan={3}>
-                      {t.name}
-                      <div style={{ marginTop: 6 }}>
-                        <button className="ghost" disabled={rc?.running} onClick={() => runRecalc(t)} style={{ fontSize: 11 }}>
-                          {rc?.running ? `⏳ ${rc.progress.done}/${rc.progress.total}` : '🔄 Ricalcola (150)'}
-                        </button>
-                      </div>
-                      {rc && !rc.running && <TileCard r={rc.result} P={baseCfg.nPlayers ?? 4} />}
-                    </td>
-                  )}
-                  <td>{oi + 1}</td>
-                  <td style={{ textAlign: 'left', maxWidth: 260 }}><small>{describeCond(o.cond)}</small></td>
-                  <td><input type="number" min="1" max="20" value={o.pv} onChange={e => updObj(ti, oi, { pv: Math.max(1, Math.min(20, Number(e.target.value) || 1)) })} style={{ width: 52 }} /></td>
-                  <td>
-                    <select value={o.cond.type} onChange={e => updObj(ti, oi, { cond: defaultCond(e.target.value) })}>
-                      {COND_TYPES.map(ct => <option key={ct} value={ct}>{COND_LABELS[ct]}</option>)}
-                    </select>
-                  </td>
-                  <td><CondParams cond={o.cond} onCh={c => updObj(ti, oi, { cond: c })} /></td>
-                </tr>
-              ));
-            })}
-          </tbody>
-        </table>
-      </div>
-      <button className="ghost" onClick={() => { const d = readDef(TILES_LS_KEY, OBJECTIVE_TILES); save(structuredClone(d)); }}>Ripristina default</button>
-      <button className="ghost" onClick={() => writeDef(TILES_LS_KEY, tiles)}>⭐ Rendi questi valori i default</button>
-    </div>
-  );
-}
-
 // --- Piano Industriale "nuovo": famiglie di obiettivi, 5 per famiglia, editabili. Ogni Piano Industriale
 // generato pesca 1 obiettivo per famiglia (prodotto cartesiano) — non si editano le tessere generate, si
 // editano i mattoni e la modifica si propaga a tutte le combinazioni che li usano.
@@ -528,8 +535,6 @@ const familiesDefault = () => [
     { pv: 7, cond: { type: 'sector_leader', sector: 'Tessile' } },
     { pv: 7, cond: { type: 'sector_leader', sector: 'Metallurgica' } },
     { pv: 7, cond: { type: 'sector_leader', sector: 'Chimica' } },
-    { pv: 7, cond: { type: 'direzione_full', sopra: 3, sotto: 0 } },
-    { pv: 7, cond: { type: 'full_dept', sopra: 3, sotto: 2, minCount: 2 } },
   ],
 ];
 const FAMILIES_LS_KEY = 'officina1907-families-v2';
@@ -566,7 +571,7 @@ function FamilyEditor({ families, setFamilies, baseCfg }) {
   };
   return (
     <div className="track-editor">
-      <p className="hint">{FAMILY_LABELS.length} famiglie ({families.map(f => f.length).join(' × ')}) = {families.reduce((a, f) => a + f.length, 0)} mattoni. Ogni Piano Industriale nuovo pesca 1 obiettivo per famiglia — {families.reduce((a, f) => a * f.length, 1)} combinazioni generate automaticamente, non editabili una per una: modifica qui i mattoni e si propaga a tutte le tessere che li usano. Testo generato dalla condizione. Per usarli in partita/simulazione, attiva "Piano Industriale: nuovo" sopra. Salvato nel browser.</p>
+      <p className="hint">{FAMILY_LABELS.length} famiglie ({families.map(f => f.length).join(' × ')}) = {families.reduce((a, f) => a + f.length, 0)} mattoni. Ogni Piano Industriale nuovo pesca 1 obiettivo per famiglia — {families.reduce((a, f) => a * f.length, 1)} combinazioni generate automaticamente, non editabili una per una: modifica qui i mattoni e si propaga a tutte le tessere che li usano. Testo generato dalla condizione. Salvato nel browser.</p>
       <div style={{ maxHeight: 420, overflowY: 'auto' }}>
         <table className="pv-editor">
           <thead><tr><th>Famiglia</th><th>#</th><th>Testo (generato)</th><th>PV</th><th>Condizione</th><th>Parametri</th></tr></thead>
@@ -985,18 +990,16 @@ const IMPORT_FIELDS = [
   ['slots', 'officina1907-slots-v1'],
   ['startTension', 'officina1907-tension-v1'],
   ['contractCount', 'officina1907-contractcount-v5'],
+  ['contracts', CONTRACTS_LS_KEY],
   ['contractMarket', 'officina1907-market-v2'],
   ['contractMilestoneReq', 'officina1907-contractmsreq-v2'],
   ['contractEngine', 'officina1907-contractengine-v1'],
-  ['contractEngineUses', 'officina1907-contractengineuses-v1'],
   ['welfareEnabled', 'officina1907-welfareenabled-v1'],
-  ['tiles', 'officina1907-tiles-v2'],
   ['trackTiles', 'officina1907-tracktiles-v2'],
   ['trackTileCap', 'officina1907-tracktilecap-v1'],
   ['clockThreshold', 'officina1907-clocks-v1'],
   ['indicatorTargets', 'officina1907-targets-v1'],
   ['newWorkers', NEWWORKERS_KEY], // stessa chiave dell'editor (bumpata a ogni cambio di formato): duplicarla qui la fa divergere in silenzio
-  ['tileMode', 'officina1907-tilemode-v1'],
   ['families', 'officina1907-families-v2'],
 ];
 // Scrive un JSON di configurazione esportata nelle chiavi localStorage (senza toccare lo stato React).
@@ -1070,13 +1073,11 @@ export default function SetupScreen({ onStart }) {
   const [slots, setSlots] = useState(loadSlots);
   const [tension, setTension] = useState(loadTension);
   const [count, setCount] = useState(loadCount);
+  const [contracts, setContracts] = useState(loadContracts);
   const [market, setMarket] = useState(loadMarket);
   const [milestoneReq, setMilestoneReq] = useState(loadMilestoneReq);
   const [contractEngine, setContractEngine] = useState(() => loadLS('officina1907-contractengine-v1', false));
-  const [contractEngineUses, setContractEngineUses] = useState(() => loadLS('officina1907-contractengineuses-v1', 3));
-  const [tiles, setTiles] = useState(loadTiles);
   const [families, setFamilies] = useState(loadFamilies);
-  const [tileMode, setTileMode] = useState(() => loadLS('officina1907-tilemode-v1', 'families'));
   const [clocks, setClocks] = useState(loadClocks);
   const [targets, setTargets] = useState(loadTargets);
   const [welfareEnabled, setWelfareEnabled] = useState(loadWelfareEnabled);
@@ -1085,7 +1086,6 @@ export default function SetupScreen({ onStart }) {
 
   const upd = (i, patch) => setPlayers(ps => ps.map((p, j) => (j === i ? { ...p, ...patch } : p)));
   const chosen = players.slice(0, n).map(p => p.boardId).filter(Boolean);
-  const setTileModeAndSave = m => { setTileMode(m); saveLS('officina1907-tilemode-v1', m); };
 
   const cfg = () => ({
     coinsRepeat: true, endOnTrigger: false, singlePlace: true, strikePenalty: true,
@@ -1096,25 +1096,25 @@ export default function SetupScreen({ onStart }) {
     // silenziosamente da DEFAULT_FACTORY_MAPS lato codice, e un futuro cambio lì rende l'export non riproducibile.
     borsaFabbriche: { ...borsaFabbriche, maps: { 2: borsaFabbriche.maps?.[2] || DEFAULT_FACTORY_MAPS[2], 3: borsaFabbriche.maps?.[3] || DEFAULT_FACTORY_MAPS[3], 4: borsaFabbriche.maps?.[4] || DEFAULT_FACTORY_MAPS[4] } },
     strikePenaltyPV: strikePV,
-    slots, startTension: tension, contractCount: count, contractMarket: market,
-    contractMilestoneReq: milestoneReq, contractEngine, contractEngineUses,
+    slots, startTension: tension, contractCount: count, contracts, contractMarket: market,
+    contractMilestoneReq: milestoneReq, contractEngine,
     // toggle in "Editor nuovo mazzo": mazzo unificato 84 carte (lavoratori+impiegati), 6 nazioni (+Greci),
     // 5 mazzetti fisici (nodeBanks) al posto delle coppie di nazioni adiacenti. Niente più azione separata
     // a Servizi per gli Impiegati — sempre Welfare/Macchinari classico lì (servicesMode di default).
     workers: newWorkers,
     nations: NATIONS_NUOVO,
     nodeBanks: NEW_NODE_BANKS,
-    tiles: tileMode === 'families' ? buildFamilyTiles(families) : tiles,
+    tiles: buildFamilyTiles(families), // Piano Industriale = sempre le famiglie (prodotto cartesiano)
     // Welfare/Macchinari rimossi dal design (Officina 2.0, poi esteso al mazzo Classico): Direzione contiene
     // solo Impiegati (sempre Sopra, cap in `slots.direzione.sopra`, default 3) + tile R&D. Sempre off, non
     // più un toggle per-partita. Mercato tile (trackTiles/trackTileCap) ora si compra alla Borsa (Ricerca
     // e Sviluppo, esclusivo con le Commesse nella stessa visita), non più al nodo Servizi.
     welfareEnabled: false,
     // campi grezzi (oltre a quelli già risolti sopra) solo per far tornare l'export/import completo:
-    // newWorkers/tileMode/families sono lo stato "editor", workers/tiles sopra sono già il valore risolto per il motore.
+    // newWorkers/families sono lo stato "editor", workers/tiles sopra sono già il valore risolto per il motore.
     // deckMode non esportato: sempre 'nuovo' ora (editor mazzo vecchio ritirato). welfare/workersRaw (Welfare/Macchinari
     // e lavoratori classici) non esportati: editor rimossi, dati morti.
-    newWorkers, tileMode, families,
+    newWorkers, families,
     trackTiles, trackTileCap,
     clockThreshold: clocks, indicatorTargets: targets,
   });
@@ -1176,11 +1176,6 @@ export default function SetupScreen({ onStart }) {
         <label style={{ display: 'block', margin: '8px 0' }}>
           <input type="checkbox" checked={aiStrong} onChange={e => setAiStrong(e.target.checked)} /> IA forte (rollout d6 — gioca meglio, ogni mossa AI più lenta). Spenta = greedy, istantanea.
         </label>
-        <label style={{ display: 'block', margin: '8px 0' }}>
-          Piano Industriale:{' '}
-          <button className={tileMode === 'classic' ? 'sel' : ''} onClick={() => setTileModeAndSave('classic')}>Tessere fisse ({tiles.length})</button>
-          <button className={tileMode === 'families' ? 'sel' : ''} onClick={() => setTileModeAndSave('families')}>Nuovo (6 nazionalità × 5 industria, 30 combinazioni)</button>
-        </label>
         <p className="hint">Welfare/Macchinari rimossi dal design: Direzione contiene solo Impiegati (sempre Sopra) + tile R&D.</p>
         <div style={{ margin: '10px 0', display: 'flex', flexWrap: 'wrap', gap: 4 }}>
           {[
@@ -1193,8 +1188,7 @@ export default function SetupScreen({ onStart }) {
             ['monete', '🪙 Editor monete iniziali'],
             ['newdeck', '🃏 Editor nuovo mazzo'],
             ['impiegati', '👔 Editor carte Impiegato'],
-            ['tiles', '📜 Editor Piano Industriale (tessere fisse)'],
-            ['families', '🧬 Editor Famiglie (nuovo)'],
+            ['families', '📜 Editor Piano Industriale'],
             ['tracktiles', '🧩 Editor tile tracciato'],
             ['target', '🎯 Editor bersagli indicatori'],
             ['clock', '⏱ Editor clock (durata partita)'],
@@ -1206,7 +1200,7 @@ export default function SetupScreen({ onStart }) {
           ))}
         </div>
         {open === 'plancia' && <PlanciaEditor slots={slots} setSlots={setSlots} tension={tension} setTension={setTension} track={track} setTrack={setTrack} trackModel={trackModel} setTrackModel={setTrackModel} />}
-        {open === 'commesse' && <CommesseEditor count={count} setCount={setCount} market={market} setMarket={setMarket} pv={contractPV} setPV={setContractPV} milestoneReq={milestoneReq} setMilestoneReq={setMilestoneReq} contractEngine={contractEngine} setContractEngine={setContractEngine} contractEngineUses={contractEngineUses} setContractEngineUses={setContractEngineUses} />}
+        {open === 'commesse' && <CommesseEditor count={count} setCount={setCount} market={market} setMarket={setMarket} pv={contractPV} setPV={setContractPV} milestoneReq={milestoneReq} setMilestoneReq={setMilestoneReq} contractEngine={contractEngine} setContractEngine={setContractEngine} contracts={contracts} setContracts={setContracts} />}
         {open === 'tratt' && <TrattativaEditor tratt={trattativa} setTratt={setTrattativa} />}
         {open === 'borsa' && <BorsaEditor borsa={borsa} setBorsa={setBorsa} borsaExit={borsaExit} setBorsaExit={setBorsaExit} borsaRefresh={borsaRefresh} setBorsaRefresh={setBorsaRefresh} starMovement={starMovement} setStarMovement={setStarMovement} />}
         {open === 'borsafabbriche' && <BorsaFabbricheEditor bf={borsaFabbriche} setBf={setBorsaFabbriche} />}
@@ -1214,7 +1208,6 @@ export default function SetupScreen({ onStart }) {
         {open === 'monete' && <StartCoinsEditor coins={startCoins} setCoins={setStartCoins} n={n} />}
         {open === 'newdeck' && <NewDeckEditor newWorkers={newWorkers} setNewWorkers={setNewWorkers} />}
         {open === 'impiegati' && <ImpiegatiDeckEditor newWorkers={newWorkers} setNewWorkers={setNewWorkers} />}
-        {open === 'tiles' && <TilesEditor tiles={tiles} setTiles={setTiles} baseCfg={{ ...cfg(), nPlayers: 4 }} />}
         {open === 'families' && <FamilyEditor families={families} setFamilies={setFamilies} baseCfg={{ ...cfg(), nPlayers: 4 }} />}
         {open === 'tracktiles' && <TrackTileEditor tiles={trackTiles} setTiles={setTrackTiles} cap={trackTileCap} setCap={setTrackTileCap} />}
         {open === 'target' && <TargetEditor targets={targets} setTargets={setTargets} />}
@@ -1223,11 +1216,11 @@ export default function SetupScreen({ onStart }) {
         {open === 'import' && <ImportConfig setters={{
           contractPV: setContractPV, conversions: setConversions, strikePenaltyPV: setStrikePV,
           startingCoins: setStartCoins, trattativa: setTrattativa, borsa: setBorsa, borsaExit: setBorsaExit, borsaRefresh: setBorsaRefresh, borsaFabbriche: setBorsaFabbriche, slots: setSlots,
-          startTension: setTension, contractCount: setCount, contractMarket: setMarket, starMovement: setStarMovement,
-          contractMilestoneReq: setMilestoneReq, contractEngine: setContractEngine, contractEngineUses: setContractEngineUses, welfareEnabled: setWelfareEnabled, tiles: setTiles,
+          startTension: setTension, contractCount: setCount, contracts: setContracts, contractMarket: setMarket, starMovement: setStarMovement,
+          contractMilestoneReq: setMilestoneReq, contractEngine: setContractEngine, welfareEnabled: setWelfareEnabled,
           trackTiles: setTrackTiles, trackTileCap: setTrackTileCap,
           clockThreshold: setClocks, indicatorTargets: setTargets, tracks: setTrack,
-          newWorkers: setNewWorkers, tileMode: setTileMode, families: setFamilies,
+          newWorkers: setNewWorkers, families: setFamilies,
         }} />}
         {open === 'sim' && <SimulationPanel {...cfg()} />}
         <button className="primary" onClick={start}>Inizia la partita</button>

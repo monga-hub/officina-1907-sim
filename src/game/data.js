@@ -1412,6 +1412,20 @@ export const CONTRACTS = {
  ],
 };
 
+// Espande le combo in carte fisiche distinte (ogni copia CONTRACT_COPIES → una carta editabile a sé, id univoco).
+// small/medium: combo × 2 carte; large: ×1, invariato. È il pool completo, senza più moltiplicare a valle.
+export function expandContracts(table) {
+  const out = {};
+  for (const size of ['small', 'medium', 'large']) {
+    const copies = CONTRACT_COPIES[size] || 1;
+    out[size] = [];
+    for (const c of table[size]) for (let cp = 0; cp < copies; cp++) {
+      out[size].push({ ...c, id: copies > 1 ? `${c.id}#${cp + 1}` : c.id, pv: [...c.pv], reqs: c.reqs.map(r => [...r]), engine: c.engine ? { ...c.engine } : null });
+    }
+  }
+  return out;
+}
+
 export const OBJECTIVE_TILES = [
  {
   "id": "pf1",
