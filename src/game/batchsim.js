@@ -1,5 +1,5 @@
 // Simulazione in serie nel browser: N partite tra AI + report testuale copiabile.
-import { initGame, applyCommand, scorePlayer, WORKER_BY_ID, formulaOf, convBucketOf, describeCond, tileValue, bankMarket, legalCommands, indexNames, indexValue, factoryMajorityWinner } from './engine.js';
+import { initGame, applyCommand, scorePlayer, WORKER_BY_ID, formulaOf, convBucketOf, describeCond, tileValue, bankMarket, legalCommands, indexNames, indexValue, factoryMajorityWinner, factorySectorMajorityWinner } from './engine.js';
 import { chooseCommand } from './ai.js';
 import { SECTORS, OBJECTIVE_TILES, WELFARE, TRACK_TILES, IMPIEGATI_BANK, RESOURCE_OF, FACTORY_MAP } from './data.js';
 
@@ -426,16 +426,30 @@ export function runOneGame(config) {
         }
         return { adjOpp, lastSpot: lastSpotHexes.size, tot: allHexes.length };
       })(),
-      // maggioranza territoriale: per ogni giacimento, chi vince il bonus PV (o nessuno per pareggio/assenza)
+      // maggioranza territoriale: chi vince il bonus PV (o nessuno per pareggio/assenza).
+      // DEVE misurare la stessa funzione che SEGNA i PV (factoryMajorityPV in engine): modalità 'sector' = un
+      // premio per COLORE aggregando tutti i giacimenti di quel colore; altrimenti = un premio per giacimento.
       maggioranza: (() => {
         const mb = s.borsaFabbriche.majorityBonus;
-        const m = { pv: mb?.pv || 0, vinti: 0, pareggio: 0, vuoti: 0, tot: 0 };
-        for (const rid of Object.keys(s.hexResource)) {
-          m.tot++;
-          const w = factoryMajorityWinner(s, rid, s.hexResource[rid]);
-          const adjB = (s.factoryMap.adj[rid] || []).filter(n => s.factoryHexById[n]?.type === 'costruibile');
-          const anyFactory = adjB.some(n => s.hexFactory[n] && (s.borsaFabbriche.neutralFactory || s.hexFactory[n].sector === s.hexResource[rid]));
-          if (w != null) m.vinti++; else if (anyFactory) m.pareggio++; else m.vuoti++;
+        const neutral = s.borsaFabbriche.neutralFactory;
+        const mode = s.borsaFabbriche.majorityMode ?? 'deposit';
+        const m = { pv: mb?.pv || 0, vinti: 0, pareggio: 0, vuoti: 0, tot: 0, mode, perPlayer: s.nPlayers };
+        if (mode === 'sector') {
+          for (const sec of SECTORS) {
+            m.tot++;
+            const w = factorySectorMajorityWinner(s, sec);
+            const anyFactory = Object.keys(s.hexResource).some(rid => s.hexResource[rid] === sec &&
+              (s.factoryMap.adj[rid] || []).some(n => s.hexFactory[n] && (neutral || s.hexFactory[n].sector === sec)));
+            if (w != null) m.vinti++; else if (anyFactory) m.pareggio++; else m.vuoti++;
+          }
+        } else {
+          for (const rid of Object.keys(s.hexResource)) {
+            m.tot++;
+            const w = factoryMajorityWinner(s, rid, s.hexResource[rid]);
+            const adjB = (s.factoryMap.adj[rid] || []).filter(n => s.factoryHexById[n]?.type === 'costruibile');
+            const anyFactory = adjB.some(n => s.hexFactory[n] && (neutral || s.hexFactory[n].sector === s.hexResource[rid]));
+            if (w != null) m.vinti++; else if (anyFactory) m.pareggio++; else m.vuoti++;
+          }
         }
         return m;
       })(),
@@ -839,7 +853,7 @@ function configBlock(cfg, P) {
     trackLen, milestones, contractPV: cfg.contractPV, conv: cfg.conversions,
     coins: (cfg.startingCoins || []).slice(0, P), strike: cfg.strikePenaltyPV,
     coinsRepeat: cfg.coinsRepeat, singlePlace: cfg.singlePlace,
-    fact: { model: factModel, mult, cost: bf.costCurve, founding: bf.foundingResource, majority: bf.majorityBonus?.enabled ? bf.majorityBonus.pv : 0, majMode: bf.majorityMode ?? 'deposit', strength: bf.factoryStrengthMode ?? 'sum', maxFab: bf.maxFactories ?? 0, passive: bf.passiveIncome !== false },
+    fact: { model: factModel, mult, cost: bf.costCurve, founding: bf.foundingResource, majority: bf.majorityBonus?.enabled ? bf.majorityBonus.pv : 0, majMode: bf.majorityMode ?? 'deposit', strength: bf.factoryStrengthMode ?? 'sum', maxFab: bf.maxFactories ?? 0, passive: bf.passiveIncome !== false, setupPlace: !!bf.setupPlacement, majCard: !!bf.majorityCardTiebreak },
     market: cfg.contractMarket, clock: cfg.clockThreshold, natN,
     tratt: cfg.trattativa, borsa: cfg.borsa,
   });
@@ -851,7 +865,7 @@ function configBlock(cfg, P) {
   L.push(`Tracciato    ${trackLen} caselle · milestone a ${milestones} · marchi/attivazione ${cfg.coinsRepeat ? 'sì' : 'no'}`);
   L.push(`Commesse     PV ${['small', 'medium', 'large'].map(s => cfg.contractPV[s].join('/')).join(' · ')} · ${cfg.singlePlace ? 'posto unico' : '1°+2°'} · mercato ${cfg.contractMarket ?? 2}/taglia · clock ${cfg.clockThreshold ? Object.values(cfg.clockThreshold).join('/') : '8/12/16'}`);
   L.push(`Fabbriche    ${factModel} · moltiplicatore ${mult} · forza ${bf.factoryStrengthMode ?? 'sum'} · costo ${bf.costCurve ? bf.costCurve.join('/') : '—'} · risorsa-fondazione ${bf.foundingResource !== false ? 'sì' : 'no'}`);
-  L.push(`Fabbriche 2  reddito-passivo ${bf.passiveIncome !== false ? 'sì' : 'no'} · maggioranza ${bf.majorityBonus?.enabled ? `${bf.majorityBonus.pv}PV (${bf.majorityMode ?? 'deposit'})` : 'off'} · tetto-fabbriche ${(bf.maxFactories ?? 0) || '∞'} · gate ${[bf.milestoneGate && 'milestone', bf.cardGate && 'carte', bf.allDeptGate && 'ogni-reparto'].filter(Boolean).join('+') || 'nessuno'}`);
+  L.push(`Fabbriche 2  reddito-passivo ${bf.passiveIncome !== false ? 'sì' : 'no'} · maggioranza ${bf.majorityBonus?.enabled ? `${bf.majorityBonus.pv}PV (${bf.majorityMode ?? 'deposit'})` : 'off'} · tetto-fabbriche ${(bf.maxFactories ?? 0) || '∞'} · gate ${[bf.milestoneGate && 'milestone', bf.cardGate && 'carte', bf.allDeptGate && 'ogni-reparto'].filter(Boolean).join('+') || 'nessuno'} · setup-1ª-fabbrica ${bf.setupPlacement ? 'sì (ordine inverso)' : 'no'} · spareggio-carte ${bf.majorityCardTiebreak ? 'sì' : 'no'}`);
   L.push(`Economia     marchi iniziali ${(cfg.startingCoins || []).slice(0, P).join('/') || '10×' + P} · conversioni ${cfg.conversions?.coinsPerPV ?? 10}m=1PV, ${cfg.conversions?.resPerPV ?? 2}R=1PV · scioperi -${cfg.strikePenaltyPV ?? 3}PV`);
   L.push(`Obiettivi    nazionalità = ${natN} lavoratori`);
   return L;
@@ -1872,11 +1886,13 @@ export function formatReport(games, cfg) {
     L.push('');
 
     if (fbGames[0].borsaFabbriche.maggioranza.pv > 0 || fbGames.some(g => g.borsaFabbriche.maggioranza.vinti > 0)) {
-      L.push('=== BORSA A FABBRICHE — MAGGIORANZA TERRITORIALE (bonus PV per giacimento) ===');
+      const majMode = fbGames[0].borsaFabbriche.maggioranza.mode;
+      const unit = majMode === 'sector' ? 'colore' : 'giacimento'; // misura l'asse che SEGNA davvero i PV
+      L.push(`=== BORSA A FABBRICHE — MAGGIORANZA TERRITORIALE (bonus PV per ${unit}, modalità ${majMode}) ===`);
       const mg = fbGames.reduce((a, g) => { const x = g.borsaFabbriche.maggioranza; a.vinti += x.vinti; a.pareggio += x.pareggio; a.vuoti += x.vuoti; a.tot += x.tot; return a; }, { vinti: 0, pareggio: 0, vuoti: 0, tot: 0 });
       const mgTot = mg.tot || 1;
-      L.push(`bonus configurato: ${fbGames[0].borsaFabbriche.maggioranza.pv} PV/giacimento`);
-      L.push(`giacimenti assegnati (un vincitore netto o per milestone): ${pct(mg.vinti / mgTot)} · pareggio irrisolto (nessuno prende PV): ${pct(mg.pareggio / mgTot)} · nessuna fabbrica del settore: ${pct(mg.vuoti / mgTot)}`);
+      L.push(`bonus configurato: ${fbGames[0].borsaFabbriche.maggioranza.pv} PV/${unit}`);
+      L.push(`${unit === 'colore' ? 'colori' : 'giacimenti'} assegnati (un vincitore netto o per milestone): ${pct(mg.vinti / mgTot)} · pareggio irrisolto (nessuno prende PV): ${pct(mg.pareggio / mgTot)} · nessuna fabbrica del settore: ${pct(mg.vuoti / mgTot)}`);
       L.push(`PV medi distribuiti/giocatore: ${(mg.vinti * fbGames[0].borsaFabbriche.maggioranza.pv / (fbGames.length * fbGames[0].borsaFabbriche.factories.length)).toFixed(1)}`);
       L.push('(pareggio alto = il bonus si annulla spesso da solo — il rischio di un secondo asse di punteggio che non paga mai.)');
       L.push('');

@@ -106,7 +106,9 @@ export const BORSA_FABBRICHE_DEFAULT = {
   cardGate: false,                               // neutra + gate carte: fabbriche vicino a una risorsa di un colore ≤ carte Sopra nel reparto di quel settore. Default OFF.
   allDeptGate: false,                            // neutra + gate globale: per fondare QUALSIASI fabbrica servi ≥1 carta Sopra in ogni reparto (i 3). Default OFF.
   foundingResource: true,                       // true: fondando incassi subito 1 risorsa (neutra: una per colore adiacente distinto)
+  setupPlacement: false,                        // true: al turno 0 ogni giocatore piazza la 1ª fabbrica GRATIS in ordine INVERSO di turno (compensa lo svantaggio d'ordine). Default OFF.
   majorityBonus: { pv: 10, enabled: true },     // PV a fine partita a chi ha più fabbriche attorno a un giacimento (neutra: senza badare al settore)
+  majorityCardTiebreak: false,                  // true: 3° livello di spareggio maggioranza (dopo milestone) = più carte nel reparto di quel colore. Riduce i pareggi nulli. Default OFF.
   maps: {
     2: {
       hexes: [

@@ -206,6 +206,46 @@ function adjacentSectors(state, hex) {
   for (const n of (state.factoryMap.adj[hex] || [])) if (state.hexResource[n]) set.add(state.hexResource[n]);
   return [...set];
 }
+// Piazzamento setup (config.borsaFabbriche.setupPlacement): al turno 0 ogni giocatore fonda la 1ª fabbrica
+// GRATIS, in ordine INVERSO di turno (l'ultimo di turno sceglie per primo → compensa lo svantaggio d'ordine).
+// Euristica del sito: massimizza i colori-risorsa adiacenti distinti (resa fondazione + potenziale cluster),
+// tiebreak sui siti costruibili vicini (spazio per clusterizzare). Deterministica, uguale per ogni posto.
+// ponytail: piazzamento auto anche per un eventuale umano; UI di scelta interattiva rimandata (serve solo A/B batch).
+function setupBestHex(state, p, sector) {
+  const spots = factoryBuildSpots(state, sector, p);
+  let best = null, bestScore = -1;
+  for (const h of spots) {
+    const distinct = adjacentSectors(state, h).length;
+    const room = (state.factoryMap.adj[h] || []).filter(n => state.factoryHexById[n]?.type === 'costruibile' && !state.hexFactory[n]).length;
+    const score = distinct * 10 + room;
+    if (score > bestScore) { bestScore = score; best = h; }
+  }
+  return best;
+}
+function setupInitialFactories(state) {
+  const neutral = state.borsaFabbriche.neutralFactory;
+  for (let i = state.nPlayers - 1; i >= 0; i--) { // ordine inverso: l'ultimo di turno fonda per primo
+    const p = state.players[i];
+    if (neutral) {
+      const hex = setupBestHex(state, p, null);
+      if (!hex) continue;
+      state.hexFactory[hex] = { playerId: p.id };
+      p.factories.push({ hex, turn: 0 });
+      if (state.borsaFabbriche.foundingResource) for (const sec of adjacentSectors(state, hex)) addRes(p, sec, 1, 'fabbrica');
+      log(state, `${p.name} piazza la prima fabbrica su ${hex} (setup, gratis).`);
+    } else {
+      // modello a settori: al setup nessun credito, prendi il primo settore con un sito libero
+      let sector = null, hex = null;
+      for (const s of SECTORS) { const h = setupBestHex(state, p, s); if (h) { sector = s; hex = h; break; } }
+      if (!hex) continue;
+      state.hexFactory[hex] = { playerId: p.id, sector };
+      p.factories.push({ hex, sector, turn: 0 });
+      if (state.borsaFabbriche.foundingResource) addRes(p, sector, 1, 'fabbrica');
+      log(state, `${p.name} piazza la prima fabbrica ${sector} su ${hex} (setup, gratis).`);
+    }
+    checkObjectives(state, p);
+  }
+}
 // settore dominante di una commessa (req = array di settori): il più richiesto, pareggio → il primo
 function dominantSector(req) {
   const c = {};
@@ -534,6 +574,7 @@ export function initGame(config) {
   };
   log(state, `Partita a ${n}: ${players.map(p => `${p.name} (${p.boardName}${p.isAI ? ', AI' : ''})`).join(' · ')}. Seed ${seed}.`);
   if (state.borsaFabbriche.enabled) setupFactoryResources(state, rnd); // assegna i colori random alle caselle-risorsa
+  if (state.borsaFabbriche.enabled && state.borsaFabbriche.setupPlacement) setupInitialFactories(state); // 1ª fabbrica al turno 0, ordine inverso
   startTurn(state);
   checkObjectivesAll(state);
   return state;
@@ -965,6 +1006,21 @@ function checkObjectivesAll(state) { for (const p of state.players) checkObjecti
 // Maggioranza territoriale (Borsa a fabbriche, opzionale): per un giacimento (casella-risorsa), chi ha più
 // fabbriche del settore di quella risorsa sui suoi siti costruibili adiacenti vince il bonus. Pareggio → decide
 // chi ha raggiunto la milestone del reparto assegnato a quel settore; pareggio anche lì → nessuno vince.
+// Risolve un pareggio di conteggio-fabbriche, in cascata: 1) chi ha la milestone del reparto di quel colore;
+// 2) (opz. majorityCardTiebreak) chi ha più carte installate (Sopra+Sotto) in quel reparto; 3) nessuno.
+// Puramente additivo: il livello-carte scatta SOLO dove il vecchio comportamento restituiva null (pareggio nullo).
+function resolveMajorityTie(state, top, sector) {
+  if (top.length === 1) return top[0];
+  const deptFor = id => deptOfSector(state.players.find(pl => pl.id === id), sector);
+  const withMs = top.filter(id => { const d = deptFor(id); return d && d.prod >= state.milestonePos[d.role]; });
+  if (withMs.length === 1) return withMs[0];
+  if (!state.borsaFabbriche?.majorityCardTiebreak) return null; // comportamento storico: pareggio → nessuno
+  const cand = withMs.length > 1 ? withMs : top; // fra i pari-milestone se ce ne sono, sennò fra tutti i pari-fabbriche
+  const cards = id => { const d = deptFor(id); return d ? d.sopra.length + d.sotto.length : 0; };
+  const maxC = Math.max(...cand.map(cards));
+  const winners = cand.filter(id => cards(id) === maxC);
+  return winners.length === 1 ? winners[0] : null;
+}
 export function factoryMajorityWinner(state, rid, sector) {
   const adjB = (state.factoryMap.adj[rid] || []).filter(n => state.factoryHexById[n]?.type === 'costruibile');
   const counts = {};
@@ -976,12 +1032,7 @@ export function factoryMajorityWinner(state, rid, sector) {
   const max = Math.max(0, ...Object.values(counts));
   if (max === 0) return null;
   const top = Object.keys(counts).filter(id => counts[id] === max).map(Number);
-  if (top.length === 1) return top[0];
-  const withMilestone = top.filter(id => {
-    const d = deptOfSector(state.players.find(pl => pl.id === id), sector);
-    return d && d.prod >= state.milestonePos[d.role];
-  });
-  return withMilestone.length === 1 ? withMilestone[0] : null;
+  return resolveMajorityTie(state, top, sector);
 }
 // Maggioranza per COLORE/settore (modalità 'sector'): tutte le caselle-risorsa di un colore contano insieme.
 // Vince chi ha più fabbriche DISTINTE adiacenti a un giacimento di quel colore (una fabbrica su 2 giacimenti
@@ -1001,12 +1052,7 @@ export function factorySectorMajorityWinner(state, sector) {
   const max = Math.max(0, ...Object.values(counts));
   if (max === 0) return null;
   const top = Object.keys(counts).filter(id => counts[id] === max).map(Number);
-  if (top.length === 1) return top[0];
-  const withMilestone = top.filter(id => {
-    const d = deptOfSector(state.players.find(pl => pl.id === id), sector);
-    return d && d.prod >= state.milestonePos[d.role];
-  });
-  return withMilestone.length === 1 ? withMilestone[0] : null;
+  return resolveMajorityTie(state, top, sector);
 }
 function factoryMajorityPV(state, p) {
   const mb = state.borsaFabbriche?.majorityBonus;

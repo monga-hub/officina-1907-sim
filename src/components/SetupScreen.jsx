@@ -839,6 +839,14 @@ function BorsaFabbricheEditor({ bf, setBf }) {
           ? (bf.neutralFactory !== false ? 'fondando incassi 1 risorsa per ogni colore adiacente distinto' : 'fondando incassi 1 risorsa del settore')
           : 'nessuna risorsa alla fondazione'}</span>
       </label>
+      <h4>Prima fabbrica al setup (turno 0)</h4>
+      <label style={{ display: 'block', margin: '4px 0' }}>
+        <button className={bf.setupPlacement ? 'sel' : ''} onClick={() => upd({ setupPlacement: true })}>Attiva</button>
+        <button className={!bf.setupPlacement ? 'sel' : ''} onClick={() => upd({ setupPlacement: false })}>Disattiva</button>
+        <span className="hint" style={{ marginLeft: 8 }}>{bf.setupPlacement
+          ? 'ogni giocatore piazza la 1ª fabbrica GRATIS al turno 0, in ordine INVERSO di turno (l\'ultimo sceglie per primo — compensa lo svantaggio d\'ordine). La 2ª costa curve[1].'
+          : 'nessun piazzamento al setup: tutte le fabbriche si fondano in partita'}</span>
+      </label>
       <h4>Costo a scalare (n-esima fabbrica)</h4>
       <table className="mini"><tbody><tr>
         {bf.costCurve.map((c, i) => <td key={i} style={{ textAlign: 'center' }}>{i + 1}ª<br />{num(c, v => updCost(i, v))} ⓜ</td>)}
@@ -903,6 +911,16 @@ function BorsaFabbricheEditor({ bf, setBf }) {
           <span className="hint" style={{ marginLeft: 8 }}>{bf.majorityMode === 'sector'
             ? 'un premio per COLORE: tutte le risorse di un colore contano insieme, vince chi ha più fabbriche distinte che le toccano (max 3 premi)'
             : 'un premio per ogni singolo giacimento (default): più giacimenti = più premi'}</span>
+        </label>
+      )}
+      {bf.majorityBonus?.enabled && (
+        <label style={{ display: 'block', margin: '4px 0 4px 16px' }}>
+          Spareggio:{' '}
+          <button className={bf.majorityCardTiebreak ? 'sel' : ''} onClick={() => upd({ majorityCardTiebreak: true })}>+ carte reparto</button>
+          <button className={!bf.majorityCardTiebreak ? 'sel' : ''} onClick={() => upd({ majorityCardTiebreak: false })}>solo milestone</button>
+          <span className="hint" style={{ marginLeft: 8 }}>{bf.majorityCardTiebreak
+            ? 'pareggio fabbriche → milestone → più carte (Sopra+Sotto) nel reparto di quel colore → nessuno. Riduce i pareggi nulli.'
+            : 'pareggio fabbriche → milestone → nessuno (default): spesso nessuno prende il bonus'}</span>
         </label>
       )}
       <h4>Mappa esagoni — una per numero di giocatori</h4>
