@@ -828,8 +828,9 @@ function configBlock(cfg, P) {
   let natN = '?';
   const tiles = cfg.tiles || [];
   for (const t of tiles) for (const o of (t.objectives || [])) if (o.cond?.type === 'workers_nation') { natN = o.cond.n; break; }
-  // moltiplicatore fabbrica: cap effettivo (0/1 = spento)
-  const mult = !bf.factoryActivates ? 'OFF' : (bf.factoryMultCap ?? 3) <= 1 ? 'OFF (cap≤1)' : `×${bf.factoryMultCap ?? 3} max`;
+  // moltiplicatore fabbrica: cap 0 = ILLIMITATO (non off!), cap 1 = ×1 = spento, cap≥2 = ×N. Distinti nel fingerprint.
+  const multCap = bf.factoryMultCap ?? 3;
+  const mult = !bf.factoryActivates ? 'OFF' : multCap === 1 ? 'OFF (cap 1)' : multCap === 0 ? '×illimitato' : `×${multCap} max`;
   const factModel = bf.enabled === false ? 'SPENTE'
     : (bf.neutralFactory !== false ? `neutra${bf.milestoneGate ? '+cancello-milestone' : ''}` : 'legata-settore');
 
@@ -838,7 +839,7 @@ function configBlock(cfg, P) {
     trackLen, milestones, contractPV: cfg.contractPV, conv: cfg.conversions,
     coins: (cfg.startingCoins || []).slice(0, P), strike: cfg.strikePenaltyPV,
     coinsRepeat: cfg.coinsRepeat, singlePlace: cfg.singlePlace,
-    fact: { model: factModel, mult, cost: bf.costCurve, founding: bf.foundingResource, majority: bf.majorityBonus?.enabled ? bf.majorityBonus.pv : 0, passive: bf.passiveIncome },
+    fact: { model: factModel, mult, cost: bf.costCurve, founding: bf.foundingResource, majority: bf.majorityBonus?.enabled ? bf.majorityBonus.pv : 0, majMode: bf.majorityMode ?? 'deposit', strength: bf.factoryStrengthMode ?? 'sum', maxFab: bf.maxFactories ?? 0, passive: bf.passiveIncome !== false },
     market: cfg.contractMarket, clock: cfg.clockThreshold, natN,
     tratt: cfg.trattativa, borsa: cfg.borsa,
   });
@@ -849,7 +850,8 @@ function configBlock(cfg, P) {
   L.push(`IA           ${ai} · ${P} giocatori`);
   L.push(`Tracciato    ${trackLen} caselle · milestone a ${milestones} · marchi/attivazione ${cfg.coinsRepeat ? 'sì' : 'no'}`);
   L.push(`Commesse     PV ${['small', 'medium', 'large'].map(s => cfg.contractPV[s].join('/')).join(' · ')} · ${cfg.singlePlace ? 'posto unico' : '1°+2°'} · mercato ${cfg.contractMarket ?? 2}/taglia · clock ${cfg.clockThreshold ? Object.values(cfg.clockThreshold).join('/') : '8/12/16'}`);
-  L.push(`Fabbriche    ${factModel} · moltiplicatore ${mult} · costo ${bf.costCurve ? bf.costCurve.join('/') : '—'} · risorsa-fondazione ${bf.foundingResource !== false ? 'sì' : 'no'} · maggioranza ${bf.majorityBonus?.enabled ? bf.majorityBonus.pv + 'PV' : 'off'}`);
+  L.push(`Fabbriche    ${factModel} · moltiplicatore ${mult} · forza ${bf.factoryStrengthMode ?? 'sum'} · costo ${bf.costCurve ? bf.costCurve.join('/') : '—'} · risorsa-fondazione ${bf.foundingResource !== false ? 'sì' : 'no'}`);
+  L.push(`Fabbriche 2  reddito-passivo ${bf.passiveIncome !== false ? 'sì' : 'no'} · maggioranza ${bf.majorityBonus?.enabled ? `${bf.majorityBonus.pv}PV (${bf.majorityMode ?? 'deposit'})` : 'off'} · tetto-fabbriche ${(bf.maxFactories ?? 0) || '∞'} · gate ${[bf.milestoneGate && 'milestone', bf.cardGate && 'carte', bf.allDeptGate && 'ogni-reparto'].filter(Boolean).join('+') || 'nessuno'}`);
   L.push(`Economia     marchi iniziali ${(cfg.startingCoins || []).slice(0, P).join('/') || '10×' + P} · conversioni ${cfg.conversions?.coinsPerPV ?? 10}m=1PV, ${cfg.conversions?.resPerPV ?? 2}R=1PV · scioperi -${cfg.strikePenaltyPV ?? 3}PV`);
   L.push(`Obiettivi    nazionalità = ${natN} lavoratori`);
   return L;

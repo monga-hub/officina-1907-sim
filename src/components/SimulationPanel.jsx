@@ -114,7 +114,10 @@ export default function SimulationPanel(baseCfg) {
     if (games.length > 0 && !cancelled.current) {
       const iaLabel = effective.aiRollout ? `Rollout d${effective.aiRollout.depth} r${effective.aiRollout.rollouts}` : 'Greedy';
       const header = `=== MODALITÀ ===\n\n${MODE_LABEL[mode]}\n\n${effective.nGames} partite\nIA ${iaLabel}\n\n`;
-      setReport(header + formatReport(games, cfg));
+      // foto COMPLETA di tutti i parametri: il fingerprint identifica la config, questo blocco la contiene per intero
+      // (incollabile in «Importa configurazione» per riprodurre esattamente il report). In fondo per non sporcare la lettura.
+      const fullCfg = `\n\n=== CONFIGURAZIONE COMPLETA (JSON — incolla in «Importa configurazione» per riprodurre esattamente questo report) ===\n\n${JSON.stringify(cfg, null, 2)}\n`;
+      setReport(header + formatReport(games, cfg) + fullCfg);
     }
     setProgress(p => p && { ...p, done: p.total });
   };
@@ -128,6 +131,20 @@ export default function SimulationPanel(baseCfg) {
       const pre = document.querySelector('.sim-report');
       if (pre) { const r = document.createRange(); r.selectNodeContents(pre); const s = getSelection(); s.removeAllRanges(); s.addRange(r); }
     }
+  };
+
+  // Scarica il report come file di testo (archivio). Nome = fingerprint + timestamp, così i file si raccolgono
+  // facilmente in una cartella. La pagina web NON può scegliere la cartella: va nei Download del browser.
+  const download = () => {
+    const fp = (report.match(/fingerprint\s+(\w+)/) || [])[1] || 'report';
+    const ts = new Date().toISOString().replace(/[:T]/g, '-').replace(/\..+/, '').replace(/-(\d\d)-(\d\d)$/, 'h$1m$2');
+    const blob = new Blob([report], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `officina-report-${fp}-${ts}.txt`;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
   };
 
   // Condividi (mobile): manda il report a Note/Mail/chat con un tap. navigator.share solo dove esiste (telefono/HTTPS).
@@ -189,6 +206,7 @@ export default function SimulationPanel(baseCfg) {
       {report && (
         <div>
           <button className="primary" onClick={copy}>{copied ? '✓ Copiato!' : '📋 Copia risultati'}</button>
+          <button onClick={download} style={{ marginLeft: 6 }}>⬇ Scarica</button>
           {canShare && <button onClick={share} style={{ marginLeft: 6 }}>📤 Condividi</button>}
           <pre className="sim-report">{report}</pre>
         </div>
