@@ -201,20 +201,21 @@
  "borsaRefresh": {
   "enabled": true
  },
+ "starMovement": false,
  "borsaFabbriche": {
   "enabled": true,
   "costCurve": [
    0,
-   0,
-   0,
-   0,
-   0,
-   0
+   1,
+   2,
+   3,
+   4,
+   5
   ],
   "setupBalance": "perColorePerIsola",
   "passiveIncome": false,
   "factoryActivates": true,
-  "factoryMultCap": 3,
+  "factoryMultCap": 0,
   "neutralFactory": true,
   "milestoneGate": false,
   "foundingResource": true,
@@ -226,117 +227,115 @@
    "2": {
     "hexes": [
      {
-      "id": "R1",
-      "col": 9,
-      "row": 1,
-      "type": "risorsa",
-      "isola": "R"
-     },
-     {
-      "id": "R2",
-      "col": 10,
+      "id": "L1",
+      "col": 2,
       "row": 1,
       "type": "costruibile",
-      "isola": "R"
+      "isola": "L"
      },
      {
-      "id": "R3",
-      "col": 9,
+      "id": "L2",
+      "col": 3,
+      "row": 1,
+      "type": "risorsa",
+      "isola": "L"
+     },
+     {
+      "id": "L3",
+      "col": 3,
       "row": 2,
       "type": "costruibile",
-      "isola": "R"
+      "isola": "L"
      },
      {
-      "id": "R4",
-      "col": 10,
-      "row": 2,
-      "type": "costruibile",
-      "isola": "R"
-     },
-     {
-      "id": "R5",
-      "col": 7,
+      "id": "L4",
+      "col": 1,
       "row": 3,
       "type": "costruibile",
-      "isola": "R"
+      "isola": "L"
      },
      {
-      "id": "R6",
-      "col": 8,
+      "id": "L5",
+      "col": 2,
       "row": 3,
       "type": "costruibile",
-      "isola": "R"
+      "isola": "L"
      },
      {
-      "id": "R7",
-      "col": 9,
+      "id": "L6",
+      "col": 3,
       "row": 3,
       "type": "risorsa",
-      "isola": "R"
+      "isola": "L"
      },
      {
-      "id": "R8",
-      "col": 8,
+      "id": "L7",
+      "col": 2,
       "row": 4,
       "type": "risorsa",
-      "isola": "R"
+      "isola": "L"
      },
      {
-      "id": "R9",
-      "col": 9,
+      "id": "L8",
+      "col": 3,
       "row": 4,
       "type": "costruibile",
-      "isola": "R"
+      "isola": "L"
+     },
+     {
+      "id": "L9",
+      "col": 4,
+      "row": 4,
+      "type": "costruibile",
+      "isola": "L"
      }
     ],
     "adj": {
-     "R9": [
-      "R6",
-      "R7",
-      "R8"
+     "L1": [
+      "L2",
+      "L3"
      ],
-     "R1": [
-      "R2",
-      "R3",
-      "R4"
+     "L2": [
+      "L1",
+      "L3"
      ],
-     "R2": [
-      "R1",
-      "R4"
+     "L3": [
+      "L1",
+      "L2",
+      "L5",
+      "L6"
      ],
-     "R3": [
-      "R1",
-      "R4",
-      "R6",
-      "R7"
+     "L4": [
+      "L5",
+      "L7"
      ],
-     "R4": [
-      "R1",
-      "R2",
-      "R3",
-      "R7"
+     "L5": [
+      "L3",
+      "L4",
+      "L6",
+      "L7",
+      "L8"
      ],
-     "R5": [
-      "R6",
-      "R8"
+     "L6": [
+      "L3",
+      "L5",
+      "L8",
+      "L9"
      ],
-     "R6": [
-      "R3",
-      "R5",
-      "R7",
-      "R8",
-      "R9"
+     "L7": [
+      "L4",
+      "L5",
+      "L8"
      ],
-     "R7": [
-      "R3",
-      "R4",
-      "R6",
-      "R9"
+     "L8": [
+      "L5",
+      "L6",
+      "L7",
+      "L9"
      ],
-     "R8": [
-      "R5",
-      "R6",
-      "R9"
+     "L9": [
+      "L6",
+      "L8"
      ]
     }
    },
@@ -344,14 +343,42 @@
     "hexes": [
      {
       "id": "L1",
-      "col": 5,
-      "row": 0,
+      "col": 2,
+      "row": 1,
       "type": "costruibile",
       "isola": "L"
      },
      {
-      "id": "L2",
+      "id": "L10",
+      "col": 2,
+      "row": 4,
+      "type": "risorsa",
+      "isola": "L"
+     },
+     {
+      "id": "L11",
+      "col": 3,
+      "row": 4,
+      "type": "costruibile",
+      "isola": "L"
+     },
+     {
+      "id": "L12",
       "col": 4,
+      "row": 4,
+      "type": "costruibile",
+      "isola": "L"
+     },
+     {
+      "id": "L13",
+      "col": 5,
+      "row": 4,
+      "type": "risorsa",
+      "isola": "L"
+     },
+     {
+      "id": "L2",
+      "col": 3,
       "row": 1,
       "type": "risorsa",
       "isola": "L"
@@ -365,7 +392,7 @@
      },
      {
       "id": "L4",
-      "col": 4,
+      "col": 3,
       "row": 2,
       "type": "costruibile",
       "isola": "L"
@@ -374,18 +401,32 @@
       "id": "L5",
       "col": 5,
       "row": 2,
-      "type": "costruibile",
+      "type": "risorsa",
       "isola": "L"
      },
      {
       "id": "L6",
-      "col": 4,
+      "col": 1,
+      "row": 3,
+      "type": "costruibile",
+      "isola": "L"
+     },
+     {
+      "id": "L7",
+      "col": 2,
+      "row": 3,
+      "type": "costruibile",
+      "isola": "L"
+     },
+     {
+      "id": "L8",
+      "col": 3,
       "row": 3,
       "type": "risorsa",
       "isola": "L"
      },
      {
-      "id": "L7",
+      "id": "L9",
       "col": 5,
       "row": 3,
       "type": "costruibile",
@@ -394,177 +435,120 @@
      {
       "id": "R1",
       "col": 6,
-      "row": 0,
-      "type": "costruibile",
-      "isola": "R"
-     },
-     {
-      "id": "R10",
-      "col": 8,
-      "row": 4,
+      "row": 1,
       "type": "risorsa",
-      "isola": "R"
-     },
-     {
-      "id": "R11",
-      "col": 9,
-      "row": 4,
-      "type": "costruibile",
       "isola": "R"
      },
      {
       "id": "R2",
       "col": 6,
-      "row": 1,
+      "row": 2,
       "type": "costruibile",
       "isola": "R"
      },
      {
       "id": "R3",
-      "col": 9,
-      "row": 1,
-      "type": "risorsa",
+      "col": 7,
+      "row": 2,
+      "type": "costruibile",
       "isola": "R"
      },
      {
       "id": "R4",
-      "col": 10,
-      "row": 1,
+      "col": 6,
+      "row": 4,
       "type": "costruibile",
-      "isola": "R"
-     },
-     {
-      "id": "R5",
-      "col": 9,
-      "row": 2,
-      "type": "costruibile",
-      "isola": "R"
-     },
-     {
-      "id": "R6",
-      "col": 10,
-      "row": 2,
-      "type": "costruibile",
-      "isola": "R"
-     },
-     {
-      "id": "R7",
-      "col": 7,
-      "row": 3,
-      "type": "costruibile",
-      "isola": "R"
-     },
-     {
-      "id": "R8",
-      "col": 8,
-      "row": 3,
-      "type": "costruibile",
-      "isola": "R"
-     },
-     {
-      "id": "R9",
-      "col": 9,
-      "row": 3,
-      "type": "risorsa",
       "isola": "R"
      }
     ],
     "adj": {
-     "L5": [
+     "L1": [
       "L2",
-      "L3",
-      "L4",
+      "L4"
+     ],
+     "L10": [
+      "L11",
       "L6",
       "L7"
      ],
-     "L6": [
-      "L4",
-      "L5",
-      "L7"
+     "L11": [
+      "L10",
+      "L12",
+      "L7",
+      "L8"
      ],
-     "L7": [
-      "L5",
-      "L6"
+     "L12": [
+      "L11",
+      "L13",
+      "L8"
      ],
-     "L1": [
-      "L2",
-      "L3",
-      "R1"
+     "L13": [
+      "L12",
+      "L9",
+      "R4"
      ],
      "L2": [
       "L1",
-      "L3",
-      "L4",
-      "L5"
+      "L4"
      ],
      "L3": [
-      "L1",
-      "L2",
       "L5",
       "R1",
       "R2"
      ],
      "L4": [
+      "L1",
       "L2",
+      "L7",
+      "L8"
+     ],
+     "L5": [
+      "L3",
+      "L9",
+      "R2"
+     ],
+     "L6": [
+      "L10",
+      "L7"
+     ],
+     "L7": [
+      "L10",
+      "L11",
+      "L4",
+      "L6",
+      "L8"
+     ],
+     "L8": [
+      "L11",
+      "L12",
+      "L4",
+      "L7"
+     ],
+     "L9": [
+      "L13",
       "L5",
-      "L6"
+      "R2",
+      "R4"
      ],
-     "R10": [
-      "R11",
-      "R7",
-      "R8"
-     ],
-     "R11": [
-      "R10",
-      "R8",
-      "R9"
-     ],
-     "R3": [
-      "R4",
-      "R5",
-      "R6"
-     ],
-     "R4": [
-      "R3",
-      "R6"
-     ],
-     "R5": [
-      "R3",
-      "R6",
-      "R8",
-      "R9"
-     ],
-     "R6": [
-      "R3",
-      "R4",
-      "R5",
-      "R9"
-     ],
-     "R7": [
-      "R10",
-      "R8"
-     ],
-     "R8": [
-      "R10",
-      "R11",
-      "R5",
-      "R7",
-      "R9"
-     ],
-     "R9": [
-      "R11",
-      "R5",
-      "R6",
-      "R8"
+     "R1": [
+      "L3",
+      "R2",
+      "R3"
      ],
      "R2": [
       "L3",
-      "R1"
+      "L5",
+      "L9",
+      "R1",
+      "R3"
      ],
-     "R1": [
-      "L1",
-      "L3",
+     "R3": [
+      "R1",
       "R2"
+     ],
+     "R4": [
+      "L13",
+      "L9"
      ]
     }
    },
@@ -573,131 +557,124 @@
      {
       "id": "L1",
       "col": 2,
-      "row": 0,
+      "row": 1,
       "type": "costruibile",
       "isola": "L"
      },
      {
       "id": "L10",
-      "col": 3,
-      "row": 2,
+      "col": 2,
+      "row": 4,
       "type": "risorsa",
       "isola": "L"
      },
      {
       "id": "L11",
-      "col": 5,
-      "row": 2,
-      "type": "costruibile",
-      "isola": "L"
-     },
-     {
-      "id": "L12",
-      "col": 1,
-      "row": 3,
-      "type": "risorsa",
-      "isola": "L"
-     },
-     {
-      "id": "L13",
-      "col": 2,
-      "row": 3,
-      "type": "costruibile",
-      "isola": "L"
-     },
-     {
-      "id": "L14",
-      "col": 4,
-      "row": 3,
-      "type": "risorsa",
-      "isola": "L"
-     },
-     {
-      "id": "L15",
-      "col": 5,
-      "row": 3,
-      "type": "costruibile",
-      "isola": "L"
-     },
-     {
-      "id": "L16",
-      "col": 2,
+      "col": 3,
       "row": 4,
       "type": "costruibile",
       "isola": "L"
      },
      {
+      "id": "L12",
+      "col": 4,
+      "row": 4,
+      "type": "costruibile",
+      "isola": "L"
+     },
+     {
+      "id": "L13",
+      "col": 5,
+      "row": 4,
+      "type": "risorsa",
+      "isola": "L"
+     },
+     {
       "id": "L2",
       "col": 3,
-      "row": 0,
+      "row": 1,
       "type": "risorsa",
       "isola": "L"
      },
      {
       "id": "L3",
-      "col": 4,
-      "row": 0,
+      "col": 5,
+      "row": 1,
       "type": "costruibile",
       "isola": "L"
      },
      {
       "id": "L4",
-      "col": 5,
-      "row": 0,
+      "col": 3,
+      "row": 2,
       "type": "costruibile",
       "isola": "L"
      },
      {
       "id": "L5",
-      "col": 2,
-      "row": 1,
-      "type": "costruibile",
+      "col": 5,
+      "row": 2,
+      "type": "risorsa",
       "isola": "L"
      },
      {
       "id": "L6",
-      "col": 3,
-      "row": 1,
+      "col": 1,
+      "row": 3,
       "type": "costruibile",
       "isola": "L"
      },
      {
       "id": "L7",
-      "col": 4,
-      "row": 1,
-      "type": "risorsa",
-      "isola": "L"
-     },
-     {
-      "id": "L8",
-      "col": 5,
-      "row": 1,
+      "col": 2,
+      "row": 3,
       "type": "costruibile",
       "isola": "L"
      },
      {
+      "id": "L8",
+      "col": 3,
+      "row": 3,
+      "type": "risorsa",
+      "isola": "L"
+     },
+     {
       "id": "L9",
-      "col": 2,
-      "row": 2,
+      "col": 5,
+      "row": 3,
       "type": "costruibile",
       "isola": "L"
      },
      {
       "id": "R1",
       "col": 6,
-      "row": 0,
+      "row": 1,
       "type": "risorsa",
       "isola": "R"
      },
      {
       "id": "R10",
+      "col": 9,
+      "row": 3,
+      "type": "risorsa",
+      "isola": "R"
+     },
+     {
+      "id": "R11",
+      "col": 6,
+      "row": 4,
+      "type": "costruibile",
+      "isola": "R"
+     },
+     {
+      "id": "R12",
       "col": 8,
       "row": 4,
       "type": "risorsa",
       "isola": "R"
      },
      {
-      "id": "R11",
+      "id": "R13",
       "col": 9,
       "row": 4,
       "type": "costruibile",
@@ -705,215 +682,209 @@
      },
      {
       "id": "R2",
-      "col": 6,
-      "row": 1,
-      "type": "costruibile",
-      "isola": "R"
-     },
-     {
-      "id": "R3",
       "col": 9,
       "row": 1,
       "type": "risorsa",
       "isola": "R"
      },
      {
-      "id": "R4",
+      "id": "R3",
       "col": 10,
       "row": 1,
       "type": "costruibile",
       "isola": "R"
      },
      {
+      "id": "R4",
+      "col": 6,
+      "row": 2,
+      "type": "costruibile",
+      "isola": "R"
+     },
+     {
       "id": "R5",
-      "col": 9,
+      "col": 7,
       "row": 2,
       "type": "costruibile",
       "isola": "R"
      },
      {
       "id": "R6",
-      "col": 10,
+      "col": 9,
       "row": 2,
       "type": "costruibile",
       "isola": "R"
      },
      {
       "id": "R7",
+      "col": 10,
+      "row": 2,
+      "type": "costruibile",
+      "isola": "R"
+     },
+     {
+      "id": "R8",
       "col": 7,
       "row": 3,
       "type": "costruibile",
       "isola": "R"
      },
      {
-      "id": "R8",
+      "id": "R9",
       "col": 8,
       "row": 3,
       "type": "costruibile",
-      "isola": "R"
-     },
-     {
-      "id": "R9",
-      "col": 9,
-      "row": 3,
-      "type": "risorsa",
       "isola": "R"
      }
     ],
     "adj": {
      "L1": [
       "L2",
-      "L5"
+      "L4"
      ],
-     "L10": [
+     "L9": [
       "L13",
       "L5",
+      "R11",
+      "R4"
+     ],
+     "L10": [
+      "L11",
       "L6",
-      "L9"
+      "L7"
      ],
      "L11": [
-      "L14",
-      "L15",
+      "L10",
+      "L12",
       "L7",
       "L8"
      ],
-     "L12": [
-      "L13",
-      "L16",
-      "L9"
-     ],
      "L13": [
-      "L10",
       "L12",
-      "L16",
-      "L9"
-     ],
-     "L14": [
-      "L11",
-      "L15"
-     ],
-     "L15": [
-      "L11",
-      "L14"
-     ],
-     "L16": [
-      "L12",
-      "L13"
+      "L9",
+      "R11"
      ],
      "L2": [
       "L1",
-      "L3",
-      "L5",
-      "L6"
+      "L4"
      ],
      "L3": [
-      "L2",
-      "L4",
-      "L6",
-      "L7"
+      "L5",
+      "R1",
+      "R4"
      ],
      "L4": [
-      "L3",
+      "L1",
+      "L2",
       "L7",
-      "L8",
-      "R1"
+      "L8"
      ],
      "L5": [
-      "L1",
-      "L10",
-      "L2",
-      "L6",
-      "L9"
+      "L3",
+      "L9",
+      "R4"
      ],
      "L6": [
       "L10",
-      "L2",
-      "L3",
-      "L5",
       "L7"
      ],
      "L7": [
+      "L10",
       "L11",
-      "L3",
       "L4",
       "L6",
       "L8"
      ],
      "L8": [
       "L11",
-      "L4",
-      "L7",
-      "R1",
-      "R2"
-     ],
-     "L9": [
-      "L10",
       "L12",
-      "L13",
-      "L5"
+      "L4",
+      "L7"
      ],
      "R1": [
-      "L4",
-      "L8",
-      "R2"
+      "L3",
+      "R4",
+      "R5"
      ],
      "R10": [
-      "R11",
+      "R13",
+      "R6",
       "R7",
-      "R8"
+      "R9"
      ],
      "R11": [
-      "R10",
+      "L13",
+      "L9"
+     ],
+     "R12": [
+      "R13",
       "R8",
+      "R9"
+     ],
+     "R13": [
+      "R10",
+      "R12",
       "R9"
      ],
      "R2": [
-      "L8",
-      "R1"
-     ],
-     "R3": [
-      "R4",
-      "R5",
-      "R6"
-     ],
-     "R4": [
-      "R3",
-      "R6"
-     ],
-     "R5": [
       "R3",
       "R6",
-      "R8",
-      "R9"
+      "R7"
+     ],
+     "R3": [
+      "R2",
+      "R7"
+     ],
+     "R4": [
+      "L3",
+      "L5",
+      "L9",
+      "R1",
+      "R5"
+     ],
+     "R5": [
+      "R1",
+      "R4",
+      "R8"
      ],
      "R6": [
-      "R3",
-      "R4",
-      "R5",
+      "R10",
+      "R2",
+      "R7",
       "R9"
      ],
      "R7": [
       "R10",
-      "R8"
+      "R2",
+      "R3",
+      "R6"
      ],
      "R8": [
-      "R10",
-      "R11",
+      "R12",
       "R5",
-      "R7",
       "R9"
      ],
      "R9": [
-      "R11",
-      "R5",
+      "R10",
+      "R12",
+      "R13",
       "R6",
       "R8"
+     ],
+     "L12": [
+      "L11",
+      "L13",
+      "L8"
      ]
     }
    }
   },
-  "cardGate": true,
-  "chooseProduction": false
+  "cardGate": false,
+  "chooseProduction": false,
+  "allDeptGate": false,
+  "majorityMode": "sector",
+  "factoryStrengthMode": "maxCluster",
+  "maxFactories": 0
  },
  "strikePenaltyPV": 5,
  "slots": {
@@ -940,9 +911,753 @@
   "primario": 0
  },
  "contractCount": {
-  "small": 6,
-  "medium": 6,
-  "large": 6
+  "2": {
+   "small": 3,
+   "medium": 3,
+   "large": 3
+  },
+  "3": {
+   "small": 4,
+   "medium": 4,
+   "large": 4
+  },
+  "4": {
+   "small": 6,
+   "medium": 6,
+   "large": 6
+  }
+ },
+ "contracts": {
+  "small": [
+   {
+    "id": "small1#1",
+    "size": "small",
+    "pv": [
+     5,
+     3
+    ],
+    "reqs": [
+     [
+      "Tessile",
+      "Tessile",
+      "Metallurgica"
+     ]
+    ],
+    "engine": {
+     "yield": "res",
+     "amount": 1,
+     "uses": 2
+    }
+   },
+   {
+    "id": "small1#2",
+    "size": "small",
+    "pv": [
+     5,
+     3
+    ],
+    "reqs": [
+     [
+      "Tessile",
+      "Tessile",
+      "Metallurgica"
+     ]
+    ],
+    "engine": {
+     "yield": "res",
+     "amount": 1,
+     "uses": 2
+    }
+   },
+   {
+    "id": "small2#1",
+    "size": "small",
+    "pv": [
+     5,
+     3
+    ],
+    "reqs": [
+     [
+      "Tessile",
+      "Tessile",
+      "Chimica"
+     ]
+    ],
+    "engine": null
+   },
+   {
+    "id": "small2#2",
+    "size": "small",
+    "pv": [
+     5,
+     3
+    ],
+    "reqs": [
+     [
+      "Tessile",
+      "Tessile",
+      "Chimica"
+     ]
+    ],
+    "engine": {
+     "yield": "res",
+     "amount": 1,
+     "uses": 2
+    }
+   },
+   {
+    "id": "small3#1",
+    "size": "small",
+    "pv": [
+     5,
+     3
+    ],
+    "reqs": [
+     [
+      "Tessile",
+      "Metallurgica",
+      "Metallurgica"
+     ]
+    ],
+    "engine": null
+   },
+   {
+    "id": "small3#2",
+    "size": "small",
+    "pv": [
+     5,
+     3
+    ],
+    "reqs": [
+     [
+      "Tessile",
+      "Metallurgica",
+      "Metallurgica"
+     ]
+    ],
+    "engine": {
+     "yield": "res",
+     "amount": 1,
+     "uses": 2
+    }
+   },
+   {
+    "id": "small5#1",
+    "size": "small",
+    "pv": [
+     5,
+     3
+    ],
+    "reqs": [
+     [
+      "Tessile",
+      "Chimica",
+      "Chimica"
+     ]
+    ],
+    "engine": null
+   },
+   {
+    "id": "small5#2",
+    "size": "small",
+    "pv": [
+     5,
+     3
+    ],
+    "reqs": [
+     [
+      "Tessile",
+      "Chimica",
+      "Chimica"
+     ]
+    ],
+    "engine": {
+     "yield": "res",
+     "amount": 1,
+     "uses": 2
+    }
+   },
+   {
+    "id": "small6#1",
+    "size": "small",
+    "pv": [
+     5,
+     3
+    ],
+    "reqs": [
+     [
+      "Metallurgica",
+      "Metallurgica",
+      "Chimica"
+     ]
+    ],
+    "engine": null
+   },
+   {
+    "id": "small6#2",
+    "size": "small",
+    "pv": [
+     5,
+     3
+    ],
+    "reqs": [
+     [
+      "Metallurgica",
+      "Metallurgica",
+      "Chimica"
+     ]
+    ],
+    "engine": {
+     "yield": "res",
+     "amount": 1,
+     "uses": 2
+    }
+   },
+   {
+    "id": "small7#1",
+    "size": "small",
+    "pv": [
+     5,
+     3
+    ],
+    "reqs": [
+     [
+      "Metallurgica",
+      "Chimica",
+      "Chimica"
+     ]
+    ],
+    "engine": null
+   },
+   {
+    "id": "small7#2",
+    "size": "small",
+    "pv": [
+     5,
+     3
+    ],
+    "reqs": [
+     [
+      "Metallurgica",
+      "Chimica",
+      "Chimica"
+     ]
+    ],
+    "engine": {
+     "yield": "res",
+     "amount": 1,
+     "uses": 2
+    }
+   }
+  ],
+  "medium": [
+   {
+    "id": "medium1#1",
+    "size": "medium",
+    "pv": [
+     9,
+     7
+    ],
+    "reqs": [
+     [
+      "Tessile",
+      "Tessile",
+      "Tessile",
+      "Metallurgica",
+      "Chimica"
+     ]
+    ],
+    "engine": null
+   },
+   {
+    "id": "medium1#2",
+    "size": "medium",
+    "pv": [
+     9,
+     7
+    ],
+    "reqs": [
+     [
+      "Tessile",
+      "Tessile",
+      "Tessile",
+      "Metallurgica",
+      "Chimica"
+     ]
+    ],
+    "engine": {
+     "yield": "res",
+     "amount": 1,
+     "uses": 2
+    }
+   },
+   {
+    "id": "medium2#1",
+    "size": "medium",
+    "pv": [
+     9,
+     7
+    ],
+    "reqs": [
+     [
+      "Tessile",
+      "Tessile",
+      "Metallurgica",
+      "Metallurgica",
+      "Chimica"
+     ]
+    ],
+    "engine": null
+   },
+   {
+    "id": "medium2#2",
+    "size": "medium",
+    "pv": [
+     9,
+     7
+    ],
+    "reqs": [
+     [
+      "Tessile",
+      "Tessile",
+      "Metallurgica",
+      "Metallurgica",
+      "Chimica"
+     ]
+    ],
+    "engine": {
+     "yield": "res",
+     "amount": 1,
+     "uses": 2
+    }
+   },
+   {
+    "id": "medium3#1",
+    "size": "medium",
+    "pv": [
+     9,
+     7
+    ],
+    "reqs": [
+     [
+      "Tessile",
+      "Tessile",
+      "Metallurgica",
+      "Chimica",
+      "Chimica"
+     ]
+    ],
+    "engine": null
+   },
+   {
+    "id": "medium3#2",
+    "size": "medium",
+    "pv": [
+     9,
+     7
+    ],
+    "reqs": [
+     [
+      "Tessile",
+      "Tessile",
+      "Metallurgica",
+      "Chimica",
+      "Chimica"
+     ]
+    ],
+    "engine": {
+     "yield": "res",
+     "amount": 1,
+     "uses": 2
+    }
+   },
+   {
+    "id": "medium4#1",
+    "size": "medium",
+    "pv": [
+     9,
+     7
+    ],
+    "reqs": [
+     [
+      "Tessile",
+      "Metallurgica",
+      "Metallurgica",
+      "Metallurgica",
+      "Chimica"
+     ]
+    ],
+    "engine": null
+   },
+   {
+    "id": "medium4#2",
+    "size": "medium",
+    "pv": [
+     9,
+     7
+    ],
+    "reqs": [
+     [
+      "Tessile",
+      "Metallurgica",
+      "Metallurgica",
+      "Metallurgica",
+      "Chimica"
+     ]
+    ],
+    "engine": {
+     "yield": "res",
+     "amount": 1,
+     "uses": 2
+    }
+   },
+   {
+    "id": "medium5#1",
+    "size": "medium",
+    "pv": [
+     9,
+     7
+    ],
+    "reqs": [
+     [
+      "Tessile",
+      "Metallurgica",
+      "Metallurgica",
+      "Chimica",
+      "Chimica"
+     ]
+    ],
+    "engine": null
+   },
+   {
+    "id": "medium5#2",
+    "size": "medium",
+    "pv": [
+     9,
+     7
+    ],
+    "reqs": [
+     [
+      "Tessile",
+      "Metallurgica",
+      "Metallurgica",
+      "Chimica",
+      "Chimica"
+     ]
+    ],
+    "engine": {
+     "yield": "res",
+     "amount": 1,
+     "uses": 2
+    }
+   },
+   {
+    "id": "medium6#1",
+    "size": "medium",
+    "pv": [
+     9,
+     7
+    ],
+    "reqs": [
+     [
+      "Tessile",
+      "Metallurgica",
+      "Chimica",
+      "Chimica",
+      "Chimica"
+     ]
+    ],
+    "engine": null
+   },
+   {
+    "id": "medium6#2",
+    "size": "medium",
+    "pv": [
+     9,
+     7
+    ],
+    "reqs": [
+     [
+      "Tessile",
+      "Metallurgica",
+      "Chimica",
+      "Chimica",
+      "Chimica"
+     ]
+    ],
+    "engine": {
+     "yield": "res",
+     "amount": 1,
+     "uses": 2
+    }
+   }
+  ],
+  "large": [
+   {
+    "id": "large2",
+    "size": "large",
+    "pv": [
+     15,
+     13
+    ],
+    "reqs": [
+     [
+      "Tessile",
+      "Tessile",
+      "Tessile",
+      "Tessile",
+      "Metallurgica",
+      "Metallurgica",
+      "Chimica"
+     ]
+    ],
+    "engine": null
+   },
+   {
+    "id": "large3",
+    "size": "large",
+    "pv": [
+     15,
+     13
+    ],
+    "reqs": [
+     [
+      "Tessile",
+      "Tessile",
+      "Tessile",
+      "Tessile",
+      "Metallurgica",
+      "Chimica",
+      "Chimica"
+     ]
+    ],
+    "engine": {
+     "yield": "res",
+     "amount": 1,
+     "uses": 2
+    }
+   },
+   {
+    "id": "large4",
+    "size": "large",
+    "pv": [
+     15,
+     13
+    ],
+    "reqs": [
+     [
+      "Tessile",
+      "Tessile",
+      "Tessile",
+      "Metallurgica",
+      "Metallurgica",
+      "Metallurgica",
+      "Chimica"
+     ]
+    ],
+    "engine": null
+   },
+   {
+    "id": "large5",
+    "size": "large",
+    "pv": [
+     15,
+     13
+    ],
+    "reqs": [
+     [
+      "Tessile",
+      "Tessile",
+      "Tessile",
+      "Metallurgica",
+      "Metallurgica",
+      "Chimica",
+      "Chimica"
+     ]
+    ],
+    "engine": {
+     "yield": "res",
+     "amount": 1,
+     "uses": 2
+    }
+   },
+   {
+    "id": "large6",
+    "size": "large",
+    "pv": [
+     15,
+     13
+    ],
+    "reqs": [
+     [
+      "Tessile",
+      "Tessile",
+      "Tessile",
+      "Metallurgica",
+      "Chimica",
+      "Chimica",
+      "Chimica"
+     ]
+    ],
+    "engine": null
+   },
+   {
+    "id": "large7",
+    "size": "large",
+    "pv": [
+     15,
+     13
+    ],
+    "reqs": [
+     [
+      "Tessile",
+      "Tessile",
+      "Metallurgica",
+      "Metallurgica",
+      "Metallurgica",
+      "Metallurgica",
+      "Chimica"
+     ]
+    ],
+    "engine": {
+     "yield": "res",
+     "amount": 1,
+     "uses": 2
+    }
+   },
+   {
+    "id": "large8",
+    "size": "large",
+    "pv": [
+     15,
+     13
+    ],
+    "reqs": [
+     [
+      "Tessile",
+      "Tessile",
+      "Metallurgica",
+      "Metallurgica",
+      "Metallurgica",
+      "Chimica",
+      "Chimica"
+     ]
+    ],
+    "engine": null
+   },
+   {
+    "id": "large9",
+    "size": "large",
+    "pv": [
+     15,
+     13
+    ],
+    "reqs": [
+     [
+      "Tessile",
+      "Tessile",
+      "Metallurgica",
+      "Metallurgica",
+      "Chimica",
+      "Chimica",
+      "Chimica"
+     ]
+    ],
+    "engine": {
+     "yield": "res",
+     "amount": 1,
+     "uses": 2
+    }
+   },
+   {
+    "id": "large10",
+    "size": "large",
+    "pv": [
+     15,
+     13
+    ],
+    "reqs": [
+     [
+      "Tessile",
+      "Tessile",
+      "Metallurgica",
+      "Chimica",
+      "Chimica",
+      "Chimica",
+      "Chimica"
+     ]
+    ],
+    "engine": null
+   },
+   {
+    "id": "large12",
+    "size": "large",
+    "pv": [
+     15,
+     13
+    ],
+    "reqs": [
+     [
+      "Tessile",
+      "Metallurgica",
+      "Metallurgica",
+      "Metallurgica",
+      "Metallurgica",
+      "Chimica",
+      "Chimica"
+     ]
+    ],
+    "engine": {
+     "yield": "res",
+     "amount": 1,
+     "uses": 2
+    }
+   },
+   {
+    "id": "large13",
+    "size": "large",
+    "pv": [
+     15,
+     13
+    ],
+    "reqs": [
+     [
+      "Tessile",
+      "Metallurgica",
+      "Metallurgica",
+      "Metallurgica",
+      "Chimica",
+      "Chimica",
+      "Chimica"
+     ]
+    ],
+    "engine": null
+   },
+   {
+    "id": "large14",
+    "size": "large",
+    "pv": [
+     15,
+     13
+    ],
+    "reqs": [
+     [
+      "Tessile",
+      "Metallurgica",
+      "Metallurgica",
+      "Chimica",
+      "Chimica",
+      "Chimica",
+      "Chimica"
+     ]
+    ],
+    "engine": {
+     "yield": "res",
+     "amount": 1,
+     "uses": 2
+    }
+   }
+  ]
  },
  "contractMarket": 2,
  "contractMilestoneReq": {
@@ -951,7 +1666,6 @@
   "large": 2
  },
  "contractEngine": true,
- "contractEngineUses": 2,
  "workers": [
   {
    "id": "nw_gr5",
@@ -1287,7 +2001,7 @@
     "f1": {
      "q": 1,
      "tipo": "risorsa",
-     "settore": "Tessile"
+     "settore": "Chimica"
     }
    },
    "deck": "D"
@@ -1302,7 +2016,7 @@
     "f1": {
      "q": 1,
      "tipo": "risorsa",
-     "settore": "Metallurgica"
+     "settore": "Tessile"
     }
    },
    "deck": "E"
@@ -1317,7 +2031,7 @@
     "f1": {
      "q": 1,
      "tipo": "risorsa",
-     "settore": "Chimica"
+     "settore": "Metallurgica"
     }
    },
    "deck": "A"
@@ -1675,7 +2389,7 @@
     "f2": {
      "conta": "icona",
      "kind": "sector",
-     "di": "Metallurgica"
+     "di": "Tessile"
     }
    },
    "deck": "C"
@@ -2456,28 +3170,15 @@
      "pv": 7,
      "cond": {
       "type": "workers_nation",
-      "nation": "Italiani",
+      "nation": "Francesi",
       "n": 3
      }
     },
     {
      "pv": 7,
      "cond": {
-      "type": "milestones",
-      "sectors": [
-       {
-        "sector": "Chimica",
-        "milestone": 1
-       },
-       {
-        "sector": "Tessile",
-        "milestone": 1
-       },
-       {
-        "sector": "Metallurgica",
-        "milestone": 1
-       }
-      ]
+      "type": "sector_leader",
+      "sector": "Tessile"
      }
     }
    ]
@@ -2490,16 +3191,15 @@
      "pv": 7,
      "cond": {
       "type": "workers_nation",
-      "nation": "Italiani",
+      "nation": "Francesi",
       "n": 3
      }
     },
     {
      "pv": 7,
      "cond": {
-      "type": "direzione_full",
-      "sopra": 3,
-      "sotto": 0
+      "type": "sector_leader",
+      "sector": "Metallurgica"
      }
     }
    ]
@@ -2520,7 +3220,7 @@
      "pv": 7,
      "cond": {
       "type": "sector_leader",
-      "sector": "Tessile"
+      "sector": "Chimica"
      }
     }
    ]
@@ -2533,104 +3233,6 @@
      "pv": 7,
      "cond": {
       "type": "workers_nation",
-      "nation": "Francesi",
-      "n": 3
-     }
-    },
-    {
-     "pv": 7,
-     "cond": {
-      "type": "sector_leader",
-      "sector": "Metallurgica"
-     }
-    }
-   ]
-  },
-  {
-   "id": "pf8",
-   "name": "Piano 8",
-   "objectives": [
-    {
-     "pv": 7,
-     "cond": {
-      "type": "workers_nation",
-      "nation": "Francesi",
-      "n": 3
-     }
-    },
-    {
-     "pv": 7,
-     "cond": {
-      "type": "sector_leader",
-      "sector": "Chimica"
-     }
-    }
-   ]
-  },
-  {
-   "id": "pf9",
-   "name": "Piano 9",
-   "objectives": [
-    {
-     "pv": 7,
-     "cond": {
-      "type": "workers_nation",
-      "nation": "Francesi",
-      "n": 3
-     }
-    },
-    {
-     "pv": 7,
-     "cond": {
-      "type": "milestones",
-      "sectors": [
-       {
-        "sector": "Chimica",
-        "milestone": 1
-       },
-       {
-        "sector": "Tessile",
-        "milestone": 1
-       },
-       {
-        "sector": "Metallurgica",
-        "milestone": 1
-       }
-      ]
-     }
-    }
-   ]
-  },
-  {
-   "id": "pf10",
-   "name": "Piano 10",
-   "objectives": [
-    {
-     "pv": 7,
-     "cond": {
-      "type": "workers_nation",
-      "nation": "Francesi",
-      "n": 3
-     }
-    },
-    {
-     "pv": 7,
-     "cond": {
-      "type": "direzione_full",
-      "sopra": 3,
-      "sotto": 0
-     }
-    }
-   ]
-  },
-  {
-   "id": "pf11",
-   "name": "Piano 11",
-   "objectives": [
-    {
-     "pv": 7,
-     "cond": {
-      "type": "workers_nation",
       "nation": "Polacchi",
       "n": 3
      }
@@ -2645,8 +3247,8 @@
    ]
   },
   {
-   "id": "pf12",
-   "name": "Piano 12",
+   "id": "pf8",
+   "name": "Piano 8",
    "objectives": [
     {
      "pv": 7,
@@ -2666,8 +3268,8 @@
    ]
   },
   {
-   "id": "pf13",
-   "name": "Piano 13",
+   "id": "pf9",
+   "name": "Piano 9",
    "objectives": [
     {
      "pv": 7,
@@ -2687,6 +3289,90 @@
    ]
   },
   {
+   "id": "pf10",
+   "name": "Piano 10",
+   "objectives": [
+    {
+     "pv": 7,
+     "cond": {
+      "type": "workers_nation",
+      "nation": "Spagnoli",
+      "n": 3
+     }
+    },
+    {
+     "pv": 7,
+     "cond": {
+      "type": "sector_leader",
+      "sector": "Tessile"
+     }
+    }
+   ]
+  },
+  {
+   "id": "pf11",
+   "name": "Piano 11",
+   "objectives": [
+    {
+     "pv": 7,
+     "cond": {
+      "type": "workers_nation",
+      "nation": "Spagnoli",
+      "n": 3
+     }
+    },
+    {
+     "pv": 7,
+     "cond": {
+      "type": "sector_leader",
+      "sector": "Metallurgica"
+     }
+    }
+   ]
+  },
+  {
+   "id": "pf12",
+   "name": "Piano 12",
+   "objectives": [
+    {
+     "pv": 7,
+     "cond": {
+      "type": "workers_nation",
+      "nation": "Spagnoli",
+      "n": 3
+     }
+    },
+    {
+     "pv": 7,
+     "cond": {
+      "type": "sector_leader",
+      "sector": "Chimica"
+     }
+    }
+   ]
+  },
+  {
+   "id": "pf13",
+   "name": "Piano 13",
+   "objectives": [
+    {
+     "pv": 7,
+     "cond": {
+      "type": "workers_nation",
+      "nation": "Tedeschi",
+      "n": 3
+     }
+    },
+    {
+     "pv": 7,
+     "cond": {
+      "type": "sector_leader",
+      "sector": "Tessile"
+     }
+    }
+   ]
+  },
+  {
    "id": "pf14",
    "name": "Piano 14",
    "objectives": [
@@ -2694,28 +3380,15 @@
      "pv": 7,
      "cond": {
       "type": "workers_nation",
-      "nation": "Polacchi",
+      "nation": "Tedeschi",
       "n": 3
      }
     },
     {
      "pv": 7,
      "cond": {
-      "type": "milestones",
-      "sectors": [
-       {
-        "sector": "Chimica",
-        "milestone": 1
-       },
-       {
-        "sector": "Tessile",
-        "milestone": 1
-       },
-       {
-        "sector": "Metallurgica",
-        "milestone": 1
-       }
-      ]
+      "type": "sector_leader",
+      "sector": "Metallurgica"
      }
     }
    ]
@@ -2728,16 +3401,15 @@
      "pv": 7,
      "cond": {
       "type": "workers_nation",
-      "nation": "Polacchi",
+      "nation": "Tedeschi",
       "n": 3
      }
     },
     {
      "pv": 7,
      "cond": {
-      "type": "direzione_full",
-      "sopra": 3,
-      "sotto": 0
+      "type": "sector_leader",
+      "sector": "Chimica"
      }
     }
    ]
@@ -2750,7 +3422,7 @@
      "pv": 7,
      "cond": {
       "type": "workers_nation",
-      "nation": "Spagnoli",
+      "nation": "Greci",
       "n": 3
      }
     },
@@ -2771,7 +3443,7 @@
      "pv": 7,
      "cond": {
       "type": "workers_nation",
-      "nation": "Spagnoli",
+      "nation": "Greci",
       "n": 3
      }
     },
@@ -2792,244 +3464,6 @@
      "pv": 7,
      "cond": {
       "type": "workers_nation",
-      "nation": "Spagnoli",
-      "n": 3
-     }
-    },
-    {
-     "pv": 7,
-     "cond": {
-      "type": "sector_leader",
-      "sector": "Chimica"
-     }
-    }
-   ]
-  },
-  {
-   "id": "pf19",
-   "name": "Piano 19",
-   "objectives": [
-    {
-     "pv": 7,
-     "cond": {
-      "type": "workers_nation",
-      "nation": "Spagnoli",
-      "n": 3
-     }
-    },
-    {
-     "pv": 7,
-     "cond": {
-      "type": "milestones",
-      "sectors": [
-       {
-        "sector": "Chimica",
-        "milestone": 1
-       },
-       {
-        "sector": "Tessile",
-        "milestone": 1
-       },
-       {
-        "sector": "Metallurgica",
-        "milestone": 1
-       }
-      ]
-     }
-    }
-   ]
-  },
-  {
-   "id": "pf20",
-   "name": "Piano 20",
-   "objectives": [
-    {
-     "pv": 7,
-     "cond": {
-      "type": "workers_nation",
-      "nation": "Spagnoli",
-      "n": 3
-     }
-    },
-    {
-     "pv": 7,
-     "cond": {
-      "type": "direzione_full",
-      "sopra": 3,
-      "sotto": 0
-     }
-    }
-   ]
-  },
-  {
-   "id": "pf21",
-   "name": "Piano 21",
-   "objectives": [
-    {
-     "pv": 7,
-     "cond": {
-      "type": "workers_nation",
-      "nation": "Tedeschi",
-      "n": 3
-     }
-    },
-    {
-     "pv": 7,
-     "cond": {
-      "type": "sector_leader",
-      "sector": "Tessile"
-     }
-    }
-   ]
-  },
-  {
-   "id": "pf22",
-   "name": "Piano 22",
-   "objectives": [
-    {
-     "pv": 7,
-     "cond": {
-      "type": "workers_nation",
-      "nation": "Tedeschi",
-      "n": 3
-     }
-    },
-    {
-     "pv": 7,
-     "cond": {
-      "type": "sector_leader",
-      "sector": "Metallurgica"
-     }
-    }
-   ]
-  },
-  {
-   "id": "pf23",
-   "name": "Piano 23",
-   "objectives": [
-    {
-     "pv": 7,
-     "cond": {
-      "type": "workers_nation",
-      "nation": "Tedeschi",
-      "n": 3
-     }
-    },
-    {
-     "pv": 7,
-     "cond": {
-      "type": "sector_leader",
-      "sector": "Chimica"
-     }
-    }
-   ]
-  },
-  {
-   "id": "pf24",
-   "name": "Piano 24",
-   "objectives": [
-    {
-     "pv": 7,
-     "cond": {
-      "type": "workers_nation",
-      "nation": "Tedeschi",
-      "n": 3
-     }
-    },
-    {
-     "pv": 7,
-     "cond": {
-      "type": "milestones",
-      "sectors": [
-       {
-        "sector": "Chimica",
-        "milestone": 1
-       },
-       {
-        "sector": "Tessile",
-        "milestone": 1
-       },
-       {
-        "sector": "Metallurgica",
-        "milestone": 1
-       }
-      ]
-     }
-    }
-   ]
-  },
-  {
-   "id": "pf25",
-   "name": "Piano 25",
-   "objectives": [
-    {
-     "pv": 7,
-     "cond": {
-      "type": "workers_nation",
-      "nation": "Tedeschi",
-      "n": 3
-     }
-    },
-    {
-     "pv": 7,
-     "cond": {
-      "type": "direzione_full",
-      "sopra": 3,
-      "sotto": 0
-     }
-    }
-   ]
-  },
-  {
-   "id": "pf26",
-   "name": "Piano 26",
-   "objectives": [
-    {
-     "pv": 7,
-     "cond": {
-      "type": "workers_nation",
-      "nation": "Greci",
-      "n": 3
-     }
-    },
-    {
-     "pv": 7,
-     "cond": {
-      "type": "sector_leader",
-      "sector": "Tessile"
-     }
-    }
-   ]
-  },
-  {
-   "id": "pf27",
-   "name": "Piano 27",
-   "objectives": [
-    {
-     "pv": 7,
-     "cond": {
-      "type": "workers_nation",
-      "nation": "Greci",
-      "n": 3
-     }
-    },
-    {
-     "pv": 7,
-     "cond": {
-      "type": "sector_leader",
-      "sector": "Metallurgica"
-     }
-    }
-   ]
-  },
-  {
-   "id": "pf28",
-   "name": "Piano 28",
-   "objectives": [
-    {
-     "pv": 7,
-     "cond": {
-      "type": "workers_nation",
       "nation": "Greci",
       "n": 3
      }
@@ -3039,69 +3473,1418 @@
      "cond": {
       "type": "sector_leader",
       "sector": "Chimica"
-     }
-    }
-   ]
-  },
-  {
-   "id": "pf29",
-   "name": "Piano 29",
-   "objectives": [
-    {
-     "pv": 7,
-     "cond": {
-      "type": "workers_nation",
-      "nation": "Greci",
-      "n": 3
-     }
-    },
-    {
-     "pv": 7,
-     "cond": {
-      "type": "milestones",
-      "sectors": [
-       {
-        "sector": "Chimica",
-        "milestone": 1
-       },
-       {
-        "sector": "Tessile",
-        "milestone": 1
-       },
-       {
-        "sector": "Metallurgica",
-        "milestone": 1
-       }
-      ]
-     }
-    }
-   ]
-  },
-  {
-   "id": "pf30",
-   "name": "Piano 30",
-   "objectives": [
-    {
-     "pv": 7,
-     "cond": {
-      "type": "workers_nation",
-      "nation": "Greci",
-      "n": 3
-     }
-    },
-    {
-     "pv": 7,
-     "cond": {
-      "type": "direzione_full",
-      "sopra": 3,
-      "sotto": 0
      }
     }
    ]
   }
  ],
  "welfareEnabled": false,
- "tileMode": "families",
+ "newWorkers": [
+  {
+   "id": "nw_gr5",
+   "nation": "Greci",
+   "sector": "Tessile",
+   "v": 2,
+   "effect": {
+    "verbo": "prendi",
+    "f1": {
+     "q": 2,
+     "tipo": "moneta"
+    }
+   },
+   "deck": "A"
+  },
+  {
+   "id": "nw_te5",
+   "nation": "Tedeschi",
+   "sector": "Metallurgica",
+   "v": 2,
+   "effect": {
+    "verbo": "prendi",
+    "f1": {
+     "q": 2,
+     "tipo": "moneta"
+    }
+   },
+   "deck": "B"
+  },
+  {
+   "id": "nw_po5",
+   "nation": "Polacchi",
+   "sector": "Metallurgica",
+   "v": 2,
+   "effect": {
+    "verbo": "prendi",
+    "f1": {
+     "q": 2,
+     "tipo": "moneta"
+    }
+   },
+   "deck": "C"
+  },
+  {
+   "id": "nw_sp5",
+   "nation": "Spagnoli",
+   "sector": "Chimica",
+   "v": 2,
+   "effect": {
+    "verbo": "prendi",
+    "f1": {
+     "q": 2,
+     "tipo": "moneta"
+    }
+   },
+   "deck": "D"
+  },
+  {
+   "id": "nw_fr5",
+   "nation": "Francesi",
+   "sector": "Chimica",
+   "v": 2,
+   "effect": {
+    "verbo": "prendi",
+    "f1": {
+     "q": 2,
+     "tipo": "moneta"
+    }
+   },
+   "deck": "E"
+  },
+  {
+   "id": "nw_it5",
+   "nation": "Italiani",
+   "sector": "Tessile",
+   "v": 2,
+   "effect": {
+    "verbo": "prendi",
+    "f1": {
+     "q": 2,
+     "tipo": "moneta"
+    }
+   },
+   "deck": "A"
+  },
+  {
+   "id": "nw_gr1",
+   "nation": "Greci",
+   "sector": "Chimica",
+   "v": 2,
+   "effect": {
+    "verbo": "scambia",
+    "f1": {
+     "q": 1,
+     "tipo": "risorsa",
+     "settore": "scelta"
+    },
+    "f2": {
+     "q": 1,
+     "tipo": "risorsa",
+     "settore": "scelta"
+    }
+   },
+   "deck": "B"
+  },
+  {
+   "id": "nw_gr9",
+   "nation": "Greci",
+   "sector": "Metallurgica",
+   "v": 2,
+   "effect": {
+    "verbo": "scambia",
+    "f1": {
+     "q": 1,
+     "tipo": "risorsa",
+     "settore": "scelta"
+    },
+    "f2": {
+     "q": 1,
+     "tipo": "risorsa",
+     "settore": "scelta"
+    }
+   },
+   "deck": "C"
+  },
+  {
+   "id": "nw_te1",
+   "nation": "Tedeschi",
+   "sector": "Tessile",
+   "v": 2,
+   "effect": {
+    "verbo": "scambia",
+    "f1": {
+     "q": 1,
+     "tipo": "risorsa",
+     "settore": "scelta"
+    },
+    "f2": {
+     "q": 1,
+     "tipo": "risorsa",
+     "settore": "scelta"
+    }
+   },
+   "deck": "D"
+  },
+  {
+   "id": "nw_te9",
+   "nation": "Tedeschi",
+   "sector": "Chimica",
+   "v": 2,
+   "effect": {
+    "verbo": "scambia",
+    "f1": {
+     "q": 1,
+     "tipo": "risorsa",
+     "settore": "scelta"
+    },
+    "f2": {
+     "q": 1,
+     "tipo": "risorsa",
+     "settore": "scelta"
+    }
+   },
+   "deck": "E"
+  },
+  {
+   "id": "nw_po1",
+   "nation": "Polacchi",
+   "sector": "Chimica",
+   "v": 2,
+   "effect": {
+    "verbo": "scambia",
+    "f1": {
+     "q": 1,
+     "tipo": "risorsa",
+     "settore": "scelta"
+    },
+    "f2": {
+     "q": 1,
+     "tipo": "risorsa",
+     "settore": "scelta"
+    }
+   },
+   "deck": "A"
+  },
+  {
+   "id": "nw_po9",
+   "nation": "Polacchi",
+   "sector": "Tessile",
+   "v": 2,
+   "effect": {
+    "verbo": "scambia",
+    "f1": {
+     "q": 1,
+     "tipo": "risorsa",
+     "settore": "scelta"
+    },
+    "f2": {
+     "q": 1,
+     "tipo": "risorsa",
+     "settore": "scelta"
+    }
+   },
+   "deck": "B"
+  },
+  {
+   "id": "nw_sp1",
+   "nation": "Spagnoli",
+   "sector": "Metallurgica",
+   "v": 2,
+   "effect": {
+    "verbo": "scambia",
+    "f1": {
+     "q": 1,
+     "tipo": "risorsa",
+     "settore": "scelta"
+    },
+    "f2": {
+     "q": 1,
+     "tipo": "risorsa",
+     "settore": "scelta"
+    }
+   },
+   "deck": "C"
+  },
+  {
+   "id": "nw_sp9",
+   "nation": "Spagnoli",
+   "sector": "Tessile",
+   "v": 2,
+   "effect": {
+    "verbo": "scambia",
+    "f1": {
+     "q": 1,
+     "tipo": "risorsa",
+     "settore": "scelta"
+    },
+    "f2": {
+     "q": 1,
+     "tipo": "risorsa",
+     "settore": "scelta"
+    }
+   },
+   "deck": "D"
+  },
+  {
+   "id": "nw_fr1",
+   "nation": "Francesi",
+   "sector": "Tessile",
+   "v": 2,
+   "effect": {
+    "verbo": "scambia",
+    "f1": {
+     "q": 1,
+     "tipo": "risorsa",
+     "settore": "scelta"
+    },
+    "f2": {
+     "q": 1,
+     "tipo": "risorsa",
+     "settore": "scelta"
+    }
+   },
+   "deck": "E"
+  },
+  {
+   "id": "nw_fr9",
+   "nation": "Francesi",
+   "sector": "Metallurgica",
+   "v": 2,
+   "effect": {
+    "verbo": "scambia",
+    "f1": {
+     "q": 1,
+     "tipo": "risorsa",
+     "settore": "scelta"
+    },
+    "f2": {
+     "q": 1,
+     "tipo": "risorsa",
+     "settore": "scelta"
+    }
+   },
+   "deck": "A"
+  },
+  {
+   "id": "nw_it1",
+   "nation": "Italiani",
+   "sector": "Metallurgica",
+   "v": 2,
+   "effect": {
+    "verbo": "scambia",
+    "f1": {
+     "q": 1,
+     "tipo": "risorsa",
+     "settore": "scelta"
+    },
+    "f2": {
+     "q": 1,
+     "tipo": "risorsa",
+     "settore": "scelta"
+    }
+   },
+   "deck": "B"
+  },
+  {
+   "id": "nw_it9",
+   "nation": "Italiani",
+   "sector": "Chimica",
+   "v": 2,
+   "effect": {
+    "verbo": "scambia",
+    "f1": {
+     "q": 1,
+     "tipo": "risorsa",
+     "settore": "scelta"
+    },
+    "f2": {
+     "q": 1,
+     "tipo": "risorsa",
+     "settore": "scelta"
+    }
+   },
+   "deck": "C"
+  },
+  {
+   "id": "nw_gr2",
+   "nation": "Greci",
+   "sector": "Chimica",
+   "v": 3,
+   "effect": {
+    "verbo": "prendi",
+    "f1": {
+     "q": 1,
+     "tipo": "risorsa",
+     "settore": "Chimica"
+    }
+   },
+   "deck": "D"
+  },
+  {
+   "id": "nw_gr6",
+   "nation": "Greci",
+   "sector": "Tessile",
+   "v": 3,
+   "effect": {
+    "verbo": "prendi",
+    "f1": {
+     "q": 1,
+     "tipo": "risorsa",
+     "settore": "Tessile"
+    }
+   },
+   "deck": "E"
+  },
+  {
+   "id": "nw_gr10",
+   "nation": "Greci",
+   "sector": "Metallurgica",
+   "v": 3,
+   "effect": {
+    "verbo": "prendi",
+    "f1": {
+     "q": 1,
+     "tipo": "risorsa",
+     "settore": "Metallurgica"
+    }
+   },
+   "deck": "A"
+  },
+  {
+   "id": "nw_te2",
+   "nation": "Tedeschi",
+   "sector": "Tessile",
+   "v": 3,
+   "effect": {
+    "verbo": "prendi",
+    "f1": {
+     "q": 1,
+     "tipo": "risorsa",
+     "settore": "Tessile"
+    }
+   },
+   "deck": "B"
+  },
+  {
+   "id": "nw_te6",
+   "nation": "Tedeschi",
+   "sector": "Metallurgica",
+   "v": 3,
+   "effect": {
+    "verbo": "prendi",
+    "f1": {
+     "q": 1,
+     "tipo": "risorsa",
+     "settore": "Metallurgica"
+    }
+   },
+   "deck": "C"
+  },
+  {
+   "id": "nw_te10",
+   "nation": "Tedeschi",
+   "sector": "Chimica",
+   "v": 3,
+   "effect": {
+    "verbo": "prendi",
+    "f1": {
+     "q": 1,
+     "tipo": "risorsa",
+     "settore": "Chimica"
+    }
+   },
+   "deck": "D"
+  },
+  {
+   "id": "nw_po2",
+   "nation": "Polacchi",
+   "sector": "Chimica",
+   "v": 3,
+   "effect": {
+    "verbo": "prendi",
+    "f1": {
+     "q": 1,
+     "tipo": "risorsa",
+     "settore": "Chimica"
+    }
+   },
+   "deck": "E"
+  },
+  {
+   "id": "nw_po6",
+   "nation": "Polacchi",
+   "sector": "Metallurgica",
+   "v": 3,
+   "effect": {
+    "verbo": "prendi",
+    "f1": {
+     "q": 1,
+     "tipo": "risorsa",
+     "settore": "Metallurgica"
+    }
+   },
+   "deck": "A"
+  },
+  {
+   "id": "nw_po10",
+   "nation": "Polacchi",
+   "sector": "Tessile",
+   "v": 3,
+   "effect": {
+    "verbo": "prendi",
+    "f1": {
+     "q": 1,
+     "tipo": "risorsa",
+     "settore": "Tessile"
+    }
+   },
+   "deck": "B"
+  },
+  {
+   "id": "nw_sp2",
+   "nation": "Spagnoli",
+   "sector": "Metallurgica",
+   "v": 3,
+   "effect": {
+    "verbo": "prendi",
+    "f1": {
+     "q": 1,
+     "tipo": "risorsa",
+     "settore": "Metallurgica"
+    }
+   },
+   "deck": "C"
+  },
+  {
+   "id": "nw_sp6",
+   "nation": "Spagnoli",
+   "sector": "Chimica",
+   "v": 3,
+   "effect": {
+    "verbo": "prendi",
+    "f1": {
+     "q": 1,
+     "tipo": "risorsa",
+     "settore": "Chimica"
+    }
+   },
+   "deck": "D"
+  },
+  {
+   "id": "nw_sp10",
+   "nation": "Spagnoli",
+   "sector": "Tessile",
+   "v": 3,
+   "effect": {
+    "verbo": "prendi",
+    "f1": {
+     "q": 1,
+     "tipo": "risorsa",
+     "settore": "Tessile"
+    }
+   },
+   "deck": "E"
+  },
+  {
+   "id": "nw_fr2",
+   "nation": "Francesi",
+   "sector": "Tessile",
+   "v": 3,
+   "effect": {
+    "verbo": "prendi",
+    "f1": {
+     "q": 1,
+     "tipo": "risorsa",
+     "settore": "Tessile"
+    }
+   },
+   "deck": "A"
+  },
+  {
+   "id": "nw_fr6",
+   "nation": "Francesi",
+   "sector": "Chimica",
+   "v": 3,
+   "effect": {
+    "verbo": "prendi",
+    "f1": {
+     "q": 1,
+     "tipo": "risorsa",
+     "settore": "Chimica"
+    }
+   },
+   "deck": "B"
+  },
+  {
+   "id": "nw_fr10",
+   "nation": "Francesi",
+   "sector": "Metallurgica",
+   "v": 3,
+   "effect": {
+    "verbo": "prendi",
+    "f1": {
+     "q": 1,
+     "tipo": "risorsa",
+     "settore": "Metallurgica"
+    }
+   },
+   "deck": "C"
+  },
+  {
+   "id": "nw_it2",
+   "nation": "Italiani",
+   "sector": "Metallurgica",
+   "v": 3,
+   "effect": {
+    "verbo": "prendi",
+    "f1": {
+     "q": 1,
+     "tipo": "risorsa",
+     "settore": "Metallurgica"
+    }
+   },
+   "deck": "D"
+  },
+  {
+   "id": "nw_it6",
+   "nation": "Italiani",
+   "sector": "Tessile",
+   "v": 3,
+   "effect": {
+    "verbo": "prendi",
+    "f1": {
+     "q": 1,
+     "tipo": "risorsa",
+     "settore": "Tessile"
+    }
+   },
+   "deck": "E"
+  },
+  {
+   "id": "nw_it10",
+   "nation": "Italiani",
+   "sector": "Chimica",
+   "v": 3,
+   "effect": {
+    "verbo": "prendi",
+    "f1": {
+     "q": 1,
+     "tipo": "risorsa",
+     "settore": "Chimica"
+    }
+   },
+   "deck": "A"
+  },
+  {
+   "id": "nw_gr3",
+   "nation": "Greci",
+   "sector": "Chimica",
+   "v": 3,
+   "effect": {
+    "verbo": "scambia",
+    "f1": {
+     "q": 1,
+     "tipo": "risorsa",
+     "settore": "scelta"
+    },
+    "f2": {
+     "q": 2,
+     "tipo": "moneta"
+    }
+   },
+   "deck": "B"
+  },
+  {
+   "id": "nw_te3",
+   "nation": "Tedeschi",
+   "sector": "Tessile",
+   "v": 3,
+   "effect": {
+    "verbo": "scambia",
+    "f1": {
+     "q": 1,
+     "tipo": "risorsa",
+     "settore": "scelta"
+    },
+    "f2": {
+     "q": 2,
+     "tipo": "moneta"
+    }
+   },
+   "deck": "C"
+  },
+  {
+   "id": "nw_po3",
+   "nation": "Polacchi",
+   "sector": "Chimica",
+   "v": 3,
+   "effect": {
+    "verbo": "scambia",
+    "f1": {
+     "q": 1,
+     "tipo": "risorsa",
+     "settore": "scelta"
+    },
+    "f2": {
+     "q": 2,
+     "tipo": "moneta"
+    }
+   },
+   "deck": "D"
+  },
+  {
+   "id": "nw_sp3",
+   "nation": "Spagnoli",
+   "sector": "Metallurgica",
+   "v": 3,
+   "effect": {
+    "verbo": "scambia",
+    "f1": {
+     "q": 1,
+     "tipo": "risorsa",
+     "settore": "scelta"
+    },
+    "f2": {
+     "q": 2,
+     "tipo": "moneta"
+    }
+   },
+   "deck": "E"
+  },
+  {
+   "id": "nw_fr3",
+   "nation": "Francesi",
+   "sector": "Tessile",
+   "v": 3,
+   "effect": {
+    "verbo": "scambia",
+    "f1": {
+     "q": 1,
+     "tipo": "risorsa",
+     "settore": "scelta"
+    },
+    "f2": {
+     "q": 2,
+     "tipo": "moneta"
+    }
+   },
+   "deck": "A"
+  },
+  {
+   "id": "nw_it3",
+   "nation": "Italiani",
+   "sector": "Metallurgica",
+   "v": 3,
+   "effect": {
+    "verbo": "scambia",
+    "f1": {
+     "q": 1,
+     "tipo": "risorsa",
+     "settore": "scelta"
+    },
+    "f2": {
+     "q": 2,
+     "tipo": "moneta"
+    }
+   },
+   "deck": "B"
+  },
+  {
+   "id": "nw_gr7",
+   "nation": "Greci",
+   "sector": "Tessile",
+   "v": 3,
+   "effect": {
+    "verbo": "perOgni",
+    "f1": {
+     "q": 1,
+     "tipo": "moneta"
+    },
+    "f2": {
+     "conta": "icona",
+     "kind": "sector",
+     "di": "Tessile"
+    }
+   },
+   "deck": "C"
+  },
+  {
+   "id": "nw_gr11",
+   "nation": "Greci",
+   "sector": "Metallurgica",
+   "v": 3,
+   "effect": {
+    "verbo": "perOgni",
+    "f1": {
+     "q": 2,
+     "tipo": "risorsa",
+     "settore": "Chimica"
+    },
+    "f2": {
+     "conta": "fabbrica"
+    }
+   },
+   "deck": "D"
+  },
+  {
+   "id": "nw_te7",
+   "nation": "Tedeschi",
+   "sector": "Metallurgica",
+   "v": 3,
+   "effect": {
+    "verbo": "perOgni",
+    "f1": {
+     "q": 2,
+     "tipo": "moneta"
+    },
+    "f2": {
+     "conta": "icona",
+     "kind": "sector",
+     "di": "Metallurgica"
+    }
+   },
+   "deck": "E"
+  },
+  {
+   "id": "nw_te11",
+   "nation": "Tedeschi",
+   "sector": "Chimica",
+   "v": 3,
+   "effect": {
+    "verbo": "perOgni",
+    "f1": {
+     "q": 2,
+     "tipo": "risorsa",
+     "settore": "Chimica"
+    },
+    "f2": {
+     "conta": "fabbrica"
+    }
+   },
+   "deck": "A"
+  },
+  {
+   "id": "nw_po7",
+   "nation": "Polacchi",
+   "sector": "Metallurgica",
+   "v": 3,
+   "effect": {
+    "verbo": "perOgni",
+    "f1": {
+     "q": 1,
+     "tipo": "moneta"
+    },
+    "f2": {
+     "conta": "icona",
+     "kind": "sector",
+     "di": "Metallurgica"
+    }
+   },
+   "deck": "B"
+  },
+  {
+   "id": "nw_po11",
+   "nation": "Polacchi",
+   "sector": "Tessile",
+   "v": 3,
+   "effect": {
+    "verbo": "perOgni",
+    "f1": {
+     "q": 2,
+     "tipo": "risorsa",
+     "settore": "Tessile"
+    },
+    "f2": {
+     "conta": "fabbrica"
+    }
+   },
+   "deck": "C"
+  },
+  {
+   "id": "nw_sp7",
+   "nation": "Spagnoli",
+   "sector": "Chimica",
+   "v": 3,
+   "effect": {
+    "verbo": "perOgni",
+    "f1": {
+     "q": 1,
+     "tipo": "moneta"
+    },
+    "f2": {
+     "conta": "icona",
+     "kind": "sector",
+     "di": "Chimica"
+    }
+   },
+   "deck": "D"
+  },
+  {
+   "id": "nw_sp11",
+   "nation": "Spagnoli",
+   "sector": "Tessile",
+   "v": 3,
+   "effect": {
+    "verbo": "perOgni",
+    "f1": {
+     "q": 1,
+     "tipo": "risorsa",
+     "settore": "Tessile"
+    },
+    "f2": {
+     "conta": "fabbrica"
+    }
+   },
+   "deck": "E"
+  },
+  {
+   "id": "nw_fr7",
+   "nation": "Francesi",
+   "sector": "Chimica",
+   "v": 3,
+   "effect": {
+    "verbo": "perOgni",
+    "f1": {
+     "q": 1,
+     "tipo": "moneta"
+    },
+    "f2": {
+     "conta": "icona",
+     "kind": "sector",
+     "di": "Chimica"
+    }
+   },
+   "deck": "A"
+  },
+  {
+   "id": "nw_fr11",
+   "nation": "Francesi",
+   "sector": "Metallurgica",
+   "v": 3,
+   "effect": {
+    "verbo": "perOgni",
+    "f1": {
+     "q": 2,
+     "tipo": "risorsa",
+     "settore": "Metallurgica"
+    },
+    "f2": {
+     "conta": "fabbrica"
+    }
+   },
+   "deck": "B"
+  },
+  {
+   "id": "nw_it7",
+   "nation": "Italiani",
+   "sector": "Tessile",
+   "v": 3,
+   "effect": {
+    "verbo": "perOgni",
+    "f1": {
+     "q": 1,
+     "tipo": "moneta"
+    },
+    "f2": {
+     "conta": "icona",
+     "kind": "sector",
+     "di": "Tessile"
+    }
+   },
+   "deck": "C"
+  },
+  {
+   "id": "nw_it11",
+   "nation": "Italiani",
+   "sector": "Chimica",
+   "v": 3,
+   "effect": {
+    "verbo": "perOgni",
+    "f1": {
+     "q": 2,
+     "tipo": "risorsa",
+     "settore": "Chimica"
+    },
+    "f2": {
+     "conta": "fabbrica"
+    }
+   },
+   "deck": "D"
+  },
+  {
+   "id": "nw_gr4",
+   "nation": "Greci",
+   "sector": "Chimica",
+   "v": 4,
+   "effect": {
+    "verbo": "scambia",
+    "f1": {
+     "q": 2,
+     "tipo": "risorsa",
+     "settore": "scelta"
+    },
+    "f2": {
+     "q": 2,
+     "tipo": "risorsa",
+     "settore": "scelta"
+    }
+   },
+   "deck": "E"
+  },
+  {
+   "id": "nw_te4",
+   "nation": "Tedeschi",
+   "sector": "Tessile",
+   "v": 4,
+   "effect": {
+    "verbo": "scambia",
+    "f1": {
+     "q": 2,
+     "tipo": "risorsa",
+     "settore": "scelta"
+    },
+    "f2": {
+     "q": 2,
+     "tipo": "risorsa",
+     "settore": "scelta"
+    }
+   },
+   "deck": "A"
+  },
+  {
+   "id": "nw_po4",
+   "nation": "Polacchi",
+   "sector": "Chimica",
+   "v": 4,
+   "effect": {
+    "verbo": "scambia",
+    "f1": {
+     "q": 2,
+     "tipo": "risorsa",
+     "settore": "scelta"
+    },
+    "f2": {
+     "q": 2,
+     "tipo": "risorsa",
+     "settore": "scelta"
+    }
+   },
+   "deck": "B"
+  },
+  {
+   "id": "nw_sp4",
+   "nation": "Spagnoli",
+   "sector": "Metallurgica",
+   "v": 4,
+   "effect": {
+    "verbo": "scambia",
+    "f1": {
+     "q": 2,
+     "tipo": "risorsa",
+     "settore": "scelta"
+    },
+    "f2": {
+     "q": 2,
+     "tipo": "risorsa",
+     "settore": "scelta"
+    }
+   },
+   "deck": "C"
+  },
+  {
+   "id": "nw_fr4",
+   "nation": "Francesi",
+   "sector": "Tessile",
+   "v": 4,
+   "effect": {
+    "verbo": "scambia",
+    "f1": {
+     "q": 2,
+     "tipo": "risorsa",
+     "settore": "scelta"
+    },
+    "f2": {
+     "q": 2,
+     "tipo": "risorsa",
+     "settore": "scelta"
+    }
+   },
+   "deck": "D"
+  },
+  {
+   "id": "nw_it4",
+   "nation": "Italiani",
+   "sector": "Metallurgica",
+   "v": 4,
+   "effect": {
+    "verbo": "scambia",
+    "f1": {
+     "q": 2,
+     "tipo": "risorsa",
+     "settore": "scelta"
+    },
+    "f2": {
+     "q": 2,
+     "tipo": "risorsa",
+     "settore": "scelta"
+    }
+   },
+   "deck": "E"
+  },
+  {
+   "id": "nw_gr8",
+   "nation": "Greci",
+   "sector": "Tessile",
+   "v": 4,
+   "effect": {
+    "verbo": "perOgni",
+    "f1": {
+     "q": 2,
+     "tipo": "moneta"
+    },
+    "f2": {
+     "conta": "fabbrica"
+    }
+   },
+   "deck": "A"
+  },
+  {
+   "id": "nw_gr12",
+   "nation": "Greci",
+   "sector": "Metallurgica",
+   "v": 4,
+   "effect": {
+    "verbo": "perOgni",
+    "f1": {
+     "q": 1,
+     "tipo": "risorsa",
+     "settore": "Chimica"
+    },
+    "f2": {
+     "conta": "icona",
+     "kind": "sector",
+     "di": "Chimica"
+    }
+   },
+   "deck": "B"
+  },
+  {
+   "id": "nw_te8",
+   "nation": "Tedeschi",
+   "sector": "Metallurgica",
+   "v": 4,
+   "effect": {
+    "verbo": "perOgni",
+    "f1": {
+     "q": 2,
+     "tipo": "moneta"
+    },
+    "f2": {
+     "conta": "fabbrica"
+    }
+   },
+   "deck": "C"
+  },
+  {
+   "id": "nw_te12",
+   "nation": "Tedeschi",
+   "sector": "Chimica",
+   "v": 4,
+   "effect": {
+    "verbo": "perOgni",
+    "f1": {
+     "q": 1,
+     "tipo": "risorsa",
+     "settore": "Chimica"
+    },
+    "f2": {
+     "conta": "icona",
+     "kind": "sector",
+     "di": "Chimica"
+    }
+   },
+   "deck": "D"
+  },
+  {
+   "id": "nw_po8",
+   "nation": "Polacchi",
+   "sector": "Metallurgica",
+   "v": 4,
+   "effect": {
+    "verbo": "perOgni",
+    "f1": {
+     "q": 2,
+     "tipo": "moneta"
+    },
+    "f2": {
+     "conta": "fabbrica"
+    }
+   },
+   "deck": "E"
+  },
+  {
+   "id": "nw_po12",
+   "nation": "Polacchi",
+   "sector": "Tessile",
+   "v": 4,
+   "effect": {
+    "verbo": "perOgni",
+    "f1": {
+     "q": 1,
+     "tipo": "risorsa",
+     "settore": "Tessile"
+    },
+    "f2": {
+     "conta": "icona",
+     "kind": "sector",
+     "di": "Tessile"
+    }
+   },
+   "deck": "A"
+  },
+  {
+   "id": "nw_sp8",
+   "nation": "Spagnoli",
+   "sector": "Chimica",
+   "v": 4,
+   "effect": {
+    "verbo": "perOgni",
+    "f1": {
+     "q": 2,
+     "tipo": "moneta"
+    },
+    "f2": {
+     "conta": "fabbrica"
+    }
+   },
+   "deck": "B"
+  },
+  {
+   "id": "nw_sp12",
+   "nation": "Spagnoli",
+   "sector": "Tessile",
+   "v": 4,
+   "effect": {
+    "verbo": "perOgni",
+    "f1": {
+     "q": 1,
+     "tipo": "risorsa",
+     "settore": "Tessile"
+    },
+    "f2": {
+     "conta": "icona",
+     "kind": "sector",
+     "di": "Tessile"
+    }
+   },
+   "deck": "C"
+  },
+  {
+   "id": "nw_fr8",
+   "nation": "Francesi",
+   "sector": "Chimica",
+   "v": 4,
+   "effect": {
+    "verbo": "perOgni",
+    "f1": {
+     "q": 2,
+     "tipo": "moneta"
+    },
+    "f2": {
+     "conta": "fabbrica"
+    }
+   },
+   "deck": "D"
+  },
+  {
+   "id": "nw_fr12",
+   "nation": "Francesi",
+   "sector": "Metallurgica",
+   "v": 4,
+   "effect": {
+    "verbo": "perOgni",
+    "f1": {
+     "q": 1,
+     "tipo": "risorsa",
+     "settore": "Metallurgica"
+    },
+    "f2": {
+     "conta": "icona",
+     "kind": "sector",
+     "di": "Tessile"
+    }
+   },
+   "deck": "E"
+  },
+  {
+   "id": "nw_it8",
+   "nation": "Italiani",
+   "sector": "Tessile",
+   "v": 4,
+   "effect": {
+    "verbo": "perOgni",
+    "f1": {
+     "q": 2,
+     "tipo": "moneta"
+    },
+    "f2": {
+     "conta": "fabbrica"
+    }
+   },
+   "deck": "A"
+  },
+  {
+   "id": "nw_it12",
+   "nation": "Italiani",
+   "sector": "Chimica",
+   "v": 4,
+   "effect": {
+    "verbo": "perOgni",
+    "f1": {
+     "q": 1,
+     "tipo": "risorsa",
+     "settore": "Chimica"
+    },
+    "f2": {
+     "conta": "icona",
+     "kind": "sector",
+     "di": "Tessile"
+    }
+   },
+   "deck": "B"
+  },
+  {
+   "id": "imp_it_1",
+   "nation": "Italiani",
+   "v": 4,
+   "power": {
+    "Chimica": 3,
+    "Metallurgica": 1
+   },
+   "effect": "",
+   "deck": "Impiegati"
+  },
+  {
+   "id": "imp_it_2",
+   "nation": "Italiani",
+   "v": 4,
+   "power": {
+    "Chimica": 3,
+    "Metallurgica": 1
+   },
+   "effect": "",
+   "deck": "Impiegati"
+  },
+  {
+   "id": "imp_sp_1",
+   "nation": "Spagnoli",
+   "v": 4,
+   "power": {
+    "Chimica": 3,
+    "Tessile": 1
+   },
+   "effect": "",
+   "deck": "Impiegati"
+  },
+  {
+   "id": "imp_sp_2",
+   "nation": "Spagnoli",
+   "v": 4,
+   "power": {
+    "Chimica": 3,
+    "Tessile": 1
+   },
+   "effect": "",
+   "deck": "Impiegati"
+  },
+  {
+   "id": "imp_gr_1",
+   "nation": "Greci",
+   "v": 4,
+   "power": {
+    "Metallurgica": 3,
+    "Tessile": 1
+   },
+   "effect": "",
+   "deck": "Impiegati"
+  },
+  {
+   "id": "imp_gr_2",
+   "nation": "Greci",
+   "v": 4,
+   "power": {
+    "Metallurgica": 3,
+    "Tessile": 1
+   },
+   "effect": "",
+   "deck": "Impiegati"
+  },
+  {
+   "id": "imp_de_1",
+   "nation": "Tedeschi",
+   "v": 4,
+   "power": {
+    "Metallurgica": 3,
+    "Chimica": 1
+   },
+   "effect": "",
+   "deck": "Impiegati"
+  },
+  {
+   "id": "imp_de_2",
+   "nation": "Tedeschi",
+   "v": 4,
+   "power": {
+    "Metallurgica": 3,
+    "Chimica": 1
+   },
+   "effect": "",
+   "deck": "Impiegati"
+  },
+  {
+   "id": "imp_pl_1",
+   "nation": "Polacchi",
+   "v": 4,
+   "power": {
+    "Tessile": 3,
+    "Chimica": 1
+   },
+   "effect": "",
+   "deck": "Impiegati"
+  },
+  {
+   "id": "imp_pl_2",
+   "nation": "Polacchi",
+   "v": 4,
+   "power": {
+    "Tessile": 3,
+    "Chimica": 1
+   },
+   "effect": "",
+   "deck": "Impiegati"
+  },
+  {
+   "id": "imp_fr_1",
+   "nation": "Francesi",
+   "v": 4,
+   "power": {
+    "Tessile": 3,
+    "Metallurgica": 1
+   },
+   "effect": "",
+   "deck": "Impiegati"
+  },
+  {
+   "id": "imp_fr_2",
+   "nation": "Francesi",
+   "v": 4,
+   "power": {
+    "Tessile": 3,
+    "Metallurgica": 1
+   },
+   "effect": "",
+   "deck": "Impiegati"
+  }
+ ],
  "families": [
   [
    {
@@ -3181,20 +4964,22 @@
   {
    "id": "tt1",
    "market": 1,
-   "name": "5 Marchi",
+   "name": "3 Marchi",
    "cellType": "coins",
    "amount": 5,
    "cost": 0,
-   "copies": 4
+   "copies": 4,
+   "instant": false
   },
   {
    "id": "tt2",
    "market": 1,
-   "name": "1 risorsa",
-   "cellType": "res",
-   "amount": 1,
-   "cost": 1,
-   "copies": 4
+   "name": "1 marco per carta",
+   "cellType": "coinsPerIcon",
+   "amount": 2,
+   "cost": 0,
+   "copies": 4,
+   "instant": false
   },
   {
    "id": "tt4",
@@ -3202,17 +4987,19 @@
    "name": "1 Risorsa per carta",
    "cellType": "resPerIcon",
    "amount": 1,
-   "cost": 2,
-   "copies": 4
+   "cost": 0,
+   "copies": 4,
+   "instant": false
   },
   {
    "id": "tt5",
    "market": 2,
-   "name": "3 marchi per carta",
-   "cellType": "coinsPerIcon",
-   "amount": 3,
-   "cost": 1,
-   "copies": 4
+   "name": "4 risorse",
+   "cellType": "res",
+   "amount": 5,
+   "cost": 0,
+   "copies": 4,
+   "instant": false
   },
   {
    "id": "ttd1acqk",
@@ -3220,7 +5007,7 @@
    "name": "1 PV per carta",
    "cellType": "pvPerIcon",
    "amount": 1,
-   "cost": 3,
+   "cost": 0,
    "copies": 4
   },
   {
@@ -3229,7 +5016,7 @@
    "name": "6 PV",
    "cellType": "pv",
    "amount": 6,
-   "cost": 3,
+   "cost": 0,
    "copies": 4
   }
  ],
@@ -3237,7 +5024,7 @@
   "mode": "limitato"
  },
  "clockThreshold": {
-  "2": 8,
+  "2": 9,
   "3": 12,
   "4": 18
  },
