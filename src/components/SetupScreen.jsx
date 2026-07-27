@@ -792,6 +792,10 @@ function BorsaFabbricheEditor({ bf, setBf }) {
         <button className={!bf.enabled ? 'sel' : ''} onClick={() => upd({ enabled: false })}>Disattiva</button>
         <span className="hint" style={{ marginLeft: 8 }}>disattiva TUTTO il sistema fabbriche (per togliere solo la dipendenza dalle milestone usa "Modello fabbrica → Neutra")</span>
       </label>
+      <label style={{ display: 'block', margin: '4px 0' }}>
+        Limite fabbriche per giocatore: {num(bf.maxFactories ?? 0, v => upd({ maxFactories: Math.max(0, Math.min(20, Number(v) || 0)) }))}
+        <span className="hint" style={{ marginLeft: 8 }}>{(bf.maxFactories ?? 0) === 0 ? 'nessun tetto: costruisci quante fabbriche vuoi (attuale)' : `ogni giocatore può costruire al massimo ${bf.maxFactories} fabbriche`} · 0 = illimitato</span>
+      </label>
       <h4>Modello fabbrica (dipendenza dalle milestone)</h4>
       <label style={{ display: 'block', margin: '4px 0' }}>
         <button className={bf.neutralFactory !== false ? 'sel' : ''} onClick={() => upd({ neutralFactory: true })}>Neutra — NO milestone</button>
@@ -805,7 +809,7 @@ function BorsaFabbricheEditor({ bf, setBf }) {
           <button className={bf.milestoneGate ? 'sel' : ''} onClick={() => upd({ milestoneGate: true })}>Cancello milestone ON</button>
           <button className={!bf.milestoneGate ? 'sel' : ''} onClick={() => upd({ milestoneGate: false })}>OFF</button>
           <span className="hint" style={{ marginLeft: 8 }}>{bf.milestoneGate
-            ? 'fondi solo se hai crediti-milestone non spesi (1 per ogni milestone attraversata, qualsiasi reparto). Ritarda la 1ª fabbrica alla 1ª milestone. NB: nel probe non ha domato lo snowball'
+            ? 'sblocco una tantum: puoi costruire fabbriche solo dopo aver raggiunto la 1ª milestone in TUTTI e 3 i reparti. Da lì costruisci quante vuoi (nessun credito per fabbrica).'
             : 'nessun cancello: fondi appena hai i marchi (attuale)'}</span>
         </label>
       )}
@@ -872,15 +876,35 @@ function BorsaFabbricheEditor({ bf, setBf }) {
           <span className="hint" style={{ marginLeft: 8 }}>{(bf.factoryMultCap ?? 3) === 0 ? 'nessun tetto: le Sotto scattano quante volte la forza' : `le Sotto scattano al massimo ${bf.factoryMultCap ?? 3}× anche con forza superiore`} · 0 = illimitato</span>
         </label>
       )}
+      {bf.factoryActivates && (
+        <label style={{ display: 'block', margin: '4px 0 4px 16px' }}>
+          Come si conta la forza:{' '}
+          <button className={(bf.factoryStrengthMode ?? 'sum') === 'sum' ? 'sel' : ''} onClick={() => upd({ factoryStrengthMode: 'sum' })}>Somma (tutti i giacimenti)</button>
+          <button className={bf.factoryStrengthMode === 'maxCluster' ? 'sel' : ''} onClick={() => upd({ factoryStrengthMode: 'maxCluster' })}>Nucleo più grande</button>
+          <span className="hint" style={{ marginLeft: 8 }}>{bf.factoryStrengthMode === 'maxCluster'
+            ? 'forza = il gruppo più grande di tue fabbriche attorno a UN singolo giacimento del colore (3 fabbriche = 2 su un rosso + 1 su un altro → forza 2)'
+            : 'forza = somma di tutte le tue fabbriche adiacenti alle risorse di quel colore (default: nell\'esempio → 3)'}</span>
+        </label>
+      )}
       <h4>Maggioranza territoriale</h4>
       <label style={{ display: 'block', margin: '4px 0' }}>
         <button className={bf.majorityBonus?.enabled ? 'sel' : ''} onClick={() => upd({ majorityBonus: { pv: 10, ...bf.majorityBonus, enabled: true } })}>Attiva</button>
         <button className={!bf.majorityBonus?.enabled ? 'sel' : ''} onClick={() => upd({ majorityBonus: { pv: 10, ...bf.majorityBonus, enabled: false } })}>Disattiva</button>
         {bf.majorityBonus?.enabled && <span className="hint" style={{ marginLeft: 8 }}>
           a fine partita, {num(bf.majorityBonus.pv ?? 10, v => upd({ majorityBonus: { ...bf.majorityBonus, pv: Math.max(0, Math.min(99, Number(v) || 0)) } }))} PV
-          a chi ha più fabbriche del settore attorno a ciascun giacimento (pareggio → decide la milestone del reparto; pareggio anche lì → nessuno prende PV)
+          (pareggio → decide la milestone del reparto; pareggio anche lì → nessuno prende PV)
         </span>}
       </label>
+      {bf.majorityBonus?.enabled && (
+        <label style={{ display: 'block', margin: '4px 0 4px 16px' }}>
+          Conteggio:{' '}
+          <button className={(bf.majorityMode ?? 'deposit') === 'deposit' ? 'sel' : ''} onClick={() => upd({ majorityMode: 'deposit' })}>Per giacimento</button>
+          <button className={bf.majorityMode === 'sector' ? 'sel' : ''} onClick={() => upd({ majorityMode: 'sector' })}>Per colore risorsa</button>
+          <span className="hint" style={{ marginLeft: 8 }}>{bf.majorityMode === 'sector'
+            ? 'un premio per COLORE: tutte le risorse di un colore contano insieme, vince chi ha più fabbriche distinte che le toccano (max 3 premi)'
+            : 'un premio per ogni singolo giacimento (default): più giacimenti = più premi'}</span>
+        </label>
+      )}
       <h4>Mappa esagoni — una per numero di giocatori</h4>
       <label style={{ display: 'block', marginBottom: 6 }}>Modifica mappa per:{' '}
         {[2, 3, 4].map(n => <button key={n} className={mapN === n ? 'sel' : ''} onClick={() => setMapN(n)}>{n} giocatori{bf.maps?.[n] ? ' *' : ''}</button>)}

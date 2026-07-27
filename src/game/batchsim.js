@@ -37,6 +37,18 @@ const SIND_LABEL = { trattative: 'Tratt', unblock: 'Sblocca' };
 
 const MAX_STEPS = 60000;
 
+// Un sito costruibile "estende un cluster" per il giocatore se tocca un giacimento dove ha già ≥1 fabbrica:
+// costruirci sopra alza il cluster di quel giacimento (rilevante per la forza in modalità maxCluster).
+function foundExtendsCluster(s, playerId, hex) {
+  for (const rid of (s.factoryMap.adj[hex] || [])) {
+    if (!s.hexResource[rid]) continue; // solo i vicini che sono giacimenti
+    for (const h2 of (s.factoryMap.adj[rid] || [])) {
+      if (h2 !== hex && s.hexFactory[h2]?.playerId === playerId) return true;
+    }
+  }
+  return false;
+}
+
 export function runOneGame(config) {
   let s = initGame(config);
   const P = s.nPlayers;
@@ -69,6 +81,7 @@ export function runOneGame(config) {
     hireTurns: Array.from({ length: P }, () => []), // turni in cui quel seat ha assunto — per "refresh efficace"
     welfareBuyTurns: Array.from({ length: P }, () => []), // turni in cui quel seat ha comprato Welfare/Macchinario
     trackTileBuys: [], // {turn, seat, role, pos, tileId} — ogni acquisto di tile tracciato (2.0)
+    foundings: [], // {seat, had, availExtend, choseExtend} — per ogni fondazione: c'era un sito che estende un cluster? l'ha scelto? (convenienza vs accessibilità del cluster, 26/07/2026)
     turnSeat: { 1: s.current }, // turno → seat proprietario, per trovare "i prossimi 2 turni di quel giocatore"
     activateLog: [], // {turn, seat, sector} per ogni "Attiva reparto" — per contare produzioni residue dopo un acquisto Direzione (carta vs tempismo)
     sawSottoOption: Array(P).fill(false), // ha mai visto un Macchinario (Sotto) comprabile a Servizi? (accesso vs valore)
@@ -239,6 +252,7 @@ export function runOneGame(config) {
       const bp = s.players[seat];
       tel.trackTileBuys.push({
         turn: s.turn, seat, role, pos, tileId: cmd.tileId, market, via: trigger ? 'milestone' : 'borsa', scelta: nOpts > 1,
+        coinsBefore: bp.coins, // marchi in mano al momento dell'acquisto — per "tile Marchi → cosa ne fa nei 2 turni dopo"
         sopra: DEPT_ROLES_B.reduce((n, r) => n + bp.depts[r].sopra.length, 0),
         sotto: sottoTot(bp),
         fabbriche: (bp.factories || []).length,
@@ -274,6 +288,17 @@ export function runOneGame(config) {
       const wcard = WORKER_BY_ID[cmd.cardId || cmd.f3card];
       if (wcard) tel.hires.push({ eff: effSig(formulaOf(wcard)), seat: s.current, nation: wcard.nation, sector: wcard.sector, turn: s.turn, cardId: wcard.id, deck: wcard.deck });
     }
+    // Fondazione fabbrica: c'era un sito che estende un cluster (accessibilità) e l'ha scelto (convenienza)?
+    if (cmd.type === 'buildFactory') {
+      const pid = s.current;
+      const had = (s.players[pid].factories || []).length; // fabbriche PRIMA di questa
+      const opts = legalCommands(s).filter(c => c.type === 'buildFactory').map(c => c.hex);
+      tel.foundings.push({
+        seat: pid, had,
+        availExtend: opts.some(h => foundExtendsCluster(s, pid, h)),
+        choseExtend: foundExtendsCluster(s, pid, cmd.hex),
+      });
+    }
     s = applyCommand(s, cmd);
     noteMilestoneCross();
     for (const b of s.bankIds) noteBankTop(b);
@@ -303,6 +328,9 @@ export function runOneGame(config) {
   }
   tel.turns = s.turn; tel.clock = s.clock;
   tel.results = s.results;
+  // spesa cumulativa FINALE per categoria: coinsSpentByRound[t] è timbrato a inizio turno t (= fine t-1),
+  // quindi la spesa dell'ultimo turno non è in nessuno snapshot — serve per chiudere le finestre a fine partita.
+  tel.coinsSpentFinal = s.players.map(p => ({ ...p.coinsSpentBy }));
   tel.activations = s.players.map(p => p.activations);
   tel.nodeVisits = s.players.map(p => ({ ...p.nodeVisits }));
   tel.activationsBySector = s.players.map(p => ({ ...p.activationsBySector }));
@@ -1896,6 +1924,25 @@ export function formatReport(games, cfg) {
     L.push(`(se l'extra% è molto > della frequenza ${pct((pab[2] + pab[3]) / pabTot)}, il ×2 cade sulle produzioni ricche e conta più di quanto sembri; se ≈ o < , è marginale sul serio.)`);
     L.push('');
 
+    // CLUSTER: convenienza o accessibilità? (idea utente 26/07/2026). Perché i cluster (×>1 in maxCluster) sono rari?
+    // Per ogni fondazione DOPO la prima: c'era un sito che estende un tuo cluster (ACCESSIBILITÀ) e — quando c'era —
+    // l'hai scelto (CONVENIENZA)? Distingue "la mappa non li rende possibili" da "non convengono".
+    const allFound = fbGames.flatMap(g => g.foundings || []);
+    const clusterable = allFound.filter(f => f.had >= 1); // con 0 fabbriche estendere è impossibile
+    if (clusterable.length >= 20) {
+      const availN = clusterable.filter(f => f.availExtend).length;
+      const availRate = availN / clusterable.length;
+      const chosenWhenAvail = availN ? clusterable.filter(f => f.availExtend && f.choseExtend).length / availN : 0;
+      const chosenOverall = clusterable.filter(f => f.choseExtend).length / clusterable.length;
+      L.push('=== BORSA A FABBRICHE — CLUSTER: CONVENIENZA o ACCESSIBILITÀ? (idea utente 26/07/2026) ===');
+      L.push('(perché i cluster sono rari? Per ogni fondazione DOPO la prima: esisteva un sito costruibile che ESTENDE un tuo cluster — adiacente a un giacimento dove hai già una fabbrica — e, quando esisteva, l\'hai SCELTO? Bassa disponibilità → è la mappa/le regole di fondazione a renderli rari (accessibilità); alta disponibilità ma bassa scelta → non convengono, si interviene sul premio (convenienza).)');
+      L.push(`Fondazioni totali: ${allFound.length} · prime fabbriche (cluster impossibile): ${allFound.length - clusterable.length} · fondazioni con cluster possibile (già ≥1 fabbrica): ${clusterable.length}`);
+      L.push(`→ ACCESSIBILITÀ: un sito che estende un cluster era disponibile nel ${pct(availRate)} delle fondazioni-cluster-possibili`);
+      L.push(`→ CONVENIENZA: quando era disponibile, l'ha scelto nel ${pct(chosenWhenAvail)} dei casi (sul totale cluster-possibili: ${pct(chosenOverall)})`);
+      L.push(`(lettura: disponibilità bassa → agire sulla MAPPA/regole di fondazione; disponibilità alta + scelta bassa → agire sul PREMIO del cluster, non sull'accessibilità.)`);
+      L.push('');
+    }
+
     L.push('=== BORSA A FABBRICHE — SPECIALIZZA O DIVERSIFICA? ===');
     // la fabbrica produce il proprio settore: rafforza il colore forte. Le risorse extra vanno in commesse o muoiono?
     const resFab = avg(fbGames.flatMap(g => g.borsaFabbriche.resFromFactory));
@@ -2049,6 +2096,46 @@ export function formatReport(games, cfg) {
     }
     L.push(`${'media di popolazione'.padEnd(24)} |    — | ${baselineState.sopra.toFixed(1).padStart(5)} | ${baselineState.sotto.toFixed(1).padStart(5)} | ${baselineState.fabbriche.toFixed(1).padStart(6)} | ${baselineState.direzione.toFixed(1).padStart(6)} | ${baselineState.milestone.toFixed(1).padStart(9)} |     — | —`);
     L.push('(molto sopra la media = entra tardi, in build già sviluppate. Molto sotto = entra presto, spesso la prima scelta disponibile. Milestone è 0-3: quanti reparti hanno già raggiunto la propria soglia finale. Soglie profilo ±0.35σ: solo per separare i tre gruppi in un report leggibile, non un confine di design.)');
+    L.push('');
+  }
+
+  // TILE MARCHI → ACCELERAZIONE O TESORO? (idea utente 26/07/2026): quando compri una tile che dà marchi,
+  // quei marchi diventano tempo (assunzione / carta Direzione) nei tuoi 2 turni SUCCESSIVI, o restano fermi?
+  // Se «diventa tempo» è alto, il valore della tile è «un turno di anticipo», non «X marchi→PV a fine partita».
+  const CT_TEMPO = ['lavoratori', 'direzione']; // assunzione + carta Direzione = compro tempo
+  const CT_ALL = ['lavoratori', 'direzione', 'sindacato', 'borsa', 'movimento', 'azioni'];
+  const spentSnap = (g, t) => (t > g.turns ? g.coinsSpentFinal : g.coinsSpentByRound[t]); // cumulativo a inizio turno t (= fine t-1)
+  const coinTileWin = [];
+  for (const g of ok) {
+    for (const b of g.trackTileBuys) {
+      const ct = trackTileById[b.tileId]?.cellType;
+      if (ct !== 'coins' && ct !== 'coinsPerIcon') continue; // solo tile che danno Marchi
+      const ownTurns = []; // prossimi 2 turni PROPRI dopo l'acquisto
+      for (let t = b.turn + 1; t <= g.turns && ownTurns.length < 2; t++) if (g.turnSeat[t] === b.seat) ownTurns.push(t);
+      if (!ownTurns.length) continue; // comprata all'ultimo turno: nessuna finestra
+      const spent = Object.fromEntries(CT_ALL.map(c => [c, 0]));
+      for (const ot of ownTurns) {
+        const a = spentSnap(g, ot), z = spentSnap(g, ot + 1);
+        if (!a || !z) continue;
+        for (const c of CT_ALL) spent[c] += (z[b.seat][c] - a[b.seat][c]); // spesa per categoria durante quel turno proprio
+      }
+      coinTileWin.push({ coinsBefore: b.coinsBefore ?? 0, spent, tempo: CT_TEMPO.reduce((n, c) => n + spent[c], 0) });
+    }
+  }
+  if (coinTileWin.length >= 10) {
+    const N = coinTileWin.length;
+    const totSpent = Object.fromEntries(CT_ALL.map(c => [c, coinTileWin.reduce((n, w) => n + w.spent[c], 0)]));
+    const grand = CT_ALL.reduce((n, c) => n + totSpent[c], 0) || 1;
+    const avgBefore = avg(coinTileWin.map(w => w.coinsBefore));
+    const avgSpent = avg(coinTileWin.map(w => CT_ALL.reduce((n, c) => n + w.spent[c], 0)));
+    const hitTempo = coinTileWin.filter(w => w.tempo > 0).length / N;
+    const CAT_IT = { lavoratori: 'assunzione', direzione: 'carta Direzione', sindacato: 'Sindacato', borsa: 'Borsa', movimento: 'movimento', azioni: 'azioni città' };
+    L.push('— TILE MARCHI → ACCELERAZIONE O TESORO? (idea utente 26/07/2026) —');
+    L.push('(quando un giocatore compra una tile che dà Marchi, quanti ne ha in mano e — nei suoi 2 turni SUCCESSIVI — quei marchi diventano TEMPO (assunzione/carta Direzione) o restano fermi? Se «diventa tempo» è alto, la tile non vale «X marchi» ma «un turno di anticipo»: la spiegazione vera del suo valore, non il cambio finale marchi→PV. Finestra = i 2 turni PROPRI dopo l\'acquisto; spesa per categoria dalla differenza degli snapshot cumulativi.)');
+    L.push(`Acquisti tile-Marchi analizzati: ${N} · marchi medi in mano all'acquisto: ${avgBefore.toFixed(1)} · marchi medi spesi nei 2 turni dopo: ${avgSpent.toFixed(1)}`);
+    L.push(`→ diventano TEMPO (assunzione o carta Direzione) entro 2 turni: ${(100 * hitTempo).toFixed(0)}% degli acquisti`);
+    L.push('Dove finiscono i marchi spesi nella finestra:');
+    for (const c of CT_ALL.filter(c => totSpent[c] > 0).sort((a, b) => totSpent[b] - totSpent[a])) L.push(`  ${CAT_IT[c].padEnd(15)} ${(100 * totSpent[c] / grand).toFixed(0).padStart(3)}%`);
     L.push('');
   }
 

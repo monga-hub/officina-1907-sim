@@ -223,11 +223,13 @@ function producibleSectors(state, p) {
 // settori per cui il giocatore ha un credito (milestone raggiunta) E almeno un posto libero E i marchi
 function factoryBuildableSectors(state, p) {
   if (!state.borsaFabbriche.enabled) return [];
+  const maxF = state.borsaFabbriche.maxFactories; // 0/undefined = illimitato
+  if (maxF && (p.factories?.length || 0) >= maxF) return []; // tetto fabbriche per giocatore raggiunto
   if (p.coins < factoryCost(state, p)) return [];
-  // neutra: nessun gate di settore. Con milestoneGate ON serve un credito-milestone non speso (generico):
-  // creditiGuadagnati (ogni milestone attraversata, qualsiasi reparto) > fabbriche già costruite.
+  // neutra: nessun gate di settore. Con milestoneGate ON serve aver raggiunto la PRIMA milestone in TUTTI e 3
+  // i reparti (sblocco una tantum: da lì puoi costruire quante fabbriche vuoi, non più un credito per fabbrica).
   if (state.borsaFabbriche.neutralFactory) {
-    if (state.borsaFabbriche.milestoneGate && p.factoryCreditsEarned <= p.factories.length) return [];
+    if (state.borsaFabbriche.milestoneGate && !DEPT_ROLES.every(r => p.depts[r].prod >= state.milestonePos[r])) return [];
     // gate "carta in ogni reparto": per fondare qualsiasi fabbrica serve ≥1 carta Sopra in tutti e 3 i reparti
     if (state.borsaFabbriche.allDeptGate && !DEPT_ROLES.every(r => p.depts[r].sopra.length >= 1)) return [];
     return factoryBuildSpots(state, null, p).length ? [null] : [];
@@ -643,15 +645,20 @@ function factoryCount(player, sector) {
 
 // Forza di un giocatore verso un settore.
 // Fabbrica NEUTRA: si conta dal lato risorsa — per ogni casella-risorsa di quel colore, quante fabbriche del
-// giocatore le stanno adiacenti; poi si somma. Una fabbrica adiacente a 2 caselle Tessile vale 2 verso Tessile.
-// Legacy: numero di fabbriche taggate con quel settore (comportamento storico).
+// giocatore le stanno adiacenti. Modalità (borsaFabbriche.factoryStrengthMode):
+//  'sum' (default, storico): somma su tutti i giacimenti del colore (una fabbrica su 2 rossi vale 2).
+//  'maxCluster': il nucleo più grande su un SINGOLO giacimento (3 fabbriche = 2 su un rosso + 1 su un altro → 2).
+// Legacy (non-neutra): numero di fabbriche taggate con quel settore.
 function factoryStrength(state, player, sector) {
   if (!state.borsaFabbriche?.neutralFactory) return factoryCount(player, sector);
   const mine = new Set((player.factories || []).map(f => f.hex));
+  const maxCluster = state.borsaFabbriche?.factoryStrengthMode === 'maxCluster';
   let n = 0;
   for (const rid of Object.keys(state.hexResource)) {
     if (state.hexResource[rid] !== sector) continue;
-    for (const nb of (state.factoryMap.adj[rid] || [])) if (mine.has(nb)) n++;
+    let c = 0;
+    for (const nb of (state.factoryMap.adj[rid] || [])) if (mine.has(nb)) c++;
+    n = maxCluster ? Math.max(n, c) : n + c;
   }
   return n;
 }
@@ -976,12 +983,41 @@ export function factoryMajorityWinner(state, rid, sector) {
   });
   return withMilestone.length === 1 ? withMilestone[0] : null;
 }
+// Maggioranza per COLORE/settore (modalità 'sector'): tutte le caselle-risorsa di un colore contano insieme.
+// Vince chi ha più fabbriche DISTINTE adiacenti a un giacimento di quel colore (una fabbrica su 2 giacimenti
+// rossi conta 1, non 2). Pareggio → milestone del reparto; pareggio anche lì → nessuno. Un premio per colore.
+export function factorySectorMajorityWinner(state, sector) {
+  const neutral = state.borsaFabbriche?.neutralFactory;
+  const sets = {}; // playerId → Set di nodi-fabbrica distinti che toccano un giacimento di questo colore
+  for (const rid of Object.keys(state.hexResource)) {
+    if (state.hexResource[rid] !== sector) continue;
+    const adjB = (state.factoryMap.adj[rid] || []).filter(n => state.factoryHexById[n]?.type === 'costruibile');
+    for (const n of adjB) {
+      const f = state.hexFactory[n];
+      if (f && (neutral || f.sector === sector)) (sets[f.playerId] ??= new Set()).add(n);
+    }
+  }
+  const counts = Object.fromEntries(Object.entries(sets).map(([id, s]) => [id, s.size]));
+  const max = Math.max(0, ...Object.values(counts));
+  if (max === 0) return null;
+  const top = Object.keys(counts).filter(id => counts[id] === max).map(Number);
+  if (top.length === 1) return top[0];
+  const withMilestone = top.filter(id => {
+    const d = deptOfSector(state.players.find(pl => pl.id === id), sector);
+    return d && d.prod >= state.milestonePos[d.role];
+  });
+  return withMilestone.length === 1 ? withMilestone[0] : null;
+}
 function factoryMajorityPV(state, p) {
   const mb = state.borsaFabbriche?.majorityBonus;
   if (!state.borsaFabbriche?.enabled || !mb?.enabled) return 0;
   let pv = 0;
-  for (const rid of Object.keys(state.hexResource)) {
-    if (factoryMajorityWinner(state, rid, state.hexResource[rid]) === p.id) pv += mb.pv;
+  if (state.borsaFabbriche.majorityMode === 'sector') {
+    for (const s of SECTORS) if (factorySectorMajorityWinner(state, s) === p.id) pv += mb.pv;
+  } else {
+    for (const rid of Object.keys(state.hexResource)) {
+      if (factoryMajorityWinner(state, rid, state.hexResource[rid]) === p.id) pv += mb.pv;
+    }
   }
   return pv;
 }
@@ -1793,11 +1829,15 @@ function installTrackTile(state, p, cmd) {
   spendRes(p, d.sector, tile.cost, 'tile'); // costo in risorse del proprio settore, non marchi
   d.tileFills[cmd.pos] = tile.id;
   if (state.trackTileCap.mode === 'limitato') state.trackTileStock[cmd.role][tile.id] = Math.max(0, (state.trackTileStock[cmd.role][tile.id] ?? 0) - 1);
-  const g = cellGain(p, d, { [tile.cellType]: tile.amount }, state.welfareById);
+  // Tag "attiva subito" (tile.instant): ON (default = comportamento storico) → il giocatore incassa la resa
+  // della tile all'acquisto. OFF → niente resa immediata, la tile frutta solo quando il reparto PRODUCE
+  // (trackProduction, ogni attivazione con prod ≥ pos della tile). Le tile PV non hanno resa immediata comunque.
+  const g = (tile.instant !== false) ? cellGain(state, p, d, { [tile.cellType]: tile.amount }) : null; // fix ordine arg (era (p,d,cell,welfare) → cell=welfare → null): la resa una-tantum all'acquisto non avveniva mai
   const acc = p.tileGains[tile.id] ?? (p.tileGains[tile.id] = { coins: 0, res: 0, uses: 0 });
   if (g?.coins) { addCoins(state, p, g.coins, 'trackTile'); acc.coins += g.coins; acc.uses++; log(state, `${p.name} installa la tile "${tile.name}" su ${d.sector} (pos.${cmd.pos}): +${g.coins} ⓜ subito.`); }
   else if (g?.res) { addRes(p, d.sector, g.res, 'trackTile'); acc.res += g.res; acc.uses++; log(state, `${p.name} installa la tile "${tile.name}" su ${d.sector} (pos.${cmd.pos}): +${g.res} ${RESOURCE_OF[d.sector]} subito.`); }
   else if (tile.cellType === 'pv') log(state, `${p.name} installa la tile "${tile.name}" su ${d.sector} (pos.${cmd.pos}): +${tile.amount} PV a fine partita.`);
+  else if (tile.instant === false) log(state, `${p.name} installa la tile "${tile.name}" su ${d.sector} (pos.${cmd.pos}): si attiva producendo (nessuna resa immediata).`);
   else log(state, `${p.name} installa la tile "${tile.name}" su ${d.sector} (pos.${cmd.pos}).`);
   checkObjectives(state, p);
 }

@@ -194,7 +194,8 @@ export function TrackTileEditor({ tiles, setTiles, cap, setCap }) {
         mercato 2 dalla milestone in pos.12 (slot pos.11), mercato 3 dalla milestone in pos.16 (slot pos.15). Stesso
         catalogo per Terziario/Secondario/Primario (un solo editor), ma in partita ogni reparto ha il suo mercato e
         la sua scorta indipendenti: esaurire una tile in un reparto non tocca le copie degli altri due.
-        "Costo" in risorse del proprio settore (Tessuti/Acciaio/Coloranti a seconda del reparto), oggi 0 di default.</p>
+        "Costo" in risorse del proprio settore (Tessuti/Acciaio/Coloranti a seconda del reparto), oggi 0 di default.
+        <b>Attiva</b>: "subito" (default) = chi piazza la tile incassa la resa all'acquisto; "produci" = nessuna resa immediata, la tile frutta solo quando il reparto produce quella casella. (Le tile PV non hanno resa immediata comunque.)</p>
       <p>
         Scorta: <button className={cap?.mode !== 'limitato' ? 'sel' : ''} onClick={() => setMode('illimitato')}>Illimitata (ogni giocatore sceglie liberamente)</button>{' '}
         <button className={cap?.mode === 'limitato' ? 'sel' : ''} onClick={() => setMode('limitato')}>Limitata ("copie" = pool condiviso tra i giocatori, per reparto)</button>
@@ -203,7 +204,7 @@ export function TrackTileEditor({ tiles, setTiles, cap, setCap }) {
         <div key={market} style={{ marginBottom: 16 }}>
           <h4>Mercato {market}</h4>
           <table className="pv-editor">
-            <thead><tr><th>Nome</th><th>Fattore 1</th><th>Verbo</th><th>Fattore 2</th><th>Costo</th><th>Copie</th><th></th></tr></thead>
+            <thead><tr><th>Nome</th><th>Fattore 1</th><th>Verbo</th><th>Fattore 2</th><th>Costo</th><th>Copie</th><th>Attiva</th><th></th></tr></thead>
             <tbody>
               {tiles.map((t, i) => {
                 if (t.market !== market) return null;
@@ -227,6 +228,9 @@ export function TrackTileEditor({ tiles, setTiles, cap, setCap }) {
                   ) : <small>—</small>}</td>
                   <td><input type="number" min="0" max="20" value={t.cost} onChange={e => upd(i, { cost: Math.max(0, Math.min(20, Number(e.target.value) || 0)) })} style={{ width: 44 }} /></td>
                   <td><input type="number" min="0" max="9" value={t.copies} onChange={e => upd(i, { copies: Math.max(0, Math.min(9, Number(e.target.value) || 0)) })} style={{ width: 44 }} /></td>
+                  <td>{tipo === 'punti' ? <small>—</small> : (
+                    <button className={t.instant !== false ? 'sel' : ''} onClick={() => upd(i, { instant: t.instant === false })} title="Subito: risorse all'acquisto · Produci: solo quando il reparto produce quella casella">{t.instant !== false ? 'subito' : 'produci'}</button>
+                  )}</td>
                   <td><button className="ghost" onClick={() => remove(i)}>✕</button></td>
                 </tr>
                 );

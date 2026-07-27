@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import FactoryBoard from './FactoryBoard.jsx';
 import FactoryMap from './FactoryMap.jsx';
-import { totalResources, describeCond, factoryMajorityWinner } from '../game/engine.js';
+import { totalResources, describeCond, factoryMajorityWinner, factorySectorMajorityWinner } from '../game/engine.js';
 import { CONTRACTS, SECTOR_COLORS, NODES, SECTORS } from '../game/data.js';
 import { economy, buildStory, buildEvents, buildDiagnosis, buildAnomalies, factoryStats, matchHeadline, matchNormality, matchTurningPoints, matchLesson, productionCadence } from '../game/matchReport.js';
 
@@ -304,18 +304,28 @@ export default function EndScreen({ state, onRestart }) {
       {(() => {
         const mb = state.borsaFabbriche?.majorityBonus;
         const showMaj = state.borsaFabbriche?.enabled && mb?.enabled;
+        const sectorMode = state.borsaFabbriche?.majorityMode === 'sector';
         const majorityByRes = {};
-        if (showMaj) for (const rid of Object.keys(state.hexResource || {})) majorityByRes[rid] = factoryMajorityWinner(state, rid, state.hexResource[rid]);
-        const wonBy = {}; // playerId → n giacimenti vinti
-        for (const w of Object.values(majorityByRes)) if (w != null) wonBy[w] = (wonBy[w] || 0) + 1;
+        const wonBy = {}; // playerId → n premi vinti (giacimenti o colori)
+        if (showMaj && sectorMode) {
+          const secs = [...new Set(Object.values(state.hexResource || {}))];
+          const bySec = Object.fromEntries(secs.map(s => [s, factorySectorMajorityWinner(state, s)]));
+          for (const rid of Object.keys(state.hexResource || {})) majorityByRes[rid] = bySec[state.hexResource[rid]]; // ogni casella del colore porta il vincitore di quel colore
+          for (const w of Object.values(bySec)) if (w != null) wonBy[w] = (wonBy[w] || 0) + 1; // un premio per COLORE vinto
+        } else if (showMaj) {
+          for (const rid of Object.keys(state.hexResource || {})) majorityByRes[rid] = factoryMajorityWinner(state, rid, state.hexResource[rid]);
+          for (const w of Object.values(majorityByRes)) if (w != null) wonBy[w] = (wonBy[w] || 0) + 1;
+        }
         return (
           <div className="track-editor" style={{ textAlign: 'left', marginTop: 12 }}>
-            <h3 style={{ marginTop: 0 }}>🗺 Mappa territoriale — chi ha costruito dove{showMaj ? ' · 👑 giacimenti' : ''}</h3>
+            <h3 style={{ marginTop: 0 }}>🗺 Mappa territoriale — chi ha costruito dove{showMaj ? (sectorMode ? ' · 👑 colori' : ' · 👑 giacimenti') : ''}</h3>
             <FactoryMap state={state} legal={[]} dispatch={() => {}} majorityByRes={majorityByRes} />
             <div style={{ fontSize: 12, color: '#c9b89a', marginTop: 6 }}>
               Fabbriche: {players.map(p => <span key={p.id} style={{ marginRight: 12 }}><span style={{ display: 'inline-block', width: 11, height: 11, background: p.color, verticalAlign: 'middle' }} /> {p.name} ({(p.factories || []).length}{showMaj && wonBy[p.id] ? ` · 👑${wonBy[p.id]}=${wonBy[p.id] * mb.pv}PV` : ''})</span>)}
             </div>
-            {showMaj && <p className="hint" style={{ marginTop: 4 }}>👑 = giacimento vinto ({mb.pv} PV l'uno, bordo col colore del vincitore). Casella-risorsa senza corona = pareggio, nessuno prende i PV.</p>}
+            {showMaj && <p className="hint" style={{ marginTop: 4 }}>{sectorMode
+              ? `👑 = colore vinto (${mb.pv} PV per colore: chi ha più fabbriche distinte sulle risorse di quel colore; tutte le caselle del colore mostrano il vincitore). Pareggio → nessuno.`
+              : `👑 = giacimento vinto (${mb.pv} PV l'uno, bordo col colore del vincitore). Casella-risorsa senza corona = pareggio, nessuno prende i PV.`}</p>}
           </div>
         );
       })()}
