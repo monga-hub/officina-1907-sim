@@ -531,8 +531,42 @@ function CorsiEditor({ corsi, setCorsi }) {
         reparto, <code>[2,2]</code> = due pari, <code>[2,1,1]</code> = tutti e tre. Il report
         «CORSI DI FORMAZIONE — dimensionamento» misura passi reali, saturazione dei posti e domanda respinta.
       </p>
-      <button className="ghost" onClick={() => { const d = readDef('officina1907-corsi-v1', CORSI_DEFAULT); setCorsi(structuredClone(d)); saveLS('officina1907-corsi-v1', d); }}>Ripristina default</button>
-      <button className="ghost" onClick={() => writeDef('officina1907-corsi-v1', corsi)}>⭐ Rendi questi valori i default</button>
+      {(() => {
+        const SL = corsi.spesaLibera || { enabled: false, min: 2, max: 4, postiTotali: [6, 6, 6] };
+        const updSL = patch => upd({ spesaLibera: { ...SL, ...patch } });
+        const updPT = (i, v) => { const postiTotali = [...SL.postiTotali]; postiTotali[i] = Math.max(0, Number(v) || 0); updSL({ postiTotali }); };
+        return (
+          <div style={{ marginTop: 18, padding: 10, border: '1px solid #b5651d', borderRadius: 6 }}>
+            <h4 style={{ margin: '0 0 4px' }}>Modello semplice — spesa libera <small>(alternativo)</small></h4>
+            <label>
+              <input type="checkbox" checked={SL.enabled} onChange={e => updSL({ enabled: e.target.checked })} /> <b>Attiva spesa libera</b>
+            </label>
+            <p className="hint">
+              Quando è attivo <b>sostituisce</b> costo, posti-per-reparto ed effetto qui sopra. Al Sindacato il giocatore
+              spende da <b>min</b> a <b>max</b> marchi e ottiene altrettanti avanzamenti (1 marco = 1 cubetto), piazzabili
+              liberi sui 3 reparti. I posti sono un <b>totale condiviso</b> per trimestre (una formazione = un posto).
+            </p>
+            {SL.enabled && (<>
+              <label>Marchi spendibili: da{' '}
+                <input type="number" min="1" max="20" value={SL.min} onChange={e => updSL({ min: Math.max(1, Number(e.target.value) || 1) })} style={{ width: 52 }} /> a{' '}
+                <input type="number" min="1" max="20" value={SL.max} onChange={e => updSL({ max: Math.max(1, Number(e.target.value) || 1) })} style={{ width: 52 }} />
+                {'  '}<small>(= avanzamenti ottenuti)</small>
+              </label>
+              <table className="pv-editor" style={{ marginTop: 8 }}>
+                <thead><tr><th>Posti totali</th>{Array.from({ length: corsi.trimestri }, (_, i) => <th key={i}>T{i + 1}</th>)}</tr></thead>
+                <tbody><tr>
+                  <td style={{ textAlign: 'left' }}>condivisi tra i 3 corsi</td>
+                  {Array.from({ length: corsi.trimestri }, (_, i) => <td key={i}><input type="number" min="0" max="30" value={SL.postiTotali[i] ?? 0} onChange={e => updPT(i, e.target.value)} style={{ width: 52 }} /></td>)}
+                </tr></tbody>
+              </table>
+            </>)}
+          </div>
+        );
+      })()}
+      <div style={{ marginTop: 12 }}>
+        <button className="ghost" onClick={() => { const d = readDef('officina1907-corsi-v1', CORSI_DEFAULT); setCorsi(structuredClone(d)); saveLS('officina1907-corsi-v1', d); }}>Ripristina default</button>
+        <button className="ghost" onClick={() => writeDef('officina1907-corsi-v1', corsi)}>⭐ Rendi questi valori i default</button>
+      </div>
     </div>
   );
 }

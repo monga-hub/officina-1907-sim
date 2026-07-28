@@ -79,6 +79,21 @@ export const CORSI_DEFAULT = {
     //   'fisso' → i successivi in ordine ciclico SECTORS (deterministico, nessuna scelta: come la carta Impiegato)
     scelta: 'ia',
   },
+
+  // ---------- MODELLO SEMPLICE (alternativo): spesa libera ----------
+  // Toggle `spesaLibera.enabled` = ON SOSTITUISCE costo + posti-per-reparto + effetto con un modello
+  // a spesa variabile, molto più semplice da spiegare a un giocatore:
+  //   entri al Sindacato → SPENDI da `min` a `max` marchi → ottieni ALTRETTANTI avanzamenti (1 marco = 1
+  //   cubetto) → li piazzi liberamente sui 3 reparti. I posti sono un TOTALE condiviso per trimestre
+  //   (`postiTotali[T1,T2,T3]`), non per reparto: una formazione = un posto, chiunque la faccia.
+  // Quando è OFF (default) vale il modello classico sopra (costo/posti/effetto). I due modelli non si
+  // mescolano: `spesaLibera.enabled` decide quale dei due il motore usa.
+  spesaLibera: {
+    enabled: false,
+    min: 2,                  // marchi minimi spendibili (= avanzamenti minimi)
+    max: 4,                  // marchi massimi spendibili (= avanzamenti massimi)
+    postiTotali: [6, 6, 6],  // posti CONDIVISI tra i 3 corsi in T1/T2/T3 (una formazione occupa 1 posto)
+  },
 };
 
 export function mergeCorsi(cfg) {
@@ -90,6 +105,8 @@ export function mergeCorsi(cfg) {
   for (const s of SECTORS) C.posti[s] = (cfg?.posti?.[s] || CORSI_DEFAULT.posti[s] || []).slice();
   C.effetto = { ...CORSI_DEFAULT.effetto, ...(cfg?.effetto || {}) };
   C.effetto.passi = (cfg?.effetto?.passi || CORSI_DEFAULT.effetto.passi).slice();
+  C.spesaLibera = { ...CORSI_DEFAULT.spesaLibera, ...(cfg?.spesaLibera || {}) };
+  C.spesaLibera.postiTotali = (cfg?.spesaLibera?.postiTotali || CORSI_DEFAULT.spesaLibera.postiTotali).slice();
   C.trimestri = Math.max(1, Math.min(4, C.trimestri | 0));
   // Un effetto non può toccare più reparti di quanti ne esistano: il resto sarebbe silenziosamente ignorato.
   C.effetto.passi = C.effetto.passi.slice(0, SECTORS.length);
@@ -136,6 +153,13 @@ export function postiLiberi(state, sector, tri = state.trimestre) {
 // Posti mai occupati in un trimestre GIÀ CHIUSO: la metrica di sovradimensionamento.
 export function postiPersi(state, sector, tri) {
   return tri < state.trimestre ? postiLiberi(state, sector, tri) : 0;
+}
+
+// Modello 'spesaLibera': i posti sono un TOTALE condiviso per trimestre, non per reparto.
+// Una formazione (qualunque reparto) occupa 1 posto del totale del suo trimestre.
+export function postiCondivisiLiberi(state, tri = state.trimestre) {
+  const tot = state.corsi.spesaLibera.postiTotali[tri] ?? 0;
+  return Math.max(0, tot - state.corsiLog.filter(c => c.tri === tri).length);
 }
 
 export function costoCorso(C, tri, sector) {
@@ -217,6 +241,19 @@ export function corsoCommands(state, player, posOf) {
   const tri = state.trimestre;
   if (C.maxPerTrimestre > 0 && formazioniDi(state, player.id, tri) >= C.maxPerTrimestre) return [];
   const cmds = [];
+
+  // Modello 'spesaLibera': posti condivisi + spesa variabile 1 marco = 1 cubetto libero. Ignora
+  // costo/posti-per-reparto/effetto del modello classico.
+  if (C.spesaLibera.enabled) {
+    if (postiCondivisiLiberi(state, tri) <= 0) return [];
+    const SL = C.spesaLibera;
+    for (let spend = SL.min; spend <= SL.max; spend++) {
+      if (player.coins < spend) continue;
+      for (const d of composizioniPool(spend)) cmds.push({ type: 'corso', spend, sectors: d.sectors, passi: d.passi });
+    }
+    return cmds;
+  }
+
   const pool = C.effetto.scelta === 'pool' ? composizioniPool(C.effetto.passi.reduce((a, x) => a + x, 0)) : null;
   for (const sector of SECTORS) {
     if (postiLiberi(state, sector, tri) <= 0) continue;
@@ -244,6 +281,11 @@ export function bloccoCorso(state, player, posOf) {
   if (state.corsiSession) return 'già formato in questa visita';
   const tri = state.trimestre;
   if (C.maxPerTrimestre > 0 && formazioniDi(state, player.id, tri) >= C.maxPerTrimestre) return 'limite personale del trimestre';
+  if (C.spesaLibera.enabled) {
+    if (postiCondivisiLiberi(state, tri) <= 0) return 'posti esauriti';
+    if (player.coins < C.spesaLibera.min) return 'marchi insufficienti';
+    return null;
+  }
   const liberi = SECTORS.filter(s => postiLiberi(state, s, tri) > 0);
   if (liberi.length === 0) return 'tutti i reparti saturi';
   if (liberi.every(s => player.coins < costoCorso(C, tri, s))) return 'marchi insufficienti';
@@ -320,6 +362,18 @@ if (typeof process !== 'undefined' && process.argv?.[1]?.endsWith('corsi.js')) {
   assert(cp.every(c => c.sector === 'Tessile'), 'pool: il posto conteso resta il reparto con posti liberi');
   assert(cp.every(c => distribuzione(Cpool.corsi, c.sectors, c.passi).reduce((a, x) => a + x.passi, 0) === 4), 'pool: ogni comando distribuisce N=4 cubetti');
   assert(cp.some(c => c.sectors.length === 1 && c.sectors[0] === 'Chimica' && c.passi[0] === 4), 'pool: esiste "tutti e 4 in Chimica" col posto in Tessile (payoff slegato dalla contesa)');
+
+  // spesaLibera: spesa variabile (1 marco = 1 cubetto) + posti condivisi per trimestre
+  const Csl = mk({ spesaLibera: { enabled: true, min: 2, max: 4, postiTotali: [2, 0, 0] } });
+  const clsl = corsoCommands(Csl, P, posOf);
+  assert(clsl.every(c => c.spend >= 2 && c.spend <= 4), 'spesaLibera: spesa tra min e max');
+  assert(clsl.every(c => c.passi.reduce((a, x) => a + x, 0) === c.spend), 'spesaLibera: cubetti = marchi spesi (1:1)');
+  assert(new Set(clsl.map(c => c.spend)).size === 3, 'spesaLibera: 3 livelli di spesa (2,3,4)');
+  Csl.corsiLog.push({ seat: 1, tri: 0, sector: 'Tessile' }, { seat: 2, tri: 0, sector: 'Chimica' });
+  assert(corsoCommands(Csl, P, posOf).length === 0, 'spesaLibera: 2 posti condivisi esauriti da reparti DIVERSI');
+  assert(bloccoCorso(Csl, P, posOf) === 'posti esauriti', 'spesaLibera: blocco per posti condivisi');
+  const poveroSL = mk({ spesaLibera: { enabled: true, min: 3, max: 4, postiTotali: [5, 0, 0] } });
+  assert(bloccoCorso(poveroSL, { ...P, coins: 2 }, posOf) === 'marchi insufficienti', 'spesaLibera: sotto il minimo = marchi insufficienti');
 
   console.log('\n✓ corsi.js: modello e effetto ok');
 }

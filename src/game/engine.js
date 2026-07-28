@@ -1660,11 +1660,15 @@ function recordActivation(state) {
 // A differenza dell'Impiegato non consuma slot in Direzione: il posto nel corso È la scarsità.
 function doCorso(state, p, cmd) {
   const tri = state.trimestre;
-  spendCoins(p, 'direzione', costoCorso(state.corsi, tri, cmd.sector)); // stessa voce di spesa degli Impiegati, per confronto
-  state.corsiLog.push({ turn: state.turn, tri, seat: p.id, sector: cmd.sector });
+  // Spesa libera: paga cmd.spend (1 marco = 1 cubetto), niente reparto d'iscrizione (posto condiviso) →
+  // per i log/telemetria uso il reparto dominante. Modello classico: paga costoCorso, reparto = cmd.sector.
+  const sector = cmd.sector ?? cmd.sectors[0];
+  const cost = cmd.spend ?? costoCorso(state.corsi, tri, cmd.sector);
+  spendCoins(p, 'direzione', cost); // stessa voce di spesa degli Impiegati, per confronto
+  state.corsiLog.push({ turn: state.turn, tri, seat: p.id, sector });
   state.corsiSession = true;
   const dist = distribuzione(state.corsi, cmd.sectors, cmd.passi);
-  log(state, `${p.name} si iscrive al corso ${cmd.sector} (T${tri + 1}): ${dist.map(d => `${d.sector} +${d.passi}`).join(', ')}.`);
+  log(state, `${p.name} si iscrive al corso ${sector} (T${tri + 1}): ${dist.map(d => `${d.sector} +${d.passi}`).join(', ')}.`);
   for (const d of dist) advanceTrack(state, p, deptOfSector(p, d.sector), d.passi, `corso di formazione T${tri + 1}`);
   p.lastDirTurn = state.turn;
   checkObjectives(state, p);
