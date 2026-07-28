@@ -2,6 +2,7 @@
 import { initGame, applyCommand, scorePlayer, WORKER_BY_ID, formulaOf, convBucketOf, describeCond, tileValue, bankMarket, legalCommands, indexNames, indexValue, factoryMajorityWinner, factorySectorMajorityWinner } from './engine.js';
 import { chooseCommand } from './ai.js';
 import { SECTORS, OBJECTIVE_TILES, WELFARE, TRACK_TILES, IMPIEGATI_BANK, RESOURCE_OF, FACTORY_MAP } from './data.js';
+import { costoCorso, distribuzione, bloccoCorso } from './corsi.js';
 
 
 // categoria azione per la heatmap: comando → colonna
@@ -104,6 +105,10 @@ export function runOneGame(config) {
     // stato del tracciato prima, avanzamenti REALI (il tracciato satura a trackMax: la potenza nominale
     // può andare in parte sprecata) e milestone attraversate in quella singola salita.
     impiegatiBuys: [], // {turn, seat, cardId, nation, coinsBefore, steps:[{sector, role, nominal, from, to, gained, sopra, ms:[1..3]}]}
+    // Corsi di Formazione: stessa forma di impiegatiBuys (i due sistemi vanno confrontati riga per riga)
+    // più i due assi che gli Impiegati non avevano — il trimestre e la SATURAZIONE dei posti condivisi.
+    corsiBuys: [],    // {turn, seat, tri, sector, sectors, costo, coinsBefore, steps:[{...come sopra}]}
+    corsiBlocked: [], // {turn, seat, tri, reason} — una volta per visita: la domanda respinta dalla scarsità
   };
   // apparizioni per carta: quante volte una carta ENTRA nel mercato di un banco (cima per i banchi
   // lavoratori, una delle 3 scoperte per gli Impiegati), non quanti turni ci resta — così "apparsa"
@@ -245,6 +250,27 @@ export function runOneGame(config) {
         return { sector, role, nominal, from: cp.depts[role].prod, sopra: cp.depts[role].sopra.length };
       }),
     } : null;
+    // Corso di formazione: stessa tecnica dell'Impiegato — fotografa i tracciati PRIMA, il delta si legge dopo.
+    const corsoBuy = cmd.type === 'corso' ? {
+      turn: s.turn, seat: s.current, tri: s.trimestre, sector: cmd.sector, sectors: cmd.sectors,
+      costo: costoCorso(s.corsi, s.trimestre, cmd.sector), coinsBefore: cp.coins,
+      steps: distribuzione(s.corsi, cmd.sectors).map(({ sector, passi }) => {
+        const role = DEPT_ROLES_B.find(r => cp.depts[r].sector === sector);
+        return { sector, role, nominal: passi, from: cp.depts[role].prod, sopra: cp.depts[role].sopra.length };
+      }),
+    } : null;
+    // "Corso perso": il giocatore è al nodo dei Corsi e NON può formarsi. Registrato una volta per visita
+    // (il nodo cambia a ogni turno, quindi turno+seat identificano la visita). È un LIMITE SUPERIORE della
+    // domanda repressa: dice che l'occasione non c'era, non che il giocatore l'avrebbe presa.
+    // `corsiSession` escluso di proposito: chi si è appena formato è "bloccato" per costruzione, e quel
+    // conteggio (= 1 per ogni corso fatto) sommergerebbe il segnale vero, che è chi NON ha potuto formarsi.
+    if (s.corsi.enabled && s.phase === 'action' && cp.node === s.corsi.nodo && !s.corsiSession) {
+      const last = tel.corsiBlocked[tel.corsiBlocked.length - 1];
+      if (!last || last.turn !== s.turn || last.seat !== s.current) {
+        const reason = bloccoCorso(s, cp, (pl, sec) => pl.depts[DEPT_ROLES_B.find(r => pl.depts[r].sector === sec)].prod);
+        if (reason) tel.corsiBlocked.push({ turn: s.turn, seat: s.current, tri: s.trimestre, reason });
+      }
+    }
     if (cmd.type === 'buyWelfare') tel.welfareBuyTurns[s.current].push(s.turn);
     // La tile si sceglie al raggiungimento della milestone (resolveTrackTile): il ripiego "compra alla Borsa"
     // è stato rimosso dal design il 28/07/2026 (scelta obbligatoria). Il seat è quello del pending, non
@@ -317,6 +343,16 @@ export function runOneGame(config) {
       }
       tel.impiegatiBuys.push(impBuy);
     }
+    if (corsoBuy) {
+      const bp = s.players[corsoBuy.seat];
+      for (const st of corsoBuy.steps) {
+        st.to = bp.depts[st.role].prod;
+        st.gained = st.to - st.from; // < nominal se il tracciato era già a fondo corsa
+        st.ms = Object.entries(s.marketUnlockPos[st.role] || {})
+          .filter(([, pos]) => pos > st.from && pos <= st.to).map(([m]) => Number(m));
+      }
+      tel.corsiBuys.push(corsoBuy);
+    }
     noteMilestoneCross();
     for (const b of s.bankIds) noteBankTop(b);
     if (s.turn !== lastTurn) {
@@ -363,6 +399,21 @@ export function runOneGame(config) {
   // NB: `imp` è una sottostima quando lo sblocco Sciopero ripristina `prod` — raro, ma il verso è noto.
   tel.msPos = Object.fromEntries(DEPT_ROLES_B.map(r => [r, s.marketUnlockPos[r] || {}]));
   tel.trackMax = s.trackMax;
+  // Chiusura Corsi: saturazione dei posti per reparto × trimestre. `chiuso` distingue i posti PERSI
+  // (trimestre finito, non torneranno) da quelli ancora liberi in un trimestre mai raggiunto perché
+  // la partita è finita prima — due difetti di dimensionamento diversi, non vanno sommati.
+  tel.corsi = s.corsi.enabled ? {
+    cfg: s.corsi,
+    trimestreFinale: s.trimestre,
+    posti: SECTORS.flatMap(sector => s.corsi.posti[sector].slice(0, s.corsi.trimestri).map((tot, tri) => ({
+      sector, tri, tot, occupati: s.corsiLog.filter(c => c.sector === sector && c.tri === tri).length, chiuso: tri < s.trimestre,
+    }))),
+    // quanto tracciato finale di ogni reparto è arrivato dai Corsi (contro-fattuale a fine partita, come `imp`)
+    perSeat: s.players.map((p, seat) => DEPT_ROLES_B.map(role => ({
+      role, sector: p.depts[role].sector, prod: p.depts[role].prod, sopra: p.depts[role].sopra.length,
+      corso: tel.corsiBuys.filter(b => b.seat === seat).reduce((n, b) => n + (b.steps.find(x => x.role === role)?.gained || 0), 0),
+    }))),
+  } : null;
   tel.impFinal = s.players.map((p, seat) => DEPT_ROLES_B.map(role => ({
     role, sector: p.depts[role].sector, prod: p.depts[role].prod, sopra: p.depts[role].sopra.length,
     imp: tel.impiegatiBuys.filter(b => b.seat === seat)
@@ -704,6 +755,7 @@ const REPORT_MAP = [
   ['BORSA A FABBRICHE — MOLTIPLICATORE', 2, '🔵', 'Completamento'],
   ['CICLO DEL MOTORE', 2, '🔵', 'Completamento'],
   // blocco Direzione/Impiegati (storicamente "macchinari"): sviluppo del motore, non economia
+  ['CORSI DI FORMAZIONE — dimensionamento', 2, '🟢', 'Costruzione'],
   ['IMPIEGATI — che lavoro', 2, '🟢', 'Costruzione'],
   ['MACCHINARI: ACCESSO O VALORE', 2, '🔵', 'Costruzione'], ['MACCHINARI: CON vs SENZA', 2, '⚪', 'Costruzione'],
   ['MACCHINARI: CAUSA, SELEZIONE O SOGLIA', 2, '⚪', 'Costruzione'], ["RISORSE PRODOTTE DOPO L'ACQUISTO", 2, '⚪', 'Costruzione'],
@@ -2027,6 +2079,92 @@ export function formatReport(games, cfg) {
       L.push('Produzioni medie per intervallo:');
       for (let k = 0; k < intervalSum.length && k < labels.length; k++) if (intervalN[k] >= 5) L.push(`  ${labels[k].padEnd(9)} ${(intervalSum[k] / intervalN[k]).toFixed(1)}  (n=${intervalN[k]})`);
       L.push('(se i numeri dopo avvio→1ª restano piatti o salgono, il costo-azioni della conversione non cala: la promessa dell\'engine builder non è mantenuta — indipendentemente da quanto rende ogni produzione.)');
+      L.push('');
+    }
+  }
+
+  // ===== CORSI DI FORMAZIONE (28/07/2026) =====
+  // Modulo a spazio di design: il report non serve a dire "i Corsi funzionano", serve a dire DOVE sono
+  // tarati male. Ogni blocco punta a un parametro preciso dell'editor, così il ciclo è: leggi → cambia
+  // quel numero → rilancia. I bersagli sono le proprietà misurate sugli Impiegati (sezione qui sotto).
+  {
+    const withCorsi = ok.filter(g => g.corsi);
+    if (withCorsi.length) {
+      const C = withCorsi[0].corsi.cfg;
+      const buys = withCorsi.flatMap(g => g.corsiBuys.map(b => ({ ...b, winner: b.seat === g.winner, turns: g.turns })));
+      const nTri = C.trimestri;
+      const nPG = withCorsi.length * withCorsi[0].corsi.perSeat.length; // giocatori-partita
+      L.push('=== CORSI DI FORMAZIONE — dimensionamento (28/07/2026) ===');
+      L.push(`(risorsa PUBBLICA: ${nTri} trimestri su ${C.trigger}, soglie ${C.bounds.slice(0, nTri).join('/')}, effetto ${C.effetto.passi.join('+')} passi su ${C.effetto.passi.length} reparto/i, scelta settore '${C.effetto.scelta}', costo ${JSON.stringify(C.costo)}${C.maxPerTrimestre ? `, max ${C.maxPerTrimestre}/giocatore per trimestre` : ''}. Bersagli dagli Impiegati: ~2.9 formazioni a testa, spalmate sulla partita, ~4 passi l'una, forte contributo alla 2ª milestone.)`);
+      L.push('  ⚠ i parametri qui sopra sono SEED VALUES, non un bilanciamento: primo valore plausibile per far partire l\'esperimento, mai tarato contro un batch. Questo report serve a sceglierli, non li presuppone.');
+      if (!buys.length) {
+        L.push('Nessuna formazione in questo batch: posti a zero, costo fuori portata o trimestri chiusi troppo presto.');
+      } else {
+        // 1. FORMAZIONI EFFETTUATE — totale, per giocatore, per reparto, per trimestre
+        const perSeat = withCorsi.flatMap(g => g.corsi.perSeat.map((_, seat) => g.corsiBuys.filter(b => b.seat === seat).length));
+        const conCorso = perSeat.filter(n => n > 0);
+        L.push(`▸ FORMAZIONI — ${buys.length} tot · ${(buys.length / withCorsi.length).toFixed(1)} per partita · ${(buys.length / nPG).toFixed(1)} per giocatore (bersaglio ~2.9) · ${pct(conCorso.length / nPG)} dei giocatori-partita se ne fa almeno una`);
+        const perRep = SECTORS.map(s2 => `${s2} ${buys.filter(b => b.sector === s2).length}`).join(' · ');
+        const perTri = Array.from({ length: nTri }, (_, t) => `T${t + 1} ${buys.filter(b => b.tri === t).length}`).join(' · ');
+        L.push(`  per reparto d'iscrizione: ${perRep}   |   per trimestre: ${perTri}`);
+        L.push(`  (uno squilibrio tra reparti a posti uguali = un reparto è più appetibile, non che i posti siano sbagliati.)`);
+
+        // 2 + 7. SATURAZIONE E POSTI INUTILIZZATI — la metrica che dice subito se i posti sono troppi
+        L.push(`▸ SATURAZIONE POSTI — ${'reparto × trim'.padEnd(20)} | posti | occupati | saturaz. | persi`);
+        const agg = {};
+        for (const g of withCorsi) for (const p2 of g.corsi.posti) {
+          const k = `${p2.sector}|${p2.tri}`;
+          const e = (agg[k] ??= { sector: p2.sector, tri: p2.tri, tot: 0, occ: 0, persi: 0, mai: 0 });
+          e.tot += p2.tot; e.occ += p2.occupati;
+          // posti mai occupati: PERSI se il trimestre si è chiuso, FANTASMA se la partita è finita prima
+          if (p2.chiuso) e.persi += p2.tot - p2.occupati; else e.mai += p2.tot - p2.occupati;
+        }
+        for (const e of Object.values(agg)) {
+          const lbl = `${e.sector} T${e.tri + 1}`;
+          L.push(`  ${lbl.padEnd(20)} | ${String(e.tot).padStart(5)} | ${String(e.occ).padStart(8)} | ${pct(e.occ / Math.max(1, e.tot)).padStart(8)} | ${String(e.persi).padStart(5)}`);
+        }
+        const totP = Object.values(agg).reduce((a, e) => a + e.tot, 0), totO = Object.values(agg).reduce((a, e) => a + e.occ, 0);
+        const totMai = Object.values(agg).reduce((a, e) => a + e.mai, 0);
+        L.push(`  TOTALE: ${totO}/${totP} occupati (${pct(totO / Math.max(1, totP))}) · ${Object.values(agg).reduce((a, e) => a + e.persi, 0)} persi alla chiusura · ${totMai} in trimestri mai raggiunti (la partita finisce prima: sono posti FANTASMA, non scarsità)`);
+        L.push('  (saturazione ~100% con domanda respinta = troppo pochi. Sotto il 50% con nessuno respinto = troppi: il posto non è una risorsa contesa e la meccanica non decide niente.)');
+
+        // 3. QUANDO — stessa lettura fatta sugli Impiegati (turno medio 17.3, spalmati su tutta la partita)
+        const q = [0, 0, 0, 0];
+        for (const b of buys) q[Math.min(3, Math.floor(((b.turn - 1) / Math.max(1, b.turns)) * 4))]++;
+        L.push(`▸ QUANDO — turno medio ${avg(buys.map(b => b.turn)).toFixed(1)} · per quarto di partita: ${q.map((n, i) => `Q${i + 1} ${pct(n / buys.length)}`).join(' · ')}`);
+        L.push('  (i trimestri sono la leva diretta su questa riga: se un quarto è vuoto, la soglia di quel trimestre cade nel punto sbagliato.)');
+
+        // 4. AVANZAMENTI — nominali, reali, sprecati
+        const steps = buys.flatMap(b => b.steps);
+        const nom = steps.reduce((n, x) => n + x.nominal, 0), real = steps.reduce((n, x) => n + x.gained, 0);
+        const tmax = withCorsi[0].trackMax || 16;
+        L.push(`▸ AVANZAMENTI — ${real} passi reali su ${nom} nominali (sprecati ${pct((nom - real) / nom)}, tracciato a fondo corsa) · ${(real / buys.length).toFixed(1)} passi per formazione (bersaglio ~4) · posizione media del tracciato all'iscrizione ${avg(steps.map(x => x.from)).toFixed(1)}/${tmax}`);
+        L.push(`  costo medio ${avg(buys.map(b => b.costo)).toFixed(1)} ⓜ → ${(real / Math.max(1, buys.reduce((a, b) => a + b.costo, 0))).toFixed(2)} passi per marchio`);
+
+        // 5. MILESTONE ATTRAVERSATE + valore marginale
+        const msLevel = {};
+        for (const x of steps) for (const m of x.ms) msLevel[m] = (msLevel[m] || 0) + 1;
+        const msTot = Object.values(msLevel).reduce((a, b2) => a + b2, 0);
+        let msReached = 0, msNec = 0, msFin = 0;
+        for (const g of withCorsi) for (const seatArr of g.corsi.perSeat) for (const d of seatArr) {
+          for (const pos of Object.values(g.msPos[d.role] || {})) {
+            if (d.prod < pos) continue;
+            msReached++; msFin++;
+            if (d.prod - d.corso < pos) msNec++;
+          }
+        }
+        L.push(`▸ MILESTONE ATTRAVERSATE — ${pct(buys.filter(b => b.steps.some(x => x.ms.length)).length / buys.length)} delle formazioni ne attraversa almeno una · per livello: ${[1, 2, 3].map(m => `${m}ª ${msLevel[m] || 0}`).join(' · ')} · ${pct(msTot / Math.max(1, msReached))} di tutte quelle raggiunte nel batch`);
+        L.push(`  valore marginale: ${pct(msNec / Math.max(1, msFin))} delle milestone raggiunte NON ci sarebbe senza i passi da Corso (limite superiore: tiene fermo tutto il resto)`);
+        L.push('  (il bersaglio degli Impiegati è la 2ª milestone a metà partita: se qui domina la 1ª, i corsi arrivano troppo presto o danno troppo pochi passi.)');
+
+        // 6. CORSO PERSO — la domanda respinta dalla scarsità
+        const blocked = withCorsi.flatMap(g => g.corsiBlocked);
+        const byReason = {};
+        for (const b of blocked) byReason[b.reason] = (byReason[b.reason] || 0) + 1;
+        L.push(`▸ CORSO PERSO — ${blocked.length} visite al nodo senza potersi formare (${(blocked.length / withCorsi.length).toFixed(1)} per partita) su ${buys.length} formazioni riuscite`);
+        L.push(`  motivo: ${Object.entries(byReason).sort((a, b2) => b2[1] - a[1]).map(([r, n]) => `${r} ${n} (${pct(n / Math.max(1, blocked.length))})`).join(' · ') || '—'}`);
+        L.push("  (SCARSITÀ vera = 'tutti i reparti saturi' + 'trimestri chiusi': è la competizione, ed è voluta. 'marchi insufficienti' NON è scarsità di posti — è il costo, si corregge sul costo. Limite superiore: essere al nodo non prova che volesse formarsi.)");
+      }
       L.push('');
     }
   }
