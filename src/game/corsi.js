@@ -184,8 +184,24 @@ export function settoriSecondari(C, primario, player, posOf) {
 }
 
 // La distribuzione dei passi di UNA formazione: [{ sector, passi }, …]. Puro: non tocca lo stato.
-export function distribuzione(C, sectors) {
-  return C.effetto.passi.map((passi, i) => ({ sector: sectors[i], passi })).filter(x => x.sector);
+// `passi` di default = la forma fissa dell'editor; in modalità 'pool' il comando porta la SUA composizione
+// (i cubetti piazzati liberamente), che vince sul default — vedi corsoCommands.
+export function distribuzione(C, sectors, passi = C.effetto.passi) {
+  return passi.map((p, i) => ({ sector: sectors[i], passi: p })).filter(x => x.sector);
+}
+
+// Modalità 'pool' (distribuzione libera): N cubetti (= somma dei passi dell'editor) piazzati come si vuole
+// sui 3 reparti. Ritorna ogni composizione di N su SECTORS come { sectors, passi } (zeri filtrati).
+// A differenza della forma fissa, il reparto del posto NON riceve una quota obbligata: il posto è solo
+// la risorsa contesa, il payoff è slegato. Numero di composizioni = C(N+2,2): N=4 → 15 comandi per posto.
+export function composizioniPool(N) {
+  const out = [];
+  for (let a = 0; a <= N; a++) for (let b = 0; b <= N - a; b++) {
+    const counts = [a, b, N - a - b];
+    const sectors = SECTORS.filter((_, i) => counts[i] > 0);
+    if (sectors.length) out.push({ sectors, passi: counts.filter(x => x > 0) });
+  }
+  return out;
 }
 
 // ============================================================================
@@ -201,11 +217,17 @@ export function corsoCommands(state, player, posOf) {
   const tri = state.trimestre;
   if (C.maxPerTrimestre > 0 && formazioniDi(state, player.id, tri) >= C.maxPerTrimestre) return [];
   const cmds = [];
+  const pool = C.effetto.scelta === 'pool' ? composizioniPool(C.effetto.passi.reduce((a, x) => a + x, 0)) : null;
   for (const sector of SECTORS) {
     if (postiLiberi(state, sector, tri) <= 0) continue;
     if (player.coins < costoCorso(C, tri, sector)) continue;
-    for (const sec of settoriSecondari(C, sector, player, posOf)) {
-      cmds.push({ type: 'corso', sector, sectors: [sector, ...sec] });
+    if (pool) {
+      // distribuzione libera: il posto (sector) è solo la risorsa contesa, i cubetti vanno dove vuoi
+      for (const d of pool) cmds.push({ type: 'corso', sector, sectors: d.sectors, passi: d.passi });
+    } else {
+      for (const sec of settoriSecondari(C, sector, player, posOf)) {
+        cmds.push({ type: 'corso', sector, sectors: [sector, ...sec] });
+      }
     }
   }
   return cmds;
@@ -288,6 +310,16 @@ if (typeof process !== 'undefined' && process.argv?.[1]?.endsWith('corsi.js')) {
   const Cuno = mergeCorsi({ effetto: { passi: [4], scelta: 'ia' } });
   assert(settoriSecondari(Cuno, 'Tessile', P, posOf).length === 1 && distribuzione(Cuno, ['Tessile']).length === 1, 'un solo reparto: nessun secondario');
   assert(distribuzione(Cia, ['Tessile', 'Chimica']).reduce((a, x) => a + x.passi, 0) === 4, 'distribuzione: i passi tornano');
+
+  // pool: distribuzione libera — N cubetti (= somma passi) piazzati come si vuole sui 3 reparti
+  const comps = composizioniPool(4);
+  assert(comps.length === 15, 'pool: C(6,2)=15 composizioni di 4 su 3 reparti');
+  assert(comps.every(d => d.passi.reduce((a, x) => a + x, 0) === 4 && d.passi.every(x => x > 0)), 'pool: ogni composizione somma N, zeri filtrati');
+  const Cpool = mk({ effetto: { passi: [3, 1], scelta: 'pool' }, posti: { Tessile: [2, 0, 0], Metallurgica: [0, 0, 0], Chimica: [0, 0, 0] } });
+  const cp = corsoCommands(Cpool, P, posOf);
+  assert(cp.every(c => c.sector === 'Tessile'), 'pool: il posto conteso resta il reparto con posti liberi');
+  assert(cp.every(c => distribuzione(Cpool.corsi, c.sectors, c.passi).reduce((a, x) => a + x.passi, 0) === 4), 'pool: ogni comando distribuisce N=4 cubetti');
+  assert(cp.some(c => c.sectors.length === 1 && c.sectors[0] === 'Chimica' && c.passi[0] === 4), 'pool: esiste "tutti e 4 in Chimica" col posto in Tessile (payoff slegato dalla contesa)');
 
   console.log('\n✓ corsi.js: modello e effetto ok');
 }

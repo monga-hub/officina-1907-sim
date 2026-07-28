@@ -106,6 +106,24 @@ const alNodo = (s, coins = 99) => {
   console.log('✓ effetto, costo e slot: come da configurazione');
 }
 
+// 5b. distribuzione libera (pool): N cubetti piazzati liberamente, payoff slegato dal posto conteso
+{
+  const s = mk({ enabled: true, effetto: { passi: [4], scelta: 'pool' }, costo: 4 });
+  const p = alNodo(s, 10);
+  const cmds = legalCommands(s).filter(c => c.type === 'corso');
+  // ogni comando distribuisce esattamente 4 cubetti, e ne esiste uno che li mette tutti in un solo reparto
+  assert.ok(cmds.every(c => c.passi.reduce((a, x) => a + x, 0) === 4), 'pool: ogni corso distribuisce N=4 cubetti');
+  const dump = cmds.find(c => c.sectors.length === 1 && c.passi[0] === 4);
+  assert.ok(dump, 'pool: esiste il corso che mette tutti e 4 i cubetti in un reparto');
+  // applicando quel comando, il reparto scelto avanza di 4 — anche se diverso dal reparto del posto
+  const sec = dump.sectors[0];
+  const role = ['terziario', 'secondario', 'primario'].find(r => s.players[p.id].depts[r].sector === sec);
+  const pre = s.players[p.id].depts[role].prod;
+  const q = applyCommand(s, dump).players[p.id];
+  assert.equal(q.depts[role].prod - pre, 4, 'pool: i 4 cubetti avanzano il reparto scelto, non quello del posto');
+  console.log('✓ distribuzione libera: N cubetti, payoff slegato dalla contesa');
+}
+
 // 6. una sola formazione per visita, ma il resto del Sindacato resta combinabile
 {
   const s = mk({ enabled: true });

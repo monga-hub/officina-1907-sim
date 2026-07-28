@@ -254,7 +254,7 @@ export function runOneGame(config) {
     const corsoBuy = cmd.type === 'corso' ? {
       turn: s.turn, seat: s.current, tri: s.trimestre, sector: cmd.sector, sectors: cmd.sectors,
       costo: costoCorso(s.corsi, s.trimestre, cmd.sector), coinsBefore: cp.coins,
-      steps: distribuzione(s.corsi, cmd.sectors).map(({ sector, passi }) => {
+      steps: distribuzione(s.corsi, cmd.sectors, cmd.passi).map(({ sector, passi }) => {
         const role = DEPT_ROLES_B.find(r => cp.depts[r].sector === sector);
         return { sector, role, nominal: passi, from: cp.depts[role].prod, sopra: cp.depts[role].sopra.length };
       }),

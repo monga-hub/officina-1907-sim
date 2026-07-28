@@ -1663,7 +1663,7 @@ function doCorso(state, p, cmd) {
   spendCoins(p, 'direzione', costoCorso(state.corsi, tri, cmd.sector)); // stessa voce di spesa degli Impiegati, per confronto
   state.corsiLog.push({ turn: state.turn, tri, seat: p.id, sector: cmd.sector });
   state.corsiSession = true;
-  const dist = distribuzione(state.corsi, cmd.sectors);
+  const dist = distribuzione(state.corsi, cmd.sectors, cmd.passi);
   log(state, `${p.name} si iscrive al corso ${cmd.sector} (T${tri + 1}): ${dist.map(d => `${d.sector} +${d.passi}`).join(', ')}.`);
   for (const d of dist) advanceTrack(state, p, deptOfSector(p, d.sector), d.passi, `corso di formazione T${tri + 1}`);
   p.lastDirTurn = state.turn;

@@ -504,8 +504,16 @@ function CorsiEditor({ corsi, setCorsi }) {
           <option value="max">Massimo valore (tracciato più avanti)</option>
           <option value="min">Recupero (tracciato più indietro)</option>
           <option value="fisso">Fisso (ordine ciclico, nessuna scelta)</option>
+          <option value="pool">Distribuzione libera (pool di cubetti)</option>
         </select>
       </label>
+      {corsi.effetto.scelta === 'pool' && (
+        <p className="hint" style={{ color: '#b5651d' }}>
+          <b>Pool:</b> il corso dà <b>{corsi.effetto.passi.reduce((a, x) => a + x, 0)} cubetti</b> (la SOMMA dei passi sotto — la forma
+          per-reparto è ignorata) da piazzare liberamente sui 3 reparti. Il posto che prendi è solo la risorsa contesa:
+          il payoff è slegato, non c'è quota obbligata al reparto d'iscrizione.
+        </p>
+      )}
       <table className="pv-editor" style={{ marginTop: 8 }}>
         <thead><tr><th>Passi</th>{corsi.effetto.passi.map((_, i) => <th key={i}>{i === 0 ? 'reparto iscritto' : `secondario ${i}`}</th>)}<th>tot</th></tr></thead>
         <tbody>
