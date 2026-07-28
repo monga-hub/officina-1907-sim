@@ -426,8 +426,8 @@ function labelCmd(cmd) {
   if (cmd.type === 'activate') return `Produci ${cmd.sector}`;
   if (cmd.type === 'buyWelfare') return (cmd.side === 'sotto' ? 'Macchinario ' : 'Welfare ') + cmd.cardId;
   if (cmd.type === 'buyStruttura') return `Struttura (${cmd.side}) ${cmd.idx}`;
-  if (cmd.type === 'buyTrackTile') return `Tile ${cmd.tileId} (${cmd.role} pos.${cmd.pos})`;
   if (cmd.type === 'trattativa') return 'Trattativa';
+  if (cmd.type === 'unblockSciopero') return `Elimina sciopero (${cmd.role})`;
   if (cmd.type === 'pass') return 'Pass';
   return cmd.type;
 }
@@ -487,11 +487,26 @@ function actionCandidates(state, p) {
   const out = [];
   const legal = legalCommands(state);
   for (const c of legal) {
-    if (c.type === 'hire' || c.type === 'activate' || c.type === 'buyWelfare' || c.type === 'buyStruttura' || c.type === 'buyTrackTile' || c.type === 'buyShare' || c.type === 'buildFactory') out.push(c);
+    if (c.type === 'hire' || c.type === 'activate' || c.type === 'buyWelfare' || c.type === 'buyStruttura' || c.type === 'buyShare' || c.type === 'buildFactory') out.push(c);
   }
-  if (node === 'Sindacato') out.push(...trattativaCandidates(state, p));
+  if (node === 'Sindacato') {
+    const ss = state.sindacatoSession;
+    if (!ss?.trattativa) out.push(...trattativaCandidates(state, p));
+    if (!ss?.unblock) out.push(...unblockCandidates(state, p));
+  }
   if (out.length === 0) out.push({ type: 'pass' });
   return out;
+}
+
+// Elimina uno Sciopero (azione a sé, combinabile col resto al Sindacato): la prima carta bloccata
+// trovata, se il giocatore può permettersela — non serve valutarne altre, l'effetto è identico.
+function unblockCandidates(state, p) {
+  const T = state.trattativa;
+  if (!T.unblock.enabled || p.coins < T.unblock.cost) return [];
+  for (const role of DEPT_ROLES) {
+    if (p.depts[role].blocked.length > 0) return [{ type: 'unblockSciopero', role, cardId: p.depts[role].blocked[0] }];
+  }
+  return [];
 }
 
 // costruisce poche Trattative sensate invece di enumerare tutto
@@ -520,21 +535,7 @@ function trattativaCandidates(state, p) {
       target = { playerId: opp.id, role: 'primario' };
     }
   }
-  const base = { type: 'trattativa', resetRole, targetPlayer: target ? target.playerId : null, targetRole: target ? target.role : null };
-  const T = state.trattativa;
-
-  // Sblocca una carta bloccata: unica opzione oltre al blocco base, a pagamento e senza requisiti.
-  const out = [];
-  if (T.unblock.enabled) {
-    for (const role of DEPT_ROLES) {
-      if (p.depts[role].blocked.length > 0 && p.coins >= T.unblock.cost) {
-        out.push({ ...base, f2: 'unblock', f2role: role, f2card: p.depts[role].blocked[0] });
-        break;
-      }
-    }
-  }
-  out.push({ ...base, f2: null });
-  return out;
+  return [{ type: 'trattativa', resetRole, targetPlayer: target ? target.playerId : null, targetRole: target ? target.role : null }];
 }
 
 // Avanzamento che un Impiegato produce davvero adesso: somma dei 2 reparti di `power`, ciascuno capped
@@ -633,17 +634,6 @@ function chooseBorsa(state, p) {
       const best = bestExchange(legal, 'convert', give, missing);
       if (best && extra >= best.giveQty) return best;
     }
-  }
-  // 2.5 Ricerca e Sviluppo: compra una tile tracciato con risorse in eccesso — meglio di venderle per 3 marchi
-  const tileBuys = legal.filter(c => c.type === 'buyTrackTile');
-  if (tileBuys.length > 0) {
-    const affordable = tileBuys.find(c => {
-      const sector = p.depts[c.role].sector;
-      const cost = state.trackTileById[c.tileId]?.cost ?? 0;
-      const extra = p.resources[RESOURCE_OF[sector]] - (needs[sector] || 0);
-      return extra >= cost;
-    });
-    if (affordable) return affordable;
   }
   // 3. vendi il surplus abbondante (tieni una riserva = profilo, default 4 risorse)
   if (totalResources(p) > profileOf(p).reserve) {

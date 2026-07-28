@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { SECTORS, RESOURCE_OF, SECTOR_COLORS, NATION_FLAGS, NODE_BANKS, UNBLOCK_COST } from '../game/data.js';
-import { currentPlayer, legalCommands, WORKER_BY_ID, welfareCount, rankedIndices, indexValue, cellNow, expectedDividend } from '../game/engine.js';
+import { currentPlayer, legalCommands, WORKER_BY_ID, rankedIndices, indexValue, cellNow, expectedDividend } from '../game/engine.js';
 
 import FactoryMap from './FactoryMap.jsx';
 
@@ -182,82 +182,54 @@ function NodeActions({ state, p, legal, dispatch }) {
   );
 }
 
+// Al Sindacato le sotto-azioni sono combinabili nella stessa visita (sindacatoSession): Trattativa,
+// Elimina sciopero e Assumi (sopra, resa dal pannello Assunzione generico) sono bottoni indipendenti,
+// ciascuno usabile una volta; il giocatore si ferma quando vuole con "Rinuncia all'azione".
 function TrattativaBuilder({ state, p, dispatch }) {
-  const wf = welfareCount(p);
   const roles = ['terziario', 'secondario', 'primario'];
   const opponents = state.players.filter(q => q.id !== p.id);
   const [resetRole, setResetRole] = useState('primario');
   const [targetPlayer, setTargetPlayer] = useState(opponents[0].id);
   const [targetRole, setTargetRole] = useState('primario');
-  const [f2, setF2] = useState(wf >= 1 ? 'refresh' : '');
-  const [f2card, setF2card] = useState('');
-  const [f3, setF3] = useState('');
-  const [f3role, setF3role] = useState('primario');
-
+  const ss = state.sindacatoSession;
   const blockedCards = roles.flatMap(r => p.depts[r].blocked.map(id => ({ role: r, id })));
-  const cmd = { type: 'trattativa', resetRole, targetPlayer: Number(targetPlayer), targetRole };
-  if (wf >= 1 && f2 === 'refresh') cmd.f2 = 'refresh';
-  if (wf >= 1 && f2 === 'unblock' && f2card) {
-    const found = blockedCards.find(b => b.id === f2card);
-    Object.assign(cmd, { f2: 'unblock', f2role: found.role, f2card });
-  }
-  if (wf >= 2 && f3 === 'tension') Object.assign(cmd, { f3: 'tension', f3role });
+  const canUnblock = state.trattativa.unblock.enabled && !ss?.unblock && blockedCards.length > 0 && p.coins >= UNBLOCK_COST;
 
   return (
     <div className="tratt">
-      <h4>Trattativa sindacale (gratuita)</h4>
-      <div className="tratt-row">
-        <label>Azzera Tensione del tuo reparto:{' '}
-          <select value={resetRole} onChange={e => setResetRole(e.target.value)}>
-            {roles.map(r => <option key={r} value={r}>{p.depts[r].sector} (Tens. {p.depts[r].tension})</option>)}
-          </select>
-        </label>
-        <label>+1 Tensione a:{' '}
-          <select value={targetPlayer} onChange={e => setTargetPlayer(e.target.value)}>
-            {opponents.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
-          </select>
-          <select value={targetRole} onChange={e => setTargetRole(e.target.value)}>
-            {roles.map(r => {
-              const d = state.players[Number(targetPlayer)].depts[r];
-              return <option key={r} value={r}>{d.sector} (Tens. {d.tension}{d.sopra.length + d.sotto.length === 0 ? ', vuoto' : ''})</option>;
-            })}
-          </select>
-        </label>
-      </div>
-      {wf >= 1 && (
+      {!ss?.trattativa && (
+        <>
+          <h4>Trattativa sindacale (gratuita)</h4>
+          <div className="tratt-row">
+            <label>Azzera Tensione del tuo reparto:{' '}
+              <select value={resetRole} onChange={e => setResetRole(e.target.value)}>
+                {roles.map(r => <option key={r} value={r}>{p.depts[r].sector} (Tens. {p.depts[r].tension})</option>)}
+              </select>
+            </label>
+            <label>+1 Tensione a:{' '}
+              <select value={targetPlayer} onChange={e => setTargetPlayer(e.target.value)}>
+                {opponents.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+              </select>
+              <select value={targetRole} onChange={e => setTargetRole(e.target.value)}>
+                {roles.map(r => {
+                  const d = state.players[Number(targetPlayer)].depts[r];
+                  return <option key={r} value={r}>{d.sector} (Tens. {d.tension}{d.sopra.length + d.sotto.length === 0 ? ', vuoto' : ''})</option>;
+                })}
+              </select>
+            </label>
+          </div>
+          <button className="primary" onClick={() => dispatch({ type: 'trattativa', resetRole, targetPlayer: Number(targetPlayer), targetRole })}>
+            Esegui Trattativa
+          </button>
+        </>
+      )}
+      {canUnblock && (
         <div className="tratt-row">
-          <label>Fase 2 ({wf} Welfare):{' '}
-            <select value={f2} onChange={e => setF2(e.target.value)}>
-              <option value="">— niente —</option>
-              <option value="refresh">Refresh del mercato</option>
-              {blockedCards.length > 0 && p.coins >= UNBLOCK_COST && <option value="unblock">Elimina uno Sciopero ({UNBLOCK_COST} ⓜ)</option>}
-            </select>
-          </label>
-          {f2 === 'unblock' && (
-            <select value={f2card} onChange={e => setF2card(e.target.value)}>
-              <option value="">scegli carta…</option>
-              {blockedCards.map(b => <option key={b.id} value={b.id}>{WORKER_BY_ID[b.id].effectText} ({p.depts[b.role].sector})</option>)}
-            </select>
-          )}
+          <button onClick={() => { const b = blockedCards[0]; dispatch({ type: 'unblockSciopero', role: b.role, cardId: b.id }); }}>
+            Elimina uno Sciopero — {WORKER_BY_ID[blockedCards[0].id].effectText} ({p.depts[blockedCards[0].role].sector}, {UNBLOCK_COST} ⓜ)
+          </button>
         </div>
       )}
-      {wf >= 2 && (
-        <div className="tratt-row">
-          <label>Fase 3 (2 Welfare):{' '}
-            <select value={f3} onChange={e => setF3(e.target.value)}>
-              <option value="">— niente —</option>
-              <option value="tension">Riduci Tensione di 1</option>
-            </select>
-          </label>
-          {f3 === 'tension' && (
-            <select value={f3role} onChange={e => setF3role(e.target.value)}>
-              {roles.map(r => <option key={r} value={r}>{p.depts[r].sector} (Tens. {p.depts[r].tension})</option>)}
-            </select>
-          )}
-          <small>(L'acquisto scontato di un lavoratore è disponibile per l'AI; per gli umani sarà nella prossima versione)</small>
-        </div>
-      )}
-      <button className="primary" onClick={() => dispatch(cmd)}>Esegui Trattativa</button>
     </div>
   );
 }
@@ -268,8 +240,7 @@ function BorsaActions({ state, p, legal, dispatch }) {
   const completes = legal.filter(c => c.type === 'completeContract');
   const exitCmd = legal.find(c => c.type === 'borsaExit');
   const refreshes = legal.filter(c => c.type === 'refreshMarket');
-  const tileBuys = legal.filter(c => c.type === 'buyTrackTile');
-  const exitPathUsed = state.borsaExitUsed || state.borsaRefreshUsed || state.borsaTileUsed;
+  const exitPathUsed = state.borsaExitUsed || state.borsaRefreshUsed;
   const SIZE_LABEL = { small: 'piccola', medium: 'media', large: 'grande' };
   const REFRESH_LABEL = { welfare: 'Rinfresca mercato Welfare', workers: 'Rinfresca banchi operai' };
 
@@ -287,7 +258,7 @@ function BorsaActions({ state, p, legal, dispatch }) {
         {converts.map((c, i) => <button key={i} onClick={() => dispatch(c)}>{c.giveQty} {RESOURCE_OF[c.give]} → {c.getQty} {RESOURCE_OF[c.take]}</button>)}
       </div>
       <h4>Completa Commesse</h4>
-      {state.contractsThisVisit === 0 && exitPathUsed && <small>Non completabili: hai già scelto di uscire con bonus/refresh/tile in questa visita.</small>}
+      {state.contractsThisVisit === 0 && exitPathUsed && <small>Non completabili: hai già scelto di uscire con bonus/refresh in questa visita.</small>}
       {state.contractsThisVisit < 2 && !exitPathUsed && completes.length === 0 && <small>Nessuna commessa completabile con le risorse attuali.</small>}
       <div className="btn-row col">
         {completes.map((c, i) => {
@@ -308,23 +279,6 @@ function BorsaActions({ state, p, legal, dispatch }) {
             {exitCmd && <button onClick={() => dispatch(exitCmd)}>Esci con {exitCmd.coins} ⓜ</button>}
             {refreshes.map((c, i) => <button key={i} onClick={() => dispatch(c)}>{REFRESH_LABEL[c.target]}</button>)}
           </div>
-        </>
-      )}
-      {tileBuys.length > 0 && (
-        <>
-          <h4>Ricerca e Sviluppo</h4>
-          <p className="hint">Il secondo palazzo della Borsa: mercato tile tracciato. Alternativa alle Commesse in questa visita (combinabile con bonus/refresh sopra).</p>
-          {Object.entries(tileBuys.reduce((acc, c) => { (acc[`${c.role}-${c.pos}`] ??= []).push(c); return acc; }, {})).map(([key, opts]) => (
-            <div key={key} className="btn-row col">
-              <small>{ROLE_LABEL[opts[0].role]} — slot pos.{opts[0].pos}</small>
-              <div className="btn-row">
-                {opts.map((c, i) => {
-                  const t = state.trackTileById[c.tileId];
-                  return <button key={i} onClick={() => dispatch(c)}>{t.name} ({t.cost} {RESOURCE_OF[p.depts[c.role].sector]})</button>;
-                })}
-              </div>
-            </div>
-          ))}
         </>
       )}
       <div className="pass-row">

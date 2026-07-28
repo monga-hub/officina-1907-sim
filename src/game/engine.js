@@ -3,7 +3,7 @@
 import {
   SECTORS, RESOURCE_OF, NATIONS, NODES, NODE_BANKS, BOARDS, ROLE_SLOTS_SOPRA,
   TRACKS, SETUP, STARTING_COINS, TENSION_LIMIT,
-  CLOCK_THRESHOLD, CLOCK_REFRESH, MOVE_COSTS, STAR_ADJ, MAX_CONTRACTS_PER_VISIT,
+  CLOCK_THRESHOLD, MOVE_COSTS, STAR_ADJ, MAX_CONTRACTS_PER_VISIT,
   DIREZIONE_MAX, UNBLOCK_COST, WORKERS, WELFARE, CONTRACTS, expandContracts, OBJECTIVE_TILES,
   TRACK_TILES, TRACK_TILE_CAP_DEFAULT, IMPIEGATI_BANK, IMPIEGATI_MARKET,
   BORSA_INDICI_DEFAULT, BORSA_FABBRICHE_DEFAULT, FACTORY_MAP, DEFAULT_FACTORY_MAPS,
@@ -26,8 +26,8 @@ function mergeTrattativa(cfg) {
 
 // Config di default delle azioni Borsa: sell = risorsa→marchi, convert = risorsa→risorsa a scelta.
 const BORSA_DEFAULT = {
-  sell:      { enabled: true, give: 1, get: 3 },
-  convert:   { enabled: true, give: 2, get: 1 },
+  sell:      { enabled: true, give: 1, get: 2 },
+  convert:   { enabled: true, give: 1, get: 1 },
 };
 function mergeBorsa(cfg) {
   const out = {};
@@ -39,7 +39,7 @@ function mergeBorsa(cfg) {
 // Non fanno parte del regolamento base (omesse volutamente da BORSA_DEFAULT: shape diversa da give/get,
 // romperebbero il loop generico in borsaCommands) — mutuamente esclusive con completare Commesse nella
 // stessa visita (vedi state.borsaExitUsed/borsaRefreshUsed, azzerati in startTurn).
-const BORSA_EXIT_DEFAULT = { enabled: true, coins: 3 };
+const BORSA_EXIT_DEFAULT = { enabled: true, coins: 2 };
 const BORSA_REFRESH_DEFAULT = { enabled: true };
 function mergeBorsaExit(cfg) { return { ...BORSA_EXIT_DEFAULT, ...(cfg || {}) }; }
 function mergeBorsaRefresh(cfg) { return { ...BORSA_REFRESH_DEFAULT, ...(cfg || {}) }; }
@@ -335,15 +335,12 @@ const PLAYER_COLORS = ['#c0392b', '#2471a3', '#1e8449', '#b7950b'];
 
 // ---------- Setup ----------
 export function initGame(config) {
-  // config: { seed, players: [{ name, isAI, boardId|null }] }
+  // config: { seed, players: [{ name, isAI }] } — plancia unica, non più scelta per giocatore
   const seed = config.seed ?? Math.floor(Math.random() * 2 ** 31);
   const rnd = mulberry32(seed);
   const n = config.players.length;
   if (n < 2 || n > 4) throw new Error('2-4 giocatori');
 
-  // plance: scelte o assegnate a caso senza doppioni
-  const taken = new Set(config.players.map(p => p.boardId).filter(Boolean));
-  const free = shuffled(BOARDS.filter(b => !taken.has(b.id)), rnd);
   // Tessere Piano Industriale: editabili via config.tiles (testo/PV/condizione obiettivi), altrimenti default OBJECTIVE_TILES.
   const tileDeck = (config.tiles && config.tiles.length) ? config.tiles : OBJECTIVE_TILES;
   // config.forcedTile/forcedSeat: per il "Ricalcola" dell'editor — forza una tessera su un posto fisso invece di pescarla a caso,
@@ -351,7 +348,7 @@ export function initGame(config) {
   const tiles = shuffled(config.forcedTile ? tileDeck.filter(t => t.id !== config.forcedTile.id) : tileDeck, rnd);
 
   const players = config.players.map((pc, i) => {
-    const board = BOARDS.find(b => b.id === pc.boardId) || free.pop();
+    const board = BOARDS[0]; // plancia unica e simmetrica: stessa per ogni giocatore
     const depts = {};
     for (const role of DEPT_ROLES) {
       depts[role] = {
@@ -565,7 +562,11 @@ export function initGame(config) {
     phase: 'move', // move | action | borsa | done (fine turno in attesa di endTurn implicito)
     contractsThisVisit: 0,
     borsaExitUsed: false, borsaRefreshUsed: false, // esclusivi con completare Commesse nella stessa visita
-    borsaTileUsed: false, // idem: comprare una tile (R&D) esclude le Commesse nella stessa visita, non esclude bonus/refresh
+    // Sindacato (decisione autore 28/07/2026): al nodo Sindacato le sotto-azioni sono combinabili nella
+    // stessa visita invece che una sola a testa. Impostato al 'move' verso Sindacato, azzerato altrove.
+    // Ogni sotto-azione (assumi lavoratore/impiegato, trattativa, elimina sciopero) è usabile una volta;
+    // il giocatore si ferma quando vuole con 'pass' o quando non resta più nulla di legale da fare.
+    sindacatoSession: null,
     sellUsedThisVisit: 0, convertUsedThisVisit: 0, // contatori per la modalità 'unoPerAzione' (azzerati in startTurn)
     pending: null, // { type: 'sciopero'|'effect', ... }
     pendingQueue: [],
@@ -730,7 +731,6 @@ function resolveCell(state, dept, pos) {
 
 // Avanzamento: incassa una tantum il bonus di ogni casella attraversata.
 // Tile comprabili per uno slot: catalogo del mercato, costo in risorse del reparto, scorta (mode 'limitato').
-// Condivisa dal trigger di raggiungimento (advanceTrack) e dal ripiego alla Borsa (R&D).
 function tileOptions(state, p, role, market) {
   const sector = p.depts[role].sector;
   return Object.values(state.trackTileById).filter(t => t.market === market
@@ -1121,7 +1121,6 @@ function startTurn(state) {
   state.contractsThisVisit = 0;
   state.borsaExitUsed = false;
   state.borsaRefreshUsed = false;
-  state.borsaTileUsed = false;
   state.sellUsedThisVisit = 0;
   state.convertUsedThisVisit = 0;
   state.activationCoins = null;
@@ -1197,8 +1196,6 @@ function finishTurn(state) {
 function advanceClock(state, amount) {
   for (let i = 0; i < amount; i++) {
     state.clock += 1;
-    // Refresh automatici da clock rimossi (test ipotesi bias posizione).
-    // if (CLOCK_REFRESH.includes(state.clock)) refreshBanks(state, `Clock ${state.clock}`);
   }
   checkQuadClose(state); // i quadrimestri sono scanditi dal Clock: qui si pagano i dividendi
   if (!state.finalRound && state.clock >= state.clockThreshold) {
@@ -1239,7 +1236,8 @@ export function legalCommands(state) {
     if (pend.type === 'sciopero') {
       for (const id of pend.options) cmds.push({ type: 'strikeBlock', cardId: id });
     } else if (pend.type === 'trackTile') {
-      cmds.push({ type: 'resolveTrackTile', use: false }); // rinuncia: lo slot resta vuoto, ricomprabile alla Borsa
+      // Scelta obbligatoria (decisione autore 28/07/2026): raggiunta la milestone, il giocatore
+      // DEVE scegliere una tile fra quelle disponibili — nessuna rinuncia, nessun ripiego a Città.
       const owner = state.players[pend.playerId];
       for (const t of tileOptions(state, owner, pend.role, pend.market)) cmds.push({ type: 'resolveTrackTile', use: true, tileId: t.id });
     } else if (pend.type === 'effect') {
@@ -1283,8 +1281,12 @@ export function legalCommands(state) {
   if (state.phase === 'action') {
     const node = p.node;
     if (node === 'Borsa') return borsaCommands(state, p);
-    // Assumi (tutti i nodi perimetrali)
+    // Assumi (tutti i nodi perimetrali). Al Sindacato ogni banco (Lavoratore/Impiegato) si può usare
+    // una sola volta a visita — gate della sessione combinabile, vedi sindacatoSession.
+    const ss = state.sindacatoSession;
     for (const bank of state.nodeBanks[node]) {
+      if (ss && bank === IMPIEGATI_BANK && ss.hireImpiegato) continue;
+      if (ss && bank !== IMPIEGATI_BANK && ss.hireLavoratore) continue;
       for (const cardId of bankMarket(state, bank)) {
         const w = WORKER_BY_ID[cardId];
         if (p.coins < w.v) continue;
@@ -1328,9 +1330,10 @@ export function legalCommands(state) {
         }
       }
     } else if (node === 'Sindacato') {
-      cmds.push(...trattativaCommands(state, p));
+      if (!ss.trattativa) cmds.push(...trattativaCommands(state, p));
+      if (!ss.unblock) cmds.push(...unblockCommands(state, p));
     }
-    cmds.push({ type: 'pass' }); // rinuncia all'azione (sempre possibile per non bloccare)
+    cmds.push({ type: 'pass' }); // rinuncia/fine visita (sempre possibile per non bloccare)
     return cmds;
   }
 
@@ -1355,23 +1358,29 @@ function placements(state, p, w) {
   return out;
 }
 
+// Trattativa: azzera un tuo reparto + alza di 1 quello di un avversario. Azione a sé, combinabile nella
+// stessa visita con assumere e con eliminare uno sciopero (vedi sindacatoSession) — non più bundlate insieme.
 function trattativaCommands(state, p) {
   const cmds = [];
-  const T = state.trattativa;
   const opponents = state.players.filter(q => q.id !== p.id);
   for (const myRole of DEPT_ROLES) {
     for (const opp of opponents) {
       for (const oppRole of DEPT_ROLES) {
-        const base = { type: 'trattativa', resetRole: myRole, targetPlayer: opp.id, targetRole: oppRole };
-        // Sblocca una carta: opzionale, a pagamento, nessun requisito.
-        cmds.push({ ...base, f2: null });
-        if (T.unblock.enabled && p.coins >= T.unblock.cost) {
-          for (const role of DEPT_ROLES) {
-            for (const id of p.depts[role].blocked) cmds.push({ ...base, f2: 'unblock', f2role: role, f2card: id });
-          }
-        }
+        cmds.push({ type: 'trattativa', resetRole: myRole, targetPlayer: opp.id, targetRole: oppRole });
       }
     }
+  }
+  return cmds;
+}
+
+// Elimina uno Sciopero: azione a sé (era la sotto-scelta f2 di trattativa). Paga il costo configurato,
+// libera una carta bloccata a scelta in un proprio reparto.
+function unblockCommands(state, p) {
+  const T = state.trattativa;
+  if (!T.unblock.enabled || p.coins < T.unblock.cost) return [];
+  const cmds = [];
+  for (const role of DEPT_ROLES) {
+    for (const id of p.depts[role].blocked) cmds.push({ type: 'unblockSciopero', role, cardId: id });
   }
   return cmds;
 }
@@ -1402,21 +1411,7 @@ function borsaCommands(state, p) {
     cmds.push({ type: 'refreshMarket', target: 'welfare' });
     cmds.push({ type: 'refreshMarket', target: 'workers' });
   }
-  // Ricerca e Sviluppo: il "secondo palazzo" della Borsa, mercato tile tracciato (2.0). Stessa esclusività
-  // di bonus/refresh — alternativa alle Commesse nella stessa visita, ma combinabile con bonus/refresh.
-  // Catalogo condiviso dai 3 reparti, mercato e scorta restano per reparto (vedi trackTileStock).
-  if (exitPathOpen) {
-    for (const role of DEPT_ROLES) {
-      const d = p.depts[role];
-      for (const [marketStr, pos] of Object.entries(state.tileSlotPos[role])) {
-        const market = Number(marketStr);
-        if (d.tileFills[pos]) continue; // slot già riempito
-        if (d.prod < (state.marketUnlockPos[role][market] ?? Infinity)) continue; // milestone non ancora raggiunta
-        for (const t of tileOptions(state, p, role, market)) cmds.push({ type: 'buyTrackTile', role, pos, tileId: t.id });
-      }
-    }
-  }
-  if (state.contractsThisVisit < MAX_CONTRACTS_PER_VISIT && !state.borsaExitUsed && !state.borsaRefreshUsed && !state.borsaTileUsed) {
+  if (state.contractsThisVisit < MAX_CONTRACTS_PER_VISIT && !state.borsaExitUsed && !state.borsaRefreshUsed) {
     const ms = milestoneCount(state, p);
     for (const size of ['small', 'medium', 'large']) {
       if (ms < (state.contractMilestoneReq?.[size] || 0)) continue; // gate milestone per taglia
@@ -1515,7 +1510,7 @@ export function applyCommand(prev, cmd) {
       const pend = state.pending;
       const owner = state.players[pend.playerId];
       if (cmd.use) installTrackTile(state, owner, { role: pend.role, pos: pend.pos, tileId: cmd.tileId });
-      else log(state, `${owner.name} rinuncia alla tile di ${owner.depts[pend.role].sector} (slot ${pend.pos}): resta comprabile alla Borsa.`);
+      else log(state, `${owner.name}: nessuna tile disponibile per lo slot ${pend.pos} di ${owner.depts[pend.role].sector}.`);
       state.pending = null;
       advancePending(state);
       if (!state.pending) afterResolution(state);
@@ -1549,6 +1544,9 @@ export function applyCommand(prev, cmd) {
       p.node = cmd.node;
       p.nodeVisits[cmd.node] = (p.nodeVisits[cmd.node] || 0) + 1;
       state.phase = cmd.node === 'Borsa' ? 'borsa' : 'action';
+      state.sindacatoSession = cmd.node === 'Sindacato'
+        ? { hireLavoratore: false, hireImpiegato: false, trattativa: false, unblock: false }
+        : null;
       log(state, `${p.name} sposta il Procuratore a ${cmd.node}.`);
       return state;
     }
@@ -1571,10 +1569,10 @@ export function applyCommand(prev, cmd) {
       return doBuyShare(state, p, cmd);
     case 'buildFactory':
       return doBuildFactory(state, p, cmd);
-    case 'buyTrackTile':
-      return doBuyTrackTile(state, p, cmd);
     case 'trattativa':
       return doTrattativa(state, p, cmd);
+    case 'unblockSciopero':
+      return doUnblockSciopero(state, p, cmd);
     case 'exchange': {
       const gq = cmd.giveQty ?? (cmd.kind === 'sell' ? 1 : 2), kq = cmd.getQty ?? 1;
       if (cmd.kind === 'sell') {
@@ -1620,7 +1618,10 @@ export function applyCommand(prev, cmd) {
 function afterResolution(state) {
   if (state.phase === 'resolving') {
     state.activationCoins !== null && recordActivation(state);
-    finishTurn(state);
+    const p = currentPlayer(state);
+    // Sindacato: sessione combinabile ancora aperta → torna al menu invece di finire il turno.
+    if (p.node === 'Sindacato' && state.sindacatoSession) state.phase = 'action';
+    else finishTurn(state);
   }
 }
 
@@ -1660,7 +1661,14 @@ function doHire(state, p, cmd) {
     log(state, `${p.name} assume ${w.nation} ${w.sector || '(2 reparti)'} [V${w.v}] Sotto in ${dept.sector}: «${w.effectText || 'nessun bonus'}».`);
   }
   checkObjectives(state, p);
-  if (!cmd.viaTrattativa) finishTurn(state);
+  if (p.node === 'Sindacato' && state.sindacatoSession) {
+    // Sessione combinabile: resta al Sindacato per un'altra sotto-azione. Se advanceTrack ha aperto
+    // un pending (tile), legalCommands lo serve comunque per primo; risolto quello, si torna qui da sé.
+    if (cmd.bank === IMPIEGATI_BANK) state.sindacatoSession.hireImpiegato = true;
+    else state.sindacatoSession.hireLavoratore = true;
+  } else {
+    finishTurn(state);
+  }
   return state;
 }
 
@@ -1867,8 +1875,6 @@ function doBuyWelfare(state, p, cmd) {
 // Tile tracciato: riempie uno slot (7/11/15) già superato con l'effetto scelto. Non avanza `prod`
 // (lo slot è alle spalle, non davanti) — niente advanceTrack. Il suo effetto scatta subito una tantum
 // all'installazione (in più, non in sostituzione: produce comunque dalla prossima "Attiva reparto").
-// Installazione vera e propria: condivisa dal trigger di raggiungimento (resolveTrackTile) e dalla Borsa
-// (buyTrackTile). Il flag di esclusività con le Commesse appartiene solo al percorso Borsa, sta in doBuyTrackTile.
 function installTrackTile(state, p, cmd) {
   const tile = state.trackTileById[cmd.tileId];
   const d = p.depts[cmd.role];
@@ -1886,12 +1892,6 @@ function installTrackTile(state, p, cmd) {
   else if (tile.instant === false) log(state, `${p.name} installa la tile "${tile.name}" su ${d.sector} (pos.${cmd.pos}): si attiva producendo (nessuna resa immediata).`);
   else log(state, `${p.name} installa la tile "${tile.name}" su ${d.sector} (pos.${cmd.pos}).`);
   checkObjectives(state, p);
-}
-
-function doBuyTrackTile(state, p, cmd) {
-  installTrackTile(state, p, cmd);
-  state.borsaTileUsed = true; // esclude le Commesse nella stessa visita (come bonus/refresh), ma non finisce il turno: si resta alla Borsa
-  return state;
 }
 
 // modalità 'struttura': compra una carta al nodo e la installa in Direzione.
@@ -1943,24 +1943,32 @@ function doTrattativa(state, p, cmd) {
     raiseTension(state, opp, oppDept, 1, `Trattativa di ${p.name}`);
     checkStrike(state, opp, oppDept, true);
   }
-  if (cmd.f2 === 'unblock' && state.trattativa.unblock.enabled) {
-    p.sindacato.unblock += 1;
-    const cost = state.trattativa.unblock.cost;
-    spendCoins(p, 'sindacato', cost);
-    const d = p.depts[cmd.f2role];
-    d.blocked = d.blocked.filter(id => id !== cmd.f2card);
-    // ripristina il V sul tracciato se la carta liberata è una Sopra (senza ripagare le caselle già riscosse,
-    // per questo non passa da advanceTrack — ma le milestone tile vanno comunque controllate)
-    if (d.sopra.includes(cmd.f2card)) {
-      const before = d.prod;
-      d.prod = Math.min(state.trackMax, d.prod + WORKER_BY_ID[cmd.f2card].v);
-      checkTileUnlocks(state, p, d, before, d.prod);
-    }
-    log(state, `${p.name} paga ${cost} marchi e libera una carta in ${d.sector}.`);
-  }
+  if (state.sindacatoSession) state.sindacatoSession.trattativa = true;
   state.phase = 'resolving';
   checkObjectives(state, p);
-  if (!state.pending) finishTurn(state);
+  if (!state.pending) afterResolution(state);
+  return state;
+}
+
+// Elimina uno Sciopero: azione a sé (era la sotto-scelta f2 di trattativa, ora combinabile separatamente).
+function doUnblockSciopero(state, p, cmd) {
+  p.sindacato.unblock += 1;
+  const cost = state.trattativa.unblock.cost;
+  spendCoins(p, 'sindacato', cost);
+  const d = p.depts[cmd.role];
+  d.blocked = d.blocked.filter(id => id !== cmd.cardId);
+  // ripristina il V sul tracciato se la carta liberata è una Sopra (senza ripagare le caselle già riscosse,
+  // per questo non passa da advanceTrack — ma le milestone tile vanno comunque controllate)
+  if (d.sopra.includes(cmd.cardId)) {
+    const before = d.prod;
+    d.prod = Math.min(state.trackMax, d.prod + WORKER_BY_ID[cmd.cardId].v);
+    checkTileUnlocks(state, p, d, before, d.prod);
+  }
+  log(state, `${p.name} paga ${cost} marchi e libera una carta in ${d.sector}.`);
+  if (state.sindacatoSession) state.sindacatoSession.unblock = true;
+  state.phase = 'resolving';
+  checkObjectives(state, p);
+  if (!state.pending) afterResolution(state);
   return state;
 }
 

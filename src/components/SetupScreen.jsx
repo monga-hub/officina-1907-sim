@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { BOARDS, TRACK_MODELS, TRACK_MODEL_DEFAULT, BORSA_FABBRICHE_DEFAULT, FACTORY_MAP, DEFAULT_FACTORY_MAPS, SECTORS, SECTOR_COLORS, CONTRACTS, expandContracts, CLOCK_THRESHOLD, NATIONS, NATIONS_NUOVO, NEW_NODE_BANKS, TENSION_LIMIT } from '../game/data.js';
+import { TRACK_MODELS, TRACK_MODEL_DEFAULT, BORSA_FABBRICHE_DEFAULT, FACTORY_MAP, DEFAULT_FACTORY_MAPS, SECTORS, SECTOR_COLORS, CONTRACTS, expandContracts, CLOCK_THRESHOLD, NATIONS, NATIONS_NUOVO, NEW_NODE_BANKS, TENSION_LIMIT } from '../game/data.js';
 import { describeCond } from '../game/engine.js';
 import { INDICATOR_TARGETS, INDICATOR_UNITS, recalcTile, starsFor, winZ } from '../game/batchsim.js';
 import TrackEditor, {
@@ -530,7 +530,7 @@ function TileCard({ r, P }) {
 // Famiglia Commesse rimossa (ingestibile: il mix di taglie non si lascia calibrare al 70-85% in modo stabile).
 const FAMILY_LABELS = ['Nazionalità', 'Industriale'];
 const familiesDefault = () => [
-  NATIONS_NUOVO.map(nation => ({ pv: 7, cond: { type: 'workers_nation', nation, n: 4 } })),
+  NATIONS_NUOVO.map(nation => ({ pv: 7, cond: { type: 'workers_nation', nation, n: 3 } })),
   [
     { pv: 7, cond: { type: 'sector_leader', sector: 'Tessile' } },
     { pv: 7, cond: { type: 'sector_leader', sector: 'Metallurgica' } },
@@ -1089,10 +1089,10 @@ function ImportConfig({ setters }) {
 export default function SetupScreen({ onStart }) {
   const [n, setN] = useState(4);
   const [players, setPlayers] = useState([
-    { name: 'Primo', isAI: true, boardId: 'p2', personality: 'neutro' },
-    { name: 'Secondo', isAI: true, boardId: 'p3', personality: 'neutro' },
-    { name: 'Terzo', isAI: true, boardId: 'p4', personality: 'neutro' },
-    { name: 'Quarto', isAI: true, boardId: 'p6', personality: 'neutro' },
+    { name: 'Primo', isAI: true, personality: 'neutro' },
+    { name: 'Secondo', isAI: true, personality: 'neutro' },
+    { name: 'Terzo', isAI: true, personality: 'neutro' },
+    { name: 'Quarto', isAI: true, personality: 'neutro' },
   ]);
   const [seed, setSeed] = useState('');
   const [aiStrong, setAiStrong] = useState(false); // IA forte = rollout d6 (default off: greedy, veloce)
@@ -1127,7 +1127,6 @@ export default function SetupScreen({ onStart }) {
   const [open, setOpen] = useState(''); // quale editor è aperto (accordion)
 
   const upd = (i, patch) => setPlayers(ps => ps.map((p, j) => (j === i ? { ...p, ...patch } : p)));
-  const chosen = players.slice(0, n).map(p => p.boardId).filter(Boolean);
 
   const cfg = () => ({
     coinsRepeat: true, endOnTrigger: false, singlePlace: true, strikePenalty: true,
@@ -1165,7 +1164,7 @@ export default function SetupScreen({ onStart }) {
       ...cfg(),
       aiRollout: aiStrong ? { depth: 6, rollouts: 1 } : null, // gioco singolo: greedy (default) o rollout d6
       seed: seed.trim() === '' ? undefined : (Number(seed) || 0),
-      players: players.slice(0, n).map(p => ({ name: p.name.trim() || undefined, isAI: p.isAI, boardId: p.boardId || undefined, personality: p.isAI ? p.personality : undefined })),
+      players: players.slice(0, n).map(p => ({ name: p.name.trim() || undefined, isAI: p.isAI, personality: p.isAI ? p.personality : undefined })),
     });
   };
 
@@ -1180,7 +1179,7 @@ export default function SetupScreen({ onStart }) {
           ))}
         </label>
         <table>
-          <thead><tr><th></th><th>Nome</th><th>Tipo</th><th>Personalità</th><th>Plancia Fabbrica</th></tr></thead>
+          <thead><tr><th></th><th>Nome</th><th>Tipo</th><th>Personalità</th></tr></thead>
           <tbody>
             {players.slice(0, n).map((p, i) => (
               <tr key={i}>
@@ -1199,16 +1198,6 @@ export default function SetupScreen({ onStart }) {
                       <option value="speculatore">Lo Speculatore (economia)</option>
                     </select>
                   ) : <small>—</small>}
-                </td>
-                <td>
-                  <select value={p.boardId} onChange={e => upd(i, { boardId: e.target.value })}>
-                    <option value="">Casuale</option>
-                    {BOARDS.map(b => (
-                      <option key={b.id} value={b.id} disabled={chosen.includes(b.id) && p.boardId !== b.id}>
-                        {b.name} ({b.terziario} / {b.secondario} / {b.primario})
-                      </option>
-                    ))}
-                  </select>
                 </td>
               </tr>
             ))}

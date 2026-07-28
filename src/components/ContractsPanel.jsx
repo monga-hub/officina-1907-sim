@@ -1,5 +1,5 @@
 import React from 'react';
-import { SECTOR_COLORS, CLOCK_REFRESH } from '../game/data.js';
+import { SECTOR_COLORS } from '../game/data.js';
 
 const SIZE_LABEL = { small: 'Piccola (3)', medium: 'Media (5)', large: 'Grande (7)' };
 const RES_DOT = { Tessile: '🧵', Metallurgica: '⚒', Chimica: '⚗' };
@@ -7,7 +7,7 @@ const RES_DOT = { Tessile: '🧵', Metallurgica: '⚒', Chimica: '⚗' };
 export default function ContractsPanel({ state }) {
   return (
     <div className="contracts">
-      <h3>Commesse attive <small>(Clock avanza solo qui — refresh banchi a {CLOCK_REFRESH.join('/')})</small></h3>
+      <h3>Commesse attive <small>(Clock avanza solo qui)</small></h3>
       <div className="contract-row">
         {['small', 'medium', 'large'].map(size => (
           state.contracts[size].active.map((slot, si) => (

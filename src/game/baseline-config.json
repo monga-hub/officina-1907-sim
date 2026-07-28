@@ -884,7 +884,7 @@
   "allDeptGate": false,
   "majorityMode": "sector",
   "factoryStrengthMode": "maxCluster",
-  "maxFactories": 0,
+  "maxFactories": 6,
   "majorityCardTiebreak": true
  },
  "strikePenaltyPV": 5,

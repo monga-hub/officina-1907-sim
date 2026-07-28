@@ -11,14 +11,14 @@ export const NATION_FLAGS = { Italiani: '🇮🇹', Francesi: '🇫🇷', Polacc
 // ASSUNZIONE: abbinamento banchi-nodi non specificato nei file — layout fisso a pentagono.
 export const NODES = ['Tessile', 'Metallurgica', 'Chimica', 'Servizi', 'Sindacato', 'Borsa'];
 
-// ⚠️ ATTENZIONE — la mappa è INVERTITA rispetto ai nomi di gioco (rinominati 17/07/2026):
-//   id 'Servizi' → si chiama "Borsa"  (Impiegati + acquisto azioni degli indici)
+// ⚠️ ATTENZIONE — la mappa è INVERTITA rispetto ai nomi di gioco (rinominati 17/07/2026, "Borsa"→"Fabbriche" 28/07/2026):
+//   id 'Servizi' → si chiama "Fabbriche"  (si fondano le Fabbriche, non una borsa)
 //   id 'Borsa'   → si chiama "Città"  (vendi/scambia/commesse/bonus/refresh, le vecchie azioni)
 // Gli id NON sono stati rinominati di proposito: 'Borsa' è una chiave già salvata in cfg.nodeBanks e in
 // localStorage, e uno scambio di nomi è una collisione (il vecchio 'Borsa' dovrebbe diventare 'Città'
-// PRIMA che 'Servizi' diventi 'Borsa', o le config salvate si sovrascrivono in silenzio).
+// PRIMA che 'Servizi' diventi 'Fabbriche', o le config salvate si sovrascrivono in silenzio).
 // Usa NODE_LABEL ovunque il nome sia visibile all'utente (UI, report); mai per la logica.
-export const NODE_LABEL = { Servizi: 'Borsa', Borsa: 'Città' };
+export const NODE_LABEL = { Servizi: 'Fabbriche', Borsa: 'Città' };
 export const nodeLabel = id => NODE_LABEL[id] || id;
 
 // Borsa a indici (17/07/2026). Tutto editabile: il design su carta ha ancora nodi aperti
@@ -109,6 +109,7 @@ export const BORSA_FABBRICHE_DEFAULT = {
   setupPlacement: false,                        // true: al turno 0 ogni giocatore piazza la 1ª fabbrica GRATIS in ordine INVERSO di turno (compensa lo svantaggio d'ordine). Default OFF.
   majorityBonus: { pv: 10, enabled: true },     // PV a fine partita a chi ha più fabbriche attorno a un giacimento (neutra: senza badare al settore)
   majorityCardTiebreak: false,                  // true: 3° livello di spareggio maggioranza (dopo milestone) = più carte nel reparto di quel colore. Riduce i pareggi nulli. Default OFF.
+  maxFactories: 6,                              // tetto fisico (decisione autore 28/07/2026): le Fabbriche sono tessere esagonali del colore giocatore, 6 per colore. Verificato: nei batch osservati nessun giocatore supera mai 6 (costo a scalare le rende proibitive prima) — il cap non cambia il bilanciamento, riflette solo il componente fisico. 0 = illimitato.
   maps: {
     2: {
       hexes: [
@@ -158,14 +159,13 @@ export const NODE_BANKS = {
   Sindacato: ['Tedeschi', 'Francesi'],
 };
 
-// Le 6 plance Fabbrica da "Plance Fabbrica.xlsx" (terziario sx 3 slot Sopra / secondario 4 / primario 4; Sotto max 2 ovunque)
+// Plancia Fabbrica unica e simmetrica (decisione autore 28/07/2026): le 6 varianti erano già
+// asimmetriche solo nel LABEL (quale settore sta su terziario/secondario/primario) — tracciati,
+// slot (ROLE_SLOTS_SOPRA sotto) e tensione di partenza sono identici per i 3 ruoli da tempo,
+// quindi la scelta non aveva mai effetto sul gioco. Un solo elemento, stesso array (BOARDS[0])
+// assegnato a ogni giocatore.
 export const BOARDS = [
-  { id: 'p1', name: 'Plancia 1', terziario: 'Tessile', secondario: 'Chimica', primario: 'Metallurgica' },
-  { id: 'p2', name: 'Plancia 2', terziario: 'Tessile', secondario: 'Metallurgica', primario: 'Chimica' },
-  { id: 'p3', name: 'Plancia 3', terziario: 'Metallurgica', secondario: 'Tessile', primario: 'Chimica' },
-  { id: 'p4', name: 'Plancia 4', terziario: 'Chimica', secondario: 'Tessile', primario: 'Metallurgica' },
-  { id: 'p5', name: 'Plancia 5', terziario: 'Chimica', secondario: 'Metallurgica', primario: 'Tessile' },
-  { id: 'p6', name: 'Plancia 6', terziario: 'Metallurgica', secondario: 'Chimica', primario: 'Tessile' },
+  { id: 'p1', name: 'Plancia Fabbrica', terziario: 'Tessile', secondario: 'Metallurgica', primario: 'Chimica' },
 ];
 // Cap fisso per OGNI reparto: 3 Sopra + 2 Sotto, carte bloccate da Sciopero incluse (conferma autore 07/07/2026)
 export const ROLE_SLOTS_SOPRA = { terziario: 3, secondario: 3, primario: 3 };
@@ -249,7 +249,6 @@ export const STARTING_COINS = [10, 10, 10, 10];
 
 export const TENSION_LIMIT = 3;
 export const CLOCK_THRESHOLD = { 2: 8, 3: 12, 4: 16 };
-export const CLOCK_REFRESH = [3, 6, 9, 12, 15];
 export const MOVE_COSTS = [0, 1]; // slot 1 gratis, slot 2 = 1 marco
 // Movimento a stella (pentagramma, opzionale in 2 giocatori): da ogni nodo raggiungi gratis i 2 nodi collegati
 // dalle punte; gli altri 2 ("a fianco") costano +1 marco a scavallare. Borsa/Città esclusa (raggiungibile da tutti).
@@ -262,7 +261,7 @@ export const STAR_ADJ = {
 };
 export const MAX_CONTRACTS_PER_VISIT = 2;
 export const DIREZIONE_MAX = { sopra: 3, sotto: 0 };
-export const UNBLOCK_COST = 3;
+export const UNBLOCK_COST = 2;
 
 export const WORKERS = [
  {
@@ -1177,14 +1176,16 @@ export const NATION_FLAGS_NUOVO = { ...NATION_FLAGS, Greci: '🇬🇷' };
 // 2 copie per disegno (Copies:2 nell'export originale, mercato non si rinfresca — vedi doBuyStruttura:
 // una volta comprata una copia sparisce dal mercato per tutti, senza 2 copie il market si svuota subito con 4 giocatori).
 const IMPIEGATI_UNICI = [
-  // potenza 4/2 (era 3/1) — bump confermato da A/B 18/07/2026: milestone2 33%→56%, milestone3 5%→14%,
-  // abbandono tracciato 40%→20%, nessun anticipo collaterale sugli slot lavoratore (turno 2°Sotto/3°Sopra invariati)
-  { id: 'imp_it', nation: 'Italiani', cost: 4, power: { Chimica: 4, Metallurgica: 2 }, effect: '' },
-  { id: 'imp_sp', nation: 'Spagnoli', cost: 4, power: { Chimica: 4, Tessile: 2 }, effect: '' }, // Tessile: assunto (dato mancante)
-  { id: 'imp_gr', nation: 'Greci', cost: 4, power: { Metallurgica: 4, Tessile: 2 }, effect: '' },
-  { id: 'imp_de', nation: 'Tedeschi', cost: 4, power: { Metallurgica: 4, Chimica: 2 }, effect: '' }, // Chimica: assunto (dato mancante)
-  { id: 'imp_pl', nation: 'Polacchi', cost: 4, power: { Tessile: 4, Chimica: 2 }, effect: '' },
-  { id: 'imp_fr', nation: 'Francesi', cost: 4, power: { Tessile: 4, Metallurgica: 2 }, effect: '' },
+  // potenza 3/1 (era stata provata a 4/2 il 18/07/2026, A/B positivo sulla carta ma poi NON tenuta:
+  // il baseline giocato/testato dall'autore è rimasto a 3/1 — questo commento era rimasto disallineato
+  // dal baseline reale, corretto 28/07/2026 dopo che un aggiornamento aveva erroneamente riportato il
+  // baseline a 4/2 fidandosi di questa nota invece del valore live).
+  { id: 'imp_it', nation: 'Italiani', cost: 4, power: { Chimica: 3, Metallurgica: 1 }, effect: '' },
+  { id: 'imp_sp', nation: 'Spagnoli', cost: 4, power: { Chimica: 3, Tessile: 1 }, effect: '' }, // Tessile: assunto (dato mancante)
+  { id: 'imp_gr', nation: 'Greci', cost: 4, power: { Metallurgica: 3, Tessile: 1 }, effect: '' },
+  { id: 'imp_de', nation: 'Tedeschi', cost: 4, power: { Metallurgica: 3, Chimica: 1 }, effect: '' }, // Chimica: assunto (dato mancante)
+  { id: 'imp_pl', nation: 'Polacchi', cost: 4, power: { Tessile: 3, Chimica: 1 }, effect: '' },
+  { id: 'imp_fr', nation: 'Francesi', cost: 4, power: { Tessile: 3, Metallurgica: 1 }, effect: '' },
 ];
 export const IMPIEGATI = IMPIEGATI_UNICI.flatMap(c => [1, 2].map(n => ({ ...c, id: `${c.id}_${n}` })));
 

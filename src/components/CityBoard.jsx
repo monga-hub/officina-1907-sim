@@ -48,8 +48,8 @@ export default function CityBoard({ state, dispatch }) {
               style={{ ...NODE_POS[node], borderColor: sectorColor || '#888' }}
               onClick={() => mv && dispatch(mv)}
               title={mv ? `Vai a ${nodeLabel(node)}${mv.cost ? ` (${mv.cost} marco)` : ' (gratis)'}` : nodeLabel(node)}>
-              {/* nodeLabel: gli id 'Servizi'/'Borsa' a schermo sono "Borsa"/"Città" (vedi NODE_LABEL in data.js) */}
-              <div className="node-name">{node === 'Borsa' ? '🏙 Città' : SECTOR_COLORS[node] ? `⚙ ${node}` : node === 'Servizi' ? '📈 Borsa' : '✊ Sindacato'}</div>
+              {/* nodeLabel: gli id 'Servizi'/'Borsa' a schermo sono "Fabbriche"/"Città" (vedi NODE_LABEL in data.js) */}
+              <div className="node-name">{node === 'Borsa' ? '🏙 Città' : SECTOR_COLORS[node] ? `⚙ ${node}` : node === 'Servizi' ? '🏭 Fabbriche' : '✊ Sindacato'}</div>
               {mv && <div className="cost">{mv.cost ? `${mv.cost} ⓜ` : 'gratis'}</div>}
               <div className="meeples">
                 {here.map(q => <span key={q.id} className="meeple" style={{ background: q.color }} title={q.name} />)}

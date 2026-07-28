@@ -71,9 +71,6 @@ function TrackTileChoice({ state, pend, owner, legal, dispatch }) {
             </button>
           );
         })}
-        <button className="ghost" onClick={() => dispatch({ type: 'resolveTrackTile', use: false })}>
-          Nessuna (lo slot resta vuoto, comprabile alla Borsa)
-        </button>
       </div>
     </>
   );
