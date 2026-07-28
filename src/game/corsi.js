@@ -20,14 +20,22 @@
 
 import { SECTORS } from './data.js';
 
-// ⚠ TUTTI I NUMERI QUI SOTTO SONO SEED VALUES, NON UN BILANCIAMENTO.
-// Sono il primo valore plausibile per far PARTIRE l'esperimento, scelti a intuito il 28/07/2026 e mai
-// tarati contro niente. Nessuno di questi è stato scelto perché i dati lo indicavano — non esistevano
-// ancora dati. Chi rilegge questo file fra un mese non deve poter pensare "6/12/18 era il bilanciamento
-// che avevamo scelto": non è stato scelto, è stato ipotizzato. Vale per soglie, posti, costo ed effetto.
-// Quando un valore verrà davvero tarato su un batch, va annotato QUI con la data e il numero che lo giustifica.
+// ⚠ MISTO: alcuni valori sono ancora SEED (ipotesi non tarate), altri sono CANDIDATI PLAYTEST supportati.
+// Tarato — posti 2/2/2 + costo 5 (28/07/2026, sweep Posti×Costo 3×3 in aiRollout d6, 40 partite/config):
+//   Lo sweep ha FALSIFICATO il criterio "~2,9 usi come gli Impiegati". Quel target apparteneva a una risorsa
+//   PRIVATA (compri quando vuoi, vincolo = denaro); i Corsi sono risorsa PUBBLICA a capacità limitata, dove
+//   il numero di acquisti EMERGE dalla contesa, non è una proprietà del bonus. Rendimento economico, ruolo
+//   strategico ed effetto sui tracciati sono già risultati equivalenti a Impiegati → il vincolo 2,9 era l'unico
+//   senza giustificazione autonoma, ed è stato abbandonato. La nuova domanda di design non è "quanti corsi",
+//   ma "quanta pressione competitiva genera il nodo". 2/2/2+costo5 è il compromesso scelto: scarsità percepibile
+//   (sat 79%), esclusione NON sistematica (2,3 giocatori esclusi/partita contro ~3,8 con 1/2/1), nodo ancora
+//   desiderabile (3,54 corsi/gioc.). È il candidato ai PLAYTEST FISICI, non un balance finale: lo conferma o
+//   lo falsifica l'osservazione umana ("opportunità da contendersi" vs "azione che fai se puoi"), non un altro sweep.
+// SEED (non tarati, ipotesi del 28/07/2026): bounds 6/12/18, trimestri, trigger, effetto [3,1]/'ia', maxPerTrimestre.
+//   Restano il primo valore plausibile scelto a intuito, non perché i dati lo indicassero. Quando uno verrà
+//   tarato su un batch, va annotato QUI come sopra, con data e numero che lo giustifica.
 export const CORSI_DEFAULT = {
-  enabled: false,        // default OFF: nessuna regressione sui batch e sul baseline esistenti
+  enabled: true,         // default ON (28/07/2026): i Corsi sostituiscono gli Impiegati nel baseline. Prima era OFF (no regressione) — ora è la meccanica canonica da portare ai playtest.
   nodo: 'Sindacato',     // dove ci si iscrive (gli Impiegati stavano qui: stesso nodo, per confronto pulito)
 
   // ---------- MODELLO: la scarsità ----------
@@ -42,15 +50,15 @@ export const CORSI_DEFAULT = {
   // Posti per reparto per trimestre. NON assumere che i reparti siano uguali: è esattamente una delle
   // asimmetrie da testare (un reparto più affollato vale come leva di bilanciamento).
   posti: {
-    Tessile:      [2, 3, 2],
-    Metallurgica: [2, 3, 2],
-    Chimica:      [2, 3, 2],
+    Tessile:      [2, 2, 2],
+    Metallurgica: [2, 2, 2],
+    Chimica:      [2, 2, 2],
   },
   // Costo. Accetta tre forme, risolte da costoCorso():
   //   4                              → fisso
   //   [3, 4, 5]                      → per trimestre
   //   { Tessile: 4, Chimica: 5, … }  → per reparto
-  costo: 4,
+  costo: 5,               // tarato: vedi banner in testa (sweep Posti×Costo 3×3, 28/07/2026)
   maxPerTrimestre: 0,    // quante formazioni può fare UN giocatore in uno stesso trimestre (0 = nessun limite)
 
   // ---------- EFFETTO: il payoff ----------

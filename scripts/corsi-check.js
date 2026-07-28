@@ -23,15 +23,23 @@ const alNodo = (s, coins = 99) => {
   return p;
 };
 
-// 1. default OFF: nessun comando 'corso' e nessuna regressione sul resto
+// 1. default ON (28/07/2026): i Corsi sono la meccanica canonica del baseline
 {
   const s = mk(undefined);
-  assert.equal(s.corsi.enabled, false, 'i Corsi sono OFF di default');
+  assert.equal(s.corsi.enabled, true, 'i Corsi sono ON di default');
+  alNodo(s);
+  assert.ok(legalCommands(s).some(c => c.type === 'corso'), 'default: i corsi sono disponibili al nodo');
+  console.log('✓ default ON: i Corsi sono la meccanica canonica');
+}
+
+// 1b. OFF esplicito: nessuna regressione, il banco Impiegati resta com'era
+{
+  const s = mk({ enabled: false });
   alNodo(s);
   assert.equal(legalCommands(s).filter(c => c.type === 'corso').length, 0, 'OFF: nessun comando corso');
   assert.ok(s.nodeBanks.Sindacato.includes(IMPIEGATI_BANK), 'OFF: il banco Impiegati resta al Sindacato');
   assert.ok(legalCommands(s).some(c => c.type === 'hire' && c.bank === IMPIEGATI_BANK), 'OFF: si assumono ancora Impiegati');
-  console.log('✓ default OFF: comportamento invariato');
+  console.log('✓ OFF esplicito: comportamento Impiegati invariato');
 }
 
 // 2. ON: i Corsi SOSTITUISCONO gli Impiegati (non si sommano)
