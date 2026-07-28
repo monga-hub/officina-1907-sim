@@ -755,6 +755,7 @@ const REPORT_MAP = [
   ['BORSA A FABBRICHE — MOLTIPLICATORE', 2, '🔵', 'Completamento'],
   ['CICLO DEL MOTORE', 2, '🔵', 'Completamento'],
   // blocco Direzione/Impiegati (storicamente "macchinari"): sviluppo del motore, non economia
+  ['PASSO DEL CLOCK', 1, '🟢'],
   ['CORSI DI FORMAZIONE — dimensionamento', 2, '🟢', 'Costruzione'],
   ['IMPIEGATI — che lavoro', 2, '🟢', 'Costruzione'],
   ['MACCHINARI: ACCESSO O VALORE', 2, '🔵', 'Costruzione'], ['MACCHINARI: CON vs SENZA', 2, '⚪', 'Costruzione'],
@@ -2081,6 +2082,44 @@ export function formatReport(games, cfg) {
       L.push('(se i numeri dopo avvio→1ª restano piatti o salgono, il costo-azioni della conversione non cala: la promessa dell\'engine builder non è mantenuta — indipendentemente da quanto rende ogni produzione.)');
       L.push('');
     }
+  }
+
+  // ===== PASSO DEL CLOCK (28/07/2026) =====
+  // Nasce da una domanda dell'autore sui Corsi: prima di scegliere le soglie dei trimestri bisogna sapere
+  // A CHE TURNO arriva davvero ogni valore di clock. Il clock NON avanza col tempo — sale solo quando
+  // qualcuno completa una commessa — quindi "clock 6" non è "un terzo della partita": è un momento che va
+  // misurato. Senza questa riga le soglie si indovinano. Serve a chiunque tari una finestra sul clock
+  // (trimestri dei Corsi, quadrimestri della Borsa), non solo ai Corsi.
+  // Nessuna cattura nuova: tel.clockByRound registra già il clock a ogni turno, qui viene solo invertito.
+  {
+    const rows = [];
+    const maxClock = Math.max(...ok.map(g => g.clock));
+    for (let v = 1; v <= maxClock; v++) {
+      // primo turno in cui quel valore di clock è stato raggiunto, per ogni partita che ci arriva
+      const turni = [], frazioni = [];
+      for (const g of ok) {
+        const t = Object.keys(g.clockByRound).map(Number).sort((a, b) => a - b).find(t2 => g.clockByRound[t2] >= v);
+        if (t == null) continue;
+        turni.push(t); frazioni.push(t / Math.max(1, g.turns));
+      }
+      if (turni.length) rows.push({ v, turno: avg(turni), frac: avg(frazioni), quote: turni.length / ok.length });
+    }
+    L.push('=== PASSO DEL CLOCK — a che turno arriva ogni valore? ===');
+    L.push('(il clock sale solo con le commesse completate, non col tempo: un valore di clock NON corrisponde alla frazione di partita che sembra. Chi tara una finestra sul clock — trimestri dei Corsi, quadrimestri della Borsa — deve leggere questa tabella PRIMA di scegliere le soglie.)');
+    if (!rows.length) {
+      L.push('Il clock non è mai avanzato in questo batch.');
+    } else {
+      L.push(`  ${'clock'.padStart(5)} | turno medio | % partita | partite che ci arrivano`);
+      for (const r of rows) {
+        L.push(`  ${String(r.v).padStart(5)} | ${r.turno.toFixed(1).padStart(11)} | ${pct(r.frac).padStart(9)} | ${pct(r.quote)}`);
+      }
+      // il servizio vero: quale valore di clock intercetta il 25/50/75% della partita
+      const at = f => { const r = rows.reduce((best, x) => Math.abs(x.frac - f) < Math.abs(best.frac - f) ? x : best, rows[0]); return `${Math.round(f * 100)}% → clock ${r.v} (turno ${r.turno.toFixed(1)})`; };
+      L.push(`  QUARTI REALI DELLA PARTITA: ${[0.25, 0.5, 0.75].map(at).join(' · ')}`);
+      L.push(`  durata media ${avg(ok.map(g => g.turns)).toFixed(1)} turni, clock finale medio ${avg(ok.map(g => g.clock)).toFixed(1)}`);
+      L.push('  (soglie equidistanti sul CLOCK non danno trimestri equidistanti nella PARTITA: se il clock accelera verso la fine, l\'ultimo trimestre si mangia il grosso del gioco.)');
+    }
+    L.push('');
   }
 
   // ===== CORSI DI FORMAZIONE (28/07/2026) =====
