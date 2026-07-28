@@ -1330,8 +1330,10 @@ export function legalCommands(state) {
         }
       }
     } else if (node === 'Sindacato') {
-      if (!ss.trattativa) cmds.push(...trattativaCommands(state, p));
-      if (!ss.unblock) cmds.push(...unblockCommands(state, p));
+      // ss può essere null se lo stato non arriva da un 'move' su Sindacato (partita ricaricata, test):
+      // stesso guardia-opzionale degli altri usi sopra, altrimenti legalCommands esplode.
+      if (!ss?.trattativa) cmds.push(...trattativaCommands(state, p));
+      if (!ss?.unblock) cmds.push(...unblockCommands(state, p));
     }
     cmds.push({ type: 'pass' }); // rinuncia/fine visita (sempre possibile per non bloccare)
     return cmds;

@@ -21,11 +21,11 @@ assert.ok(s.banks[IMPIEGATI_BANK].every(id => NEW_WORKERS_MERGED.find(c => c.id 
 for (const b of ['A', 'B', 'C', 'D', 'E']) {
   assert.ok(s.banks[b].every(id => !NEW_WORKERS_MERGED.find(c => c.id === id).power), `nessun Impiegato nel mazzetto ${b}`);
 }
-assert.deepEqual(s.nodeBanks.Servizi, ['D', IMPIEGATI_BANK], 'il mercato Impiegati sta al nodo Servizi');
+assert.deepEqual(s.nodeBanks.Sindacato, ['E', IMPIEGATI_BANK], 'il mercato Impiegati sta al nodo Sindacato');
 
-// 2. a Servizi sono scoperte 3 carte Impiegato, tutte piazzabili solo in Direzione Sopra
+// 2. al Sindacato sono scoperte 3 carte Impiegato, tutte piazzabili solo in Direzione Sopra
 const p = s.players[s.current];
-p.node = 'Servizi';
+p.node = 'Sindacato';
 p.coins = 99;
 s.phase = 'action'; // il turno parte da 'move': saltiamo lo spostamento, qui interessa il nodo
 const impCmds = legalCommands(s).filter(c => c.type === 'hire' && c.bank === IMPIEGATI_BANK);
@@ -33,8 +33,8 @@ const offered = [...new Set(impCmds.map(c => c.cardId))];
 assert.equal(offered.length, IMPIEGATI_MARKET, `${IMPIEGATI_MARKET} Impiegati scoperti`);
 assert.deepEqual(offered, s.banks[IMPIEGATI_BANK].slice(0, IMPIEGATI_MARKET), 'scoperte = prime 3 del mazzo');
 assert.ok(impCmds.every(c => c.side === 'sopra' && c.role === 'direzione'), 'Impiegato solo in Direzione Sopra');
-// il mazzetto D dello stesso nodo resta a profondità 1
-const dCards = [...new Set(legalCommands(s).filter(c => c.type === 'hire' && c.bank === 'D').map(c => c.cardId))];
+// il mazzetto lavoratori dello stesso nodo resta a profondità 1
+const dCards = [...new Set(legalCommands(s).filter(c => c.type === 'hire' && c.bank === 'E').map(c => c.cardId))];
 assert.equal(dCards.length, 1, 'banco lavoratori: solo la cima');
 
 // 3. comprando un Impiegato il mercato si rifornisce dal mazzo (la 4ª carta diventa scoperta)
@@ -75,3 +75,34 @@ for (let g = 0; g < 5; g++) {
 }
 
 console.log('\n✓ mercato Impiegati ok');
+
+// 6. TELEMETRIA IMPIEGATI (28/07/2026): il report batch misura "che lavoro fanno" gli Impiegati —
+// avanzamenti REALI (non nominali), milestone attraversate, quota di tracciato che arriva da loro.
+// Se questi invarianti saltano, le conclusioni di design lette nel report sono sbagliate.
+const { runOneGame } = await import('../src/game/batchsim.js');
+let buysTot = 0;
+for (let g = 0; g < 6; g++) {
+  const tel = runOneGame({
+    seed: 7000 + g, players: Array.from({ length: 4 }, (_, i) => ({ name: `AI ${i + 1}`, isAI: true })),
+    workers: NEW_WORKERS_MERGED, newWorkers: NEW_WORKERS_MERGED, nations: NATIONS_NUOVO, nodeBanks: NEW_NODE_BANKS,
+    welfareEnabled: false, aiRollout: null,
+  });
+  assert.ok(!tel.failed, `seed ${7000 + g}: partita completata`);
+  for (const b of tel.impiegatiBuys) {
+    buysTot++;
+    assert.equal(b.steps.length, 2, 'ogni Impiegato avanza esattamente 2 settori');
+    for (const st of b.steps) {
+      assert.equal(st.gained, st.to - st.from, 'gained = delta reale del tracciato');
+      assert.ok(st.gained >= 0 && st.gained <= st.nominal, `passi reali entro il nominale (${st.gained}/${st.nominal})`);
+      for (const m of st.ms) {
+        const pos = tel.msPos[st.role][m];
+        assert.ok(pos > st.from && pos <= st.to, `milestone ${m} davvero attraversata (${st.from}→${st.to}, pos ${pos})`);
+      }
+    }
+  }
+  // la quota attribuita agli Impiegati non può superare il tracciato finale del reparto
+  for (const seatArr of tel.impFinal) for (const d of seatArr) {
+    assert.ok(d.imp <= d.prod, `${d.role}: passi da Impiegato (${d.imp}) ≤ posizione finale (${d.prod})`);
+  }
+}
+console.log(`✓ telemetria Impiegati: ${buysTot} acquisti su 6 partite, invarianti ok`);

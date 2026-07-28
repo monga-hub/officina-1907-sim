@@ -7,7 +7,7 @@ import { SECTORS, OBJECTIVE_TILES, WELFARE, TRACK_TILES, IMPIEGATI_BANK, RESOURC
 // categoria azione per la heatmap: comando → colonna
 // NB colonne storiche: 'Servizi' = nodo id Servizi (a schermo "Borsa"), 'Borsa' = nodo id Borsa (a schermo
 // "Città") — vedi NODE_LABEL in data.js. buyShare avviene al nodo id Servizi → colonna 'Servizi'.
-const ACTION_CAT = { hire: 'Assunzione', activate: 'Produzione', buyWelfare: 'Servizi', buyStruttura: 'Servizi', buyShare: 'Servizi', trattativa: 'Sindacato', completeContract: 'Borsa', exchange: 'Borsa', buyTrackTile: 'Borsa' };
+const ACTION_CAT = { hire: 'Assunzione', activate: 'Produzione', buyWelfare: 'Servizi', buyStruttura: 'Servizi', buyShare: 'Servizi', trattativa: 'Sindacato', completeContract: 'Borsa', exchange: 'Borsa' };
 // Il mercato Impiegati è un banco (quindi cmd.type 'hire') ma è l'azione del nodo Servizi. Contarlo tra le
 // Assunzioni gonfia quella colonna (~7pp) e lascia Servizi inchiodata a 0, visto che le uniche azioni mappate
 // lì — buyWelfare/buyStruttura — sono morte nel design 2.0 (welfareEnabled:false).
@@ -99,6 +99,11 @@ export function runOneGame(config) {
     prodActByFab: { 0: 0, 1: 0, 2: 0, 3: 0 }, // ad ogni "Attiva reparto": fabbriche di quel settore possedute (0/1/2/3+)
     // Borsa a fabbriche: al nodo con un credito ma nessuna fabbrica fondata, PERCHÉ? (land-grab vs colore assente vs cassa)
     factoryBlocked: { spotsTaken: 0, noColorOnIsland: 0, cantAfford: 0, builtInstead: 0 },
+    // Impiegati: non "quanti se ne comprano" ma CHE LAVORO FANNO (richiesta autore 28/07/2026, prima di
+    // valutare una meccanica sostitutiva). Un record per acquisto, con i due settori della carta:
+    // stato del tracciato prima, avanzamenti REALI (il tracciato satura a trackMax: la potenza nominale
+    // può andare in parte sprecata) e milestone attraversate in quella singola salita.
+    impiegatiBuys: [], // {turn, seat, cardId, nation, coinsBefore, steps:[{sector, role, nominal, from, to, gained, sopra, ms:[1..3]}]}
   };
   // apparizioni per carta: quante volte una carta ENTRA nel mercato di un banco (cima per i banchi
   // lavoratori, una delle 3 scoperte per gli Impiegati), non quanti turni ci resta — così "apparsa"
@@ -231,27 +236,30 @@ export function runOneGame(config) {
     }
     if (cmd.type === 'hire') { cmd.side === 'sopra' ? tel.sopra++ : tel.sotto++; tel.hireTurns[s.current].push(s.turn); }
     if (cmd.type === 'buyStruttura') tel.strutturaBuys.push({ turn: s.turn, seat: s.current });
+    // Impiegato: fotografa i due reparti PRIMA della salita — il delta si legge dopo applyCommand.
+    const impCard = cmd.type === 'hire' && cmd.bank === IMPIEGATI_BANK && cmd.side === 'sopra' ? WORKER_BY_ID[cmd.cardId] : null;
+    const impBuy = impCard?.power ? {
+      turn: s.turn, seat: s.current, cardId: impCard.id, nation: impCard.nation, coinsBefore: cp.coins,
+      steps: Object.entries(impCard.power).map(([sector, nominal]) => {
+        const role = DEPT_ROLES_B.find(r => cp.depts[r].sector === sector);
+        return { sector, role, nominal, from: cp.depts[role].prod, sopra: cp.depts[role].sopra.length };
+      }),
+    } : null;
     if (cmd.type === 'buyWelfare') tel.welfareBuyTurns[s.current].push(s.turn);
-    // due percorsi: trigger al raggiungimento della milestone (resolveTrackTile, oggi la quasi totalità) e
-    // ripiego alla Borsa (buyTrackTile). Il seat del trigger è quello del pending, non s.current: il turno
-    // può già essere passato al giocatore dopo quando il pending si risolve.
-    if (cmd.type === 'buyTrackTile' || (cmd.type === 'resolveTrackTile' && cmd.use)) {
-      const trigger = cmd.type === 'resolveTrackTile';
-      const role = trigger ? s.pending.role : cmd.role;
-      const pos = trigger ? s.pending.pos : cmd.pos;
-      const seat = trigger ? s.pending.playerId : s.current;
+    // La tile si sceglie al raggiungimento della milestone (resolveTrackTile): il ripiego "compra alla Borsa"
+    // è stato rimosso dal design il 28/07/2026 (scelta obbligatoria). Il seat è quello del pending, non
+    // s.current: il turno può già essere passato al giocatore dopo quando il pending si risolve.
+    if (cmd.type === 'resolveTrackTile' && cmd.use) {
+      const { role, pos, playerId: seat } = s.pending;
       const market = Number(Object.entries(s.tileSlotPos[role]).find(([, p]) => p === pos)?.[0]);
       // quante tile poteva PAGARE in quel momento: con 1 sola non è una scelta, è l'unica che si permetteva.
       // Senza questo, una tile dominata ma economica sembra "scelta nel 40% dei casi" mentre è solo il ripiego.
-      const nOpts = trigger
-        ? legalCommands(s).filter(c => c.type === 'resolveTrackTile' && c.use).length
-        : new Set(legalCommands(s).filter(c => c.type === 'buyTrackTile' && c.pos === pos && c.role === role).map(c => c.tileId)).size;
+      const nOpts = legalCommands(s).filter(c => c.type === 'resolveTrackTile' && c.use).length;
       // stato del motore AL MOMENTO dell'acquisto (idea dell'utente 19/07/2026): quando entra una tile in una
-      // build, non solo cosa produce dopo. bp è il giocatore che compra, non necessariamente s.current: nel
-      // percorso trigger il turno può essere già passato ad altri quando il pending si risolve (vedi sopra).
+      // build, non solo cosa produce dopo. bp è il giocatore che compra, non necessariamente s.current (vedi sopra).
       const bp = s.players[seat];
       tel.trackTileBuys.push({
-        turn: s.turn, seat, role, pos, tileId: cmd.tileId, market, via: trigger ? 'milestone' : 'borsa', scelta: nOpts > 1,
+        turn: s.turn, seat, role, pos, tileId: cmd.tileId, market, via: 'milestone', scelta: nOpts > 1,
         coinsBefore: bp.coins, // marchi in mano al momento dell'acquisto — per "tile Marchi → cosa ne fa nei 2 turni dopo"
         sopra: DEPT_ROLES_B.reduce((n, r) => n + bp.depts[r].sopra.length, 0),
         sotto: sottoTot(bp),
@@ -266,12 +274,11 @@ export function runOneGame(config) {
     if (cp.node === 'Borsa' && cmd.type !== 'move') {
       if (!visit || visit.seat !== s.current || visit.turn !== s.turn) {
         closeVisit();
-        visit = { turn: s.turn, seat: s.current, didCommessa: false, didBonus: false, didTile: false, refreshTarget: null, conversions: 0, coinsStart: cp.coins };
+        visit = { turn: s.turn, seat: s.current, didCommessa: false, didBonus: false, refreshTarget: null, conversions: 0, coinsStart: cp.coins };
       }
       if (cmd.type === 'exchange') visit.conversions++;
       if (cmd.type === 'completeContract') visit.didCommessa = true;
       if (cmd.type === 'borsaExit') visit.didBonus = true;
-      if (cmd.type === 'buyTrackTile') visit.didTile = true;
       if (cmd.type === 'refreshMarket') {
         visit.refreshTarget = cmd.target;
         const marketBefore = cmd.target === 'welfare'
@@ -300,6 +307,16 @@ export function runOneGame(config) {
       });
     }
     s = applyCommand(s, cmd);
+    if (impBuy) {
+      const bp = s.players[impBuy.seat];
+      for (const st of impBuy.steps) {
+        st.to = bp.depts[st.role].prod;
+        st.gained = st.to - st.from; // < nominal se il tracciato era già a fondo corsa
+        st.ms = Object.entries(s.marketUnlockPos[st.role] || {})
+          .filter(([, pos]) => pos > st.from && pos <= st.to).map(([m]) => Number(m));
+      }
+      tel.impiegatiBuys.push(impBuy);
+    }
     noteMilestoneCross();
     for (const b of s.bankIds) noteBankTop(b);
     if (s.turn !== lastTurn) {
@@ -340,6 +357,17 @@ export function runOneGame(config) {
     pos: ['terziario', 'secondario', 'primario'].map(r => p.depts[r].prod),
     ms: ['terziario', 'secondario', 'primario'].map(r => p.depts[r].prod >= s.milestonePos[r]),
   }));
+  // Chiusura Impiegati: stato finale di ogni reparto + quanta parte del tracciato è arrivata da Impiegati.
+  // Serve alle due domande di fine partita: "gap di sviluppo compensato" (poche carte Sopra + tanti
+  // Impiegati = la carta sta tappando un buco di offerta carte) e milestone marginali (sotto, nel report).
+  // NB: `imp` è una sottostima quando lo sblocco Sciopero ripristina `prod` — raro, ma il verso è noto.
+  tel.msPos = Object.fromEntries(DEPT_ROLES_B.map(r => [r, s.marketUnlockPos[r] || {}]));
+  tel.trackMax = s.trackMax;
+  tel.impFinal = s.players.map((p, seat) => DEPT_ROLES_B.map(role => ({
+    role, sector: p.depts[role].sector, prod: p.depts[role].prod, sopra: p.depts[role].sopra.length,
+    imp: tel.impiegatiBuys.filter(b => b.seat === seat)
+      .reduce((n, b) => n + (b.steps.find(x => x.role === role)?.gained || 0), 0),
+  })));
   // SEQUENZA DELLE SCELTE (idea utente 19/07/2026): turno in cui ogni reparto si completa (5/5, ultimo slot
   // Sopra/Sotto riempito) e turno di ogni fondazione fabbrica — per ricostruire "prima X poi Y" insieme a
   // milestone (tel.milestoneSnap) e acquisti tile (tel.trackTileBuys), già turno-timbrati sopra.
@@ -676,6 +704,7 @@ const REPORT_MAP = [
   ['BORSA A FABBRICHE — MOLTIPLICATORE', 2, '🔵', 'Completamento'],
   ['CICLO DEL MOTORE', 2, '🔵', 'Completamento'],
   // blocco Direzione/Impiegati (storicamente "macchinari"): sviluppo del motore, non economia
+  ['IMPIEGATI — che lavoro', 2, '🟢', 'Costruzione'],
   ['MACCHINARI: ACCESSO O VALORE', 2, '🔵', 'Costruzione'], ['MACCHINARI: CON vs SENZA', 2, '⚪', 'Costruzione'],
   ['MACCHINARI: CAUSA, SELEZIONE O SOGLIA', 2, '⚪', 'Costruzione'], ["RISORSE PRODOTTE DOPO L'ACQUISTO", 2, '⚪', 'Costruzione'],
   ['MACCHINARIO: GARANTITO DALLA FORMULA', 2, '⚪', 'Costruzione'], ['PV PER 5 MARCHI INVESTITI', 2, '🔵', 'Costruzione'],
@@ -2000,6 +2029,97 @@ export function formatReport(games, cfg) {
       L.push('(se i numeri dopo avvio→1ª restano piatti o salgono, il costo-azioni della conversione non cala: la promessa dell\'engine builder non è mantenuta — indipendentemente da quanto rende ogni produzione.)');
       L.push('');
     }
+  }
+
+  // ===== IMPIEGATI: CHE LAVORO FANNO (28/07/2026) =====
+  // Richiesta dell'autore prima di valutare una meccanica sostitutiva: la domanda utile non è "quanti
+  // Impiegati vengono comprati" ma PERCHÉ — se sono un investimento d'avvio o una chiusura di milestone,
+  // se gli avanzamenti nominali arrivano davvero a terra, e se compensano una scarsità di carte Sopra.
+  {
+    const buys = ok.flatMap(g => g.impiegatiBuys.map(b => ({ ...b, winner: b.seat === g.winner, turns: g.turns })));
+    L.push('=== IMPIEGATI — che lavoro fanno davvero? (28/07/2026) ===');
+    L.push("(un Impiegato occupa 1 slot Sopra in Direzione e avanza DUE tracciati: forte e debole della carta. Qui non il conteggio degli acquisti ma la loro funzione — quando entrano, quanto avanzano DAVVERO, quali milestone aprono, cosa compensano.)");
+    if (!buys.length) {
+      L.push('Nessun Impiegato acquistato in questo batch.');
+    } else {
+      const nPG = ok.length * ok[0].impFinal.length; // giocatori-partita
+      const buyers = ok.flatMap(g => g.impFinal.map((_, seat) => g.impiegatiBuys.filter(b => b.seat === seat).length));
+      const withImp = buyers.filter(n => n > 0);
+      const winWith = ok.filter(g => g.impiegatiBuys.some(b => b.seat === g.winner)).length;
+      L.push(`Acquisti: ${buys.length} tot · ${(buys.length / ok.length).toFixed(1)} per partita · ${pct(withImp.length / nPG)} dei giocatori-partita ne compra almeno uno (media ${avg(withImp).toFixed(1)} tra chi compra) · il vincitore ne ha ≥1 nel ${pct(winWith / ok.length)} delle partite`);
+
+      // 2. MOMENTO — investimento d'avvio o chiusura di milestone?
+      const q = [0, 0, 0, 0];
+      for (const b of buys) q[Math.min(3, Math.floor(((b.turn - 1) / Math.max(1, b.turns)) * 4))]++;
+      const turnsSorted = buys.map(b => b.turn).sort((a, b2) => a - b2);
+      L.push(`▸ QUANDO — turno medio ${avg(buys.map(b => b.turn)).toFixed(1)} (mediana ${turnsSorted[Math.floor(turnsSorted.length / 2)]}) · per quarto di partita: ${q.map((n, i) => `Q${i + 1} ${pct(n / buys.length)}`).join(' · ')}`);
+      L.push('  (concentrati in Q1-Q2 = investimento a lungo termine sul motore; in Q3-Q4 = strumento per chiudere milestone/obiettivi.)');
+
+      // 1. CARTA / REPARTO — esistono settori naturalmente più desiderabili?
+      const byCard = {};
+      for (const b of buys) (byCard[b.cardId.replace(/_\d+$/, '')] ??= []).push(b);
+      L.push(`▸ QUALE CARTA — ${'carta'.padEnd(26)} | prese |  quota | passi reali | win%`);
+      for (const [base, bs] of Object.entries(byCard).sort((a, b2) => b2[1].length - a[1].length)) {
+        const pow = WORKER_BY_ID[bs[0].cardId]?.power || {};
+        const lbl = `${bs[0].nation} (${Object.entries(pow).map(([s2, n]) => `${s2.slice(0, 4)}+${n}`).join('/')})`;
+        const real = avg(bs.map(b => b.steps.reduce((n, st) => n + st.gained, 0)));
+        L.push(`  ${lbl.padEnd(26)} | ${String(bs.length).padStart(5)} | ${pct(bs.length / buys.length).padStart(6)} | ${real.toFixed(1).padStart(11)} | ${pct(bs.filter(b => b.winner).length / bs.length)}`);
+      }
+      const bySector = {};
+      for (const b of buys) for (const st of b.steps) {
+        const e = (bySector[st.sector] ??= { forte: 0, debole: 0, gained: 0, nominal: 0 });
+        e[st.nominal >= 2 ? 'forte' : 'debole']++; e.gained += st.gained; e.nominal += st.nominal;
+      }
+      L.push(`▸ REPARTO AVANZATO — ${Object.entries(bySector).map(([s2, e]) => `${s2}: ${e.gained} passi (forte ${e.forte}× / debole ${e.debole}×)`).join(' · ')}`);
+
+      // 3. STATO DEL TRACCIATO ALL'ACQUISTO — far partire, spingere o completare?
+      const steps = buys.flatMap(b => b.steps);
+      const tmax = ok[0].trackMax || 16;
+      const band = [0, 0, 0, 0];
+      for (const st of steps) band[Math.min(3, Math.floor((st.from / tmax) * 4))]++;
+      L.push(`▸ STATO DEL TRACCIATO ALL'ACQUISTO — posizione media ${avg(steps.map(s2 => s2.from)).toFixed(1)}/${tmax} · fascia: ${band.map((n, i) => `${Math.round(i * tmax / 4)}-${i === 3 ? tmax : Math.round((i + 1) * tmax / 4) - 1} ${pct(n / steps.length)}`).join(' · ')}`);
+      L.push('  (prima fascia = far PARTIRE un reparto fermo; ultima = COMPLETARLO. Il centro è spinta generica.)');
+
+      // 4. AVANZAMENTI REALI vs NOMINALI — la potenza arriva a terra?
+      const nom = steps.reduce((n, s2) => n + s2.nominal, 0), real = steps.reduce((n, s2) => n + s2.gained, 0);
+      const dist = {};
+      for (const b of buys) { const g2 = b.steps.reduce((n, s2) => n + s2.gained, 0); dist[g2] = (dist[g2] || 0) + 1; }
+      L.push(`▸ AVANZAMENTI REALI — ${real} passi su ${nom} nominali (sprecati ${pct((nom - real) / nom)}, tracciato a fondo corsa) · per acquisto: ${Object.keys(dist).sort((a, b2) => b2 - a).map(k => `${k} passi ${pct(dist[k] / buys.length)}`).join(' · ')}`);
+
+      // 5. MILESTONE SBLOCCATE dall'acquisto stesso
+      const msHit = buys.filter(b => b.steps.some(s2 => s2.ms.length));
+      const msLevel = { 1: 0, 2: 0, 3: 0 };
+      for (const s2 of steps) for (const m of s2.ms) msLevel[m] = (msLevel[m] || 0) + 1;
+      const msTot = Object.values(msLevel).reduce((a, b2) => a + b2, 0);
+      let msReached = 0;
+      for (const g of ok) for (const seatArr of g.impFinal) for (const d of seatArr) msReached += Object.values(g.msPos[d.role] || {}).filter(pos => d.prod >= pos).length;
+      L.push(`▸ MILESTONE ATTRAVERSATE — ${pct(msHit.length / buys.length)} degli acquisti ne attraversa almeno una · per livello: ${[1, 2, 3].map(m => `${m}ª ${msLevel[m] || 0}`).join(' · ')} · sono il ${pct(msTot / Math.max(1, msReached))} di TUTTE le milestone raggiunte nel batch`);
+
+      // 6. VALORE MARGINALE — la milestone sarebbe arrivata comunque?
+      let msNecessarie = 0, msTotFinali = 0;
+      for (const g of ok) for (const seatArr of g.impFinal) for (const d of seatArr) {
+        for (const pos of Object.values(g.msPos[d.role] || {})) {
+          if (d.prod < pos) continue;
+          msTotFinali++;
+          if (d.prod - d.imp < pos) msNecessarie++;
+        }
+      }
+      L.push(`▸ VALORE MARGINALE — ${pct(msNecessarie / Math.max(1, msTotFinali))} delle milestone raggiunte NON sarebbe stato raggiunto senza i passi da Impiegato (prod finale − passi Impiegato < posizione milestone)`);
+      L.push("  (contro-fattuale approssimato: tiene fermo tutto il resto. Senza l'Impiegato quei marchi sarebbero andati altrove, quindi è un limite SUPERIORE del contributo.)");
+
+      // 7. GAP DI SVILUPPO COMPENSATO — l'Impiegato tappa un buco di carte Sopra?
+      const depts = ok.flatMap(g => g.impFinal.flat());
+      L.push('▸ GAP DI SVILUPPO COMPENSATO — per reparto a fine partita, in funzione delle carte Sopra installate:');
+      L.push(`  ${'Carte Sopra'.padEnd(12)} | reparti | tracciato finale | di cui da Impiegati`);
+      for (const [lbl, filt] of [['0-1', d => d.sopra <= 1], ['2', d => d.sopra === 2], ['3+', d => d.sopra >= 3]]) {
+        const sel = depts.filter(filt);
+        if (!sel.length) continue;
+        const prod = avg(sel.map(d => d.prod)), imp = avg(sel.map(d => d.imp));
+        L.push(`  ${lbl.padEnd(12)} | ${String(sel.length).padStart(7)} | ${prod.toFixed(1).padStart(16)} | ${`${imp.toFixed(1)} (${pct(imp / Math.max(0.01, prod))})`.padStart(19)}`);
+      }
+      L.push("  (se i reparti con poche carte Sopra arrivano comunque in fondo al tracciato e la quota da Impiegati lì è alta, l'Impiegato sta compensando la scarsità di carte, non costruendo motore: è quella funzione che una meccanica sostitutiva deve replicare.)");
+    }
+    L.push('');
   }
 
   L.push('=== MERCATO TILE TRACCIATO — quanto viene usato? (2.0, homebrew 14/07/2026) ===');
