@@ -1077,7 +1077,17 @@ export function formatReport(games, cfg) {
   // ===== DESIGN ALERT — prima dove guardare, poi le evidenze =====
   const cvTurns = avg(turns) ? sd(turns) / avg(turns) : 0;
   const sevOf = (v, y, r) => (v >= r ? 2 : v >= y ? 1 : 0);
+  // Completezza: due assi indipendenti in dashboard (dettaglio 0|1|2|3 nella sezione 4).
+  const tMaxD = ok[0]?.trackMax || 16, capD = ok[0]?.slotCap || [5, 5, 5];
+  let trkC = 0, depC = 0, nSd = 0;
+  for (const g of ok) for (const t of g.tracks) {
+    for (let i = 0; i < 3; i++) { if (t.pos[i] >= tMaxD) trkC++; if (t.sopra && t.sopra[i] + t.sotto[i] >= capD[i]) depC++; }
+    nSd++;
+  }
+  const perP = n => (n / (nSd || 1)); // completi per giocatore, 0-3
   const alerts = [
+    { sev: 0, text: `Completezza MOTORE: ${perP(trkC).toFixed(1)}/3 tracciati a fondo corsa per giocatore (${pct(trkC / (nSd * 3 || 1))} dei reparti).` },
+    { sev: 0, text: `Completezza FABBRICA: ${perP(depC).toFixed(1)}/3 reparti ${capD.join('/')} pieni per giocatore (${pct(depC / (nSd * 3 || 1))} dei reparti).` },
     { sev: sevOf(cvTurns, 0.15, 0.30), text: `Durata ${avg(turns).toFixed(1)} turni (min ${Math.min(...turns)}, max ${Math.max(...turns)}) — ${cvTurns < 0.15 ? 'stabile' : 'variabile'}.` },
     { sev: sevOf(spread, 0.10, 0.20), text: `Posti: spread vittorie ${pct(spread)} (${wins.map(pct).join('/')}).` },
     { sev: sevOf(actShare(domCat), 0.35, 0.40), text: `${domCat} occupa il ${pct(actShare(domCat))} delle azioni.` },
