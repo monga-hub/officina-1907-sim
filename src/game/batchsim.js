@@ -1788,6 +1788,33 @@ export function formatReport(games, cfg) {
   L.push('(r≈0 = assi indipendenti · r→1 = si completano insieme (stesso motore forte) · r→-1 = trade-off. La cella dice dove sta il collo di bottiglia: molti in "trk alto, rep basso" = mancano le carte, non la produzione.)');
   L.push('');
 
+  // QUADRANTI motore×fabbrica (idea utente 29/07/2026): visto che gli assi sono indipendenti (r basso), quale
+  // combinazione vince? Ogni giocatore-partita in 1 di 4 archetipi (soglia "alto" = ≥2 completi su 3), poi PV/win/commesse.
+  const QUAD = {
+    'M− F−  opportunista': { n: 0, w: 0, pv: 0, nc: 0 },
+    'M+ F−  industriale': { n: 0, w: 0, pv: 0, nc: 0 },
+    'M− F+  costruttore': { n: 0, w: 0, pv: 0, nc: 0 },
+    'M+ F+  completo': { n: 0, w: 0, pv: 0, nc: 0 },
+  };
+  for (const g of ok) {
+    const lastR = Math.max(...Object.keys(g.pvByRound).map(Number));
+    const pvFin = g.pvByRound[lastR];
+    g.tracks.forEach((t, seat) => {
+      let td = 0, dd = 0;
+      for (let i = 0; i < 3; i++) { if (t.pos[i] >= tMax) td++; if (t.sopra && t.sopra[i] + t.sotto[i] >= capSlot[i]) dd++; }
+      const key = `${td >= 2 ? 'M+' : 'M−'} ${dd >= 2 ? 'F+' : 'F−'}  ${td >= 2 ? (dd >= 2 ? 'completo' : 'industriale') : (dd >= 2 ? 'costruttore' : 'opportunista')}`;
+      const q = QUAD[key]; q.n++; if (seat === g.winner) q.w++; q.pv += pvFin[seat] || 0; q.nc += g.contracts[seat].length;
+    });
+  }
+  L.push('— QUADRANTI motore × fabbrica: quale archetipo vince? (soglia "alto" = ≥2 completi su 3) —');
+  L.push('archetipo'.padEnd(22) + ' | quota | PV medi | win% | commesse   (base win% = ' + pct(1 / P) + ')');
+  for (const [k, q] of Object.entries(QUAD)) {
+    if (!q.n) { L.push(k.padEnd(22) + ' | ' + '—'); continue; }
+    L.push(k.padEnd(22) + ' | ' + pct(q.n / (nSeatsTot || 1)).padStart(5) + ' | ' + (q.pv / q.n).toFixed(1).padStart(7) + ' | ' + pct(q.w / q.n).padStart(4) + ' | ' + (q.nc / q.n).toFixed(1));
+  }
+  L.push('(win% sopra la base = archetipo vincente. NB correlazione, non causa: un quadrante può vincere perché è già un motore forte, non perché completarlo faccia vincere.)');
+  L.push('');
+
   // stessa distribuzione ma per SETTORE (Tessile/Metallurgica/Chimica), non per reparto: le plance assegnano
   // i settori a reparti diversi per giocatore, quindi solo qui si vede se un settore è sistematicamente più
   // facile da sviluppare degli altri — la media da sola (10.5/10.1/9.5) non lo dice, la forma sì.
