@@ -1740,6 +1740,10 @@ function doActivate(state, p, sector) {
     const cap = state.borsaFabbriche.factoryMultCap ?? 3;   // 0 = illimitato
     sottoTimes = cap > 0 ? Math.min(cap, nFab) : nFab;
   }
+  // Rendimento fabbrica (A/B, sperimentale): scala quante volte le carte Sotto rendono a ogni attivazione.
+  // Default 1 = invariato. >1 = fabbrica più produttiva (più slot Sotto pieni = più guadagno), senza toccare
+  // il punteggio: testa se il rendimento della fabbrica, non il payoff finale, sposta i quadranti M+F+ vs M+F−.
+  sottoTimes = Math.max(1, Math.round(sottoTimes * (state.borsaFabbriche.sottoYieldMult ?? 1)));
   const cards = dept.sotto.filter(id => !dept.blocked.includes(id));
   // passata BASE (1×): quello che scatterebbe anche senza fabbriche
   const c0 = p.coins, r0 = totalResources(p);
