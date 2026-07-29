@@ -117,7 +117,13 @@ export default function SimulationPanel(baseCfg) {
       // foto COMPLETA di tutti i parametri: il fingerprint identifica la config, questo blocco la contiene per intero
       // (incollabile in «Importa configurazione» per riprodurre esattamente il report). In fondo per non sporcare la lettura.
       const fullCfg = `\n\n=== CONFIGURAZIONE COMPLETA (JSON — incolla in «Importa configurazione» per riprodurre esattamente questo report) ===\n\n${JSON.stringify(cfg, null, 2)}\n`;
-      setReport(header + formatReport(games, cfg) + fullCfg);
+      // formatReport genera il report: un errore qui NON deve morire in silenzio (le partite ci sono già).
+      // Lo mostro come testo invece di lasciare un'eccezione non catturata che sembra "la simulazione non parte".
+      try {
+        setReport(header + formatReport(games, cfg) + fullCfg);
+      } catch (err) {
+        setReport(`=== ERRORE NELLA GENERAZIONE DEL REPORT ===\n\n${games.length} partite completate, ma formatReport è fallito:\n\n${err.message}\n\n${err.stack || ''}${fullCfg}`);
+      }
     }
     setProgress(p => p && { ...p, done: p.total });
   };
