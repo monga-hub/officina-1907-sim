@@ -565,7 +565,7 @@ export function initGame(config) {
     aiRollout: config.aiRollout || null, // AI: {depth, rollouts} — invece di evaluate() dopo 1 mossa, gioca N turni in self-play e valuta lì. Default OFF (costoso, sperimentale).
     strikePenalty: config.strikePenalty !== false, // default ON: ogni carta bloccata a fine partita costa PV
     strikePenaltyPV: Math.max(0, config.strikePenaltyPV ?? STRIKE_PENALTY_PV), // PV persi per carta bloccata a fine partita
-    deptCompletePV: Math.max(0, config.deptCompletePV ?? 0), // PV per reparto completo (5/5 slot) — default 0 = niente (A/B payoff fabbrica)
+    deptCompletePV: Math.max(0, config.deptCompletePV ?? 0), // PV per reparto completo (5/5 slot) — default 0. KNOB DI SCORING: cambia solo il conteggio finale, NON le decisioni (l'IA-evaluate lo ignora) → testa la sensibilità della graduatoria a gioco fisso, non un cambio di comportamento. Cfr. sottoYieldMult (knob di sistema).
     finalRound: false, endImmediate: false, gameOver: false, results: null,
     turn: 1, current: 0, roundStart: 0, roundTurns: 0, dir: 1,
     phase: 'move', // move | action | borsa | done (fine turno in attesa di endTurn implicito)
@@ -1743,9 +1743,10 @@ function doActivate(state, p, sector) {
     const cap = state.borsaFabbriche.factoryMultCap ?? 3;   // 0 = illimitato
     sottoTimes = cap > 0 ? Math.min(cap, nFab) : nFab;
   }
-  // Rendimento fabbrica (A/B, sperimentale): scala quante volte le carte Sotto rendono a ogni attivazione.
-  // Default 1 = invariato. >1 = fabbrica più produttiva (più slot Sotto pieni = più guadagno), senza toccare
-  // il punteggio: testa se il rendimento della fabbrica, non il payoff finale, sposta i quadranti M+F+ vs M+F−.
+  // Rendimento fabbrica (A/B, sperimentale). KNOB DI SISTEMA: cambia il gioco durante la partita, quindi
+  // può cambiare le decisioni dell'IA (A/B osservato: più resa → meno gente sviluppa il motore, M+F+ 24%→20%).
+  // Default 1 = invariato. >1 = fabbrica più produttiva. Contrasta col KNOB DI SCORING deptCompletePV, che
+  // tocca solo il conteggio finale a decisioni invariate. Distinzione da conservare (idea utente 29/07/2026).
   sottoTimes = Math.max(1, Math.round(sottoTimes * (state.borsaFabbriche.sottoYieldMult ?? 1)));
   const cards = dept.sotto.filter(id => !dept.blocked.includes(id));
   // passata BASE (1×): quello che scatterebbe anche senza fabbriche
