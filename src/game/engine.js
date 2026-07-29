@@ -565,6 +565,7 @@ export function initGame(config) {
     aiRollout: config.aiRollout || null, // AI: {depth, rollouts} — invece di evaluate() dopo 1 mossa, gioca N turni in self-play e valuta lì. Default OFF (costoso, sperimentale).
     strikePenalty: config.strikePenalty !== false, // default ON: ogni carta bloccata a fine partita costa PV
     strikePenaltyPV: Math.max(0, config.strikePenaltyPV ?? STRIKE_PENALTY_PV), // PV persi per carta bloccata a fine partita
+    deptCompletePV: Math.max(0, config.deptCompletePV ?? 0), // PV per reparto completo (5/5 slot) — default 0 = niente (A/B payoff fabbrica)
     finalRound: false, endImmediate: false, gameOver: false, results: null,
     turn: 1, current: 0, roundStart: 0, roundTurns: 0, dir: 1,
     phase: 'move', // move | action | borsa | done (fine turno in attesa di endTurn implicito)
@@ -1090,8 +1091,10 @@ export function scorePlayer(state, p) {
   const pvStrikes = state.strikePenalty ? -state.strikePenaltyPV * blockedCount : 0; // ogni carta bloccata a fine partita costa PV
   const pvBorsa = p.pvBorsa || 0; // dividendi della Borsa a indici (0 se la meccanica è spenta)
   const pvFactoryMajority = factoryMajorityPV(state, p);
-  const total = pvContracts + pvObjectives + pvTrack + pvCoins + pvResources + pvStrikes + pvBorsa + pvFactoryMajority;
-  return { playerId: p.id, name: p.name, pvContracts, pvObjectives, pvTrack, pvCoins, pvResources, pvStrikes, pvBorsa, pvFactoryMajority, blockedCount, total, coins: p.coins, nContracts: p.contractsWon.length };
+  // PV per reparto completo (5/5 slot): default 0. Leva di payoff FINALE della fabbrica (distinta dal rendimento in partita).
+  const pvDeptComplete = (state.deptCompletePV || 0) * DEPT_ROLES.reduce((a, r) => a + (p.depts[r].sopra.length >= state.slots[r].sopra && p.depts[r].sotto.length >= state.slots[r].sotto ? 1 : 0), 0);
+  const total = pvContracts + pvObjectives + pvTrack + pvCoins + pvResources + pvStrikes + pvBorsa + pvFactoryMajority + pvDeptComplete;
+  return { playerId: p.id, name: p.name, pvContracts, pvObjectives, pvTrack, pvCoins, pvResources, pvStrikes, pvBorsa, pvFactoryMajority, pvDeptComplete, blockedCount, total, coins: p.coins, nContracts: p.contractsWon.length };
 }
 
 function endGame(state) {
