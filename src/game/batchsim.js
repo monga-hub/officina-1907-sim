@@ -1,5 +1,5 @@
 // Simulazione in serie nel browser: N partite tra AI + report testuale copiabile.
-import { initGame, applyCommand, scorePlayer, WORKER_BY_ID, formulaOf, convBucketOf, describeCond, tileValue, bankMarket, legalCommands, indexNames, indexValue, factoryMajorityWinner, factorySectorMajorityWinner } from './engine.js';
+import { initGame, applyCommand, scorePlayer, WORKER_BY_ID, formulaOf, convBucketOf, describeCond, tileValue, tileEffect, bankMarket, legalCommands, indexNames, indexValue, factoryMajorityWinner, factorySectorMajorityWinner } from './engine.js';
 import { chooseCommand } from './ai.js';
 import { SECTORS, OBJECTIVE_TILES, WELFARE, TRACK_TILES, IMPIEGATI_BANK, RESOURCE_OF, FACTORY_MAP } from './data.js';
 import { costoCorso, distribuzione, bloccoCorso } from './corsi.js';
@@ -2501,8 +2501,9 @@ export function formatReport(games, cfg) {
   const coinTileWin = [];
   for (const g of ok) {
     for (const b of g.trackTileBuys) {
-      const ct = trackTileById[b.tileId]?.cellType;
-      if (ct !== 'coins' && ct !== 'coinsPerIcon') continue; // solo tile che danno Marchi
+      const tile = trackTileById[b.tileId];
+      const eff = tile && tileEffect(tile);
+      if (!eff || eff.verbo === 'scambia' || eff.f1?.tipo !== 'moneta') continue; // solo tile che DANNO Marchi (prendi/perOgni moneta)
       const ownTurns = []; // prossimi 2 turni PROPRI dopo l'acquisto
       for (let t = b.turn + 1; t <= g.turns && ownTurns.length < 2; t++) if (g.turnSeat[t] === b.seat) ownTurns.push(t);
       if (!ownTurns.length) continue; // comprata all'ultimo turno: nessuna finestra

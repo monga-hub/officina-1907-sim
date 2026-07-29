@@ -48,7 +48,7 @@ function Track({ dept, track, trackTileById }) {
           {rowPos.map((pos, c) => {
             const filledId = dept.tileFills?.[pos];
             const filledTile = filledId ? trackTileById[filledId] : null;
-            const cell = filledTile ? { [filledTile.cellType]: filledTile.amount } : track[pos];
+            const cell = filledTile ? { tileFilled: true } : track[pos];
             const title = filledTile
               ? `Posizione ${pos} — tile "${filledTile.name}"`
               : `Posizione ${pos}${cell?.milestone ? ' — Milestone' : cell?.pv ? ` — soglia ${cell.pv} PV a fine partita` : cell?.tileSlot ? ' — slot tile vuoto (compra al nodo Servizi)' : ''}`;
@@ -56,7 +56,7 @@ function Track({ dept, track, trackTileById }) {
               <span key={c}
                 className={`cell ${dept.prod === pos ? 'here' : ''} ${dept.prod >= pos ? 'passed' : ''}`}
                 title={title}>
-                {cellLabel(cell, dept.sector)}
+                {filledTile ? '◆' : cellLabel(cell, dept.sector)}
               </span>
             );
           })}

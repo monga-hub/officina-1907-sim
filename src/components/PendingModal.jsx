@@ -1,6 +1,6 @@
 import React from 'react';
 import { SECTORS, RESOURCE_OF, SECTOR_COLORS, NATION_FLAGS } from '../game/data.js';
-import { legalCommands, WORKER_BY_ID } from '../game/engine.js';
+import { legalCommands, WORKER_BY_ID, describeTileEffect } from '../game/engine.js';
 
 export default function PendingModal({ state, dispatch }) {
   const pend = state.pending;
@@ -66,7 +66,7 @@ function TrackTileChoice({ state, pend, owner, legal, dispatch }) {
           const t = state.trackTileById[c.tileId];
           return (
             <button key={i} onClick={() => dispatch(c)}>
-              <b>{t.name}</b> — {(CELL_LABEL[t.cellType] || (n => `${t.cellType} ${n}`))(t.amount)}
+              <b>{t.name}</b> — {t.effect ? describeTileEffect(t) : (CELL_LABEL[t.cellType] || (n => `${t.cellType} ${n}`))(t.amount)}
               {t.cost > 0 && ` · costa ${t.cost} ${RESOURCE_OF[sector]}`}
             </button>
           );

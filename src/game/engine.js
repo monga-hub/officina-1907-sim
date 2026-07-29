@@ -734,10 +734,56 @@ function cellGain(state, player, dept, cell) {
 
 // Cella effettiva a una posizione: se il giocatore ha comprato una tile per quello slot (pos 7/11/15),
 // il suo effetto sostituisce la cella del template per lui — altrimenti è il template così com'è.
+// La tile riempita torna avvolta in { tile } (i chiamanti la instradano su tileProduce/tilePV: usa la
+// stessa grammatica formula {verbo,f1,f2} delle carte, incl. 'scambia'); il template resta {cellType:amount}.
 function resolveCell(state, dept, pos) {
   const filled = dept.tileFills?.[pos];
-  if (filled) { const t = state.trackTileById[filled]; return t ? { [t.cellType]: t.amount } : null; }
+  if (filled) { const t = state.trackTileById[filled]; return t ? { tile: t } : null; }
   return state.tracks[dept.role][pos];
+}
+
+// Le tile usano la stessa formula delle carte {verbo,f1,f2}; le vecchie {cellType,amount} sono migrate al volo.
+// 'carta' come settore = il settore del reparto d'installazione (stesso sentinel di sectorOf per le carte).
+export function tileEffect(tile) {
+  if (tile.effect?.verbo) return tile.effect;
+  return legacyTileToFormula(tile);
+}
+function legacyTileToFormula(t) {
+  const M = { coins: ['moneta'], res: ['risorsa', 'carta'], pv: ['punti'] };
+  const base = t.cellType?.replace(/Per(Icon|Tension|Factory)$/, '') || 'coins';
+  const [tipo, settore] = M[base] || ['moneta'];
+  const f1 = { q: t.amount ?? 1, tipo }; if (settore) f1.settore = settore;
+  if (/PerIcon$/.test(t.cellType)) return { verbo: 'perOgni', f1, f2: { conta: 'icona', kind: 'sector', di: 'carta' } };
+  if (/PerTension$/.test(t.cellType)) return { verbo: 'perOgni', f1, f2: { conta: 'tensione' } };
+  if (/PerFactory$/.test(t.cellType)) return { verbo: 'perOgni', f1, f2: { conta: 'fabbrica' } };
+  return { verbo: 'prendi', f1 };
+}
+// Etichetta breve dell'effetto di una tile (UI/report). Es. "+3 ⓜ", "1 ris → 2 ⓜ", "+1 PV × carta".
+export function describeTileEffect(tile) {
+  const e = tileEffect(tile);
+  const u = f => (f?.tipo === 'moneta' ? 'ⓜ' : f?.tipo === 'punti' ? 'PV' : f?.settore === 'carta' ? 'ris' : f?.settore === 'scelta' ? 'ris?' : (f?.settore || 'ris'));
+  const F = f => `${f?.q || 0} ${u(f)}`;
+  if (e.verbo === 'scambia') return `${F(e.f1)} → ${F(e.f2)}`;
+  if (e.verbo === 'perOgni') return `+${F(e.f1)} × ${e.f2?.conta || 'icona'}`;
+  return `+${F(e.f1)}`;
+}
+// PV di fine partita di una tile (tipo 'punti' come prendi/perOgni): soglia, non produzione. 0 per coins/res/scambia.
+function tilePV(state, player, dept, tile) {
+  const eff = tileEffect(tile);
+  if (eff.f1?.tipo !== 'punti') return 0;
+  const q = eff.f1.q || 0;
+  if (eff.verbo === 'prendi') return q;
+  if (eff.verbo === 'perOgni') return q * countOf(eff.f2, player, dept, state.welfareById);
+  return 0;
+}
+// Applica una tile che PRODUCE (coins/res) o SCAMBIA, riusando l'applier delle carte (pending 'scelta' incluso).
+// Le tile PV non passano di qui (sono soglie di fine partita: vedi tilePV/trackPV). Ritorna il delta per il log.
+function tileProduce(state, player, dept, tile) {
+  const eff = tileEffect(tile);
+  if (eff.f1?.tipo === 'punti') return { coins: 0, res: 0 };
+  const c0 = player.coins, r0 = totalResources(player);
+  applyCardEffect(state, player, dept, { effect: eff, sector: dept.sector });
+  return { coins: player.coins - c0, res: totalResources(player) - r0 };
 }
 
 // Avanzamento: incassa una tantum il bonus di ogni casella attraversata.
@@ -755,6 +801,11 @@ function advanceTrack(state, player, dept, steps, reason) {
   const gains = [];
   for (let pos = from + 1; pos <= to; pos++) {
     const cell = resolveCell(state, dept, pos);
+    if (cell?.tile) { // tile riempita: applica la formula (produce/scambia; PV = soglia, non ora)
+      const gt = tileProduce(state, player, dept, cell.tile);
+      if (gt.coins || gt.res) { const acc = player.tileGains[cell.tile.id] ?? (player.tileGains[cell.tile.id] = { coins: 0, res: 0, uses: 0 }); acc.coins += Math.max(0, gt.coins); acc.res += Math.max(0, gt.res); acc.uses++; gains.push('tile'); }
+      continue;
+    }
     const g = cellGain(state, player, dept, cell);
     if (g?.coins) { addCoins(state, player, g.coins, 'tracciati'); gains.push(`+${g.coins} ⓜ`); }
     if (g?.res) { addRes(player, dept.sector, g.res, 'tracciati'); gains.push(`+${g.res} ${RESOURCE_OF[dept.sector]}`); }
@@ -792,13 +843,16 @@ function trackProduction(state, player, dept) {
   let coins = 0, res = 0;
   for (let pos = 1; pos <= dept.prod; pos++) {
     const tileId = dept.tileFills[pos];
-    const g = cellGain(state, player, dept, resolveCell(state, dept, pos));
+    if (tileId) { // tile riempita: la formula aggiunge da sé nel settore giusto (anche ≠ reparto) e paga gli scambi
+      const tile = state.trackTileById[tileId];
+      if (!tile) continue;
+      const gt = tileProduce(state, player, dept, tile);
+      if (gt.coins || gt.res) { const acc = player.tileGains[tileId] ?? (player.tileGains[tileId] = { coins: 0, res: 0, uses: 0 }); acc.coins += Math.max(0, gt.coins); acc.res += Math.max(0, gt.res); acc.uses++; }
+      continue;
+    }
+    const g = cellGain(state, player, dept, state.tracks[dept.role][pos]);
     const c = g?.coins && state.rules.coinsRepeat ? g.coins : 0;
     const r = g?.res ? g.res : 0;
-    if (tileId && (c || r)) {
-      const acc = player.tileGains[tileId] ?? (player.tileGains[tileId] = { coins: 0, res: 0, uses: 0 });
-      acc.coins += c; acc.res += r; acc.uses++;
-    }
     coins += c; res += r;
   }
   if (res > 0) addRes(player, dept.sector, res, 'produzione');
@@ -816,6 +870,7 @@ export function trackPV(state, player) {
     for (let pos = 1; pos <= d.prod; pos++) {
       const c = resolveCell(state, d, pos);
       if (!c) continue;
+      if (c.tile) { pv += tilePV(state, player, d, c.tile); continue; }
       if (c.pv) pv += c.pv;
       if (c.pvPerIcon) pv += c.pvPerIcon * iconCount(player, d.sector, state.welfareById);
       if (c.pvPerTension) pv += c.pvPerTension * d.tension;
@@ -834,12 +889,14 @@ export function trackPV(state, player) {
 // (tileValue qui sotto è l'opposto: retrospettiva, quanto una tile ha davvero reso).
 export function tileForecast(state, player, role, tile) {
   const d = player.depts[role];
-  if (tile.cellType === 'pv') return { coins: 0, res: 0, pv: tile.amount };
-  if (tile.cellType === 'pvPerIcon') return { coins: 0, res: 0, pv: tile.amount * iconCount(player, d.sector, state.welfareById) };
-  if (tile.cellType === 'pvPerTension') return { coins: 0, res: 0, pv: tile.amount * d.tension };
-  if (tile.cellType === 'pvPerFactory') return { coins: 0, res: 0, pv: tile.amount * factoryStrength(state, player, d.sector) };
-  const g = cellGain(state, player, d, { [tile.cellType]: tile.amount }) || {};
-  return { coins: g.coins || 0, res: g.res || 0, pv: 0 };
+  const pv = tilePV(state, player, d, tile);
+  if (pv) return { coins: 0, res: 0, pv };
+  const eff = tileEffect(tile);
+  // stima della resa: prendi = f1, perOgni = f1 × contatore, scambia = ciò che ricevi (f2) al netto approssimato
+  const g = eff.verbo === 'scambia' ? eff.f2 : eff.f1;
+  const mult = eff.verbo === 'perOgni' ? countOf(eff.f2, player, d, state.welfareById) : 1;
+  const amt = (g.q || 0) * mult;
+  return { coins: g.tipo === 'moneta' ? amt : 0, res: g.tipo === 'risorsa' ? amt : 0, pv: 0 };
 }
 
 export function tileValue(state, player) {
@@ -850,11 +907,7 @@ export function tileValue(state, player) {
     for (const tileId of Object.values(d.tileFills)) {
       const t = state.trackTileById[tileId];
       if (!t) continue;
-      let pv = 0;
-      if (t.cellType === 'pv') pv = t.amount;
-      else if (t.cellType === 'pvPerIcon') pv = t.amount * iconCount(player, d.sector, state.welfareById);
-      else if (t.cellType === 'pvPerTension') pv = t.amount * d.tension;
-      else if (t.cellType === 'pvPerFactory') pv = t.amount * factoryStrength(state, player, d.sector);
+      const pv = tilePV(state, player, d, t);
       if (pv) { out[tileId] = out[tileId] || { coins: 0, res: 0, pv: 0, uses: 0 }; out[tileId].pv += pv; out[tileId].uses ||= 1; }
     }
   }
@@ -1794,7 +1847,7 @@ const sectorOf = (op, w) => (op.settore === 'carta' ? w.sector : op.settore);
 function countOf(f2, owner, dept, welfareById) {
   if (f2.conta === 'tensione') return dept.tension;
   if (f2.conta === 'nazione') return distinctNations(owner, true);
-  if (f2.conta === 'icona') return f2.kind === 'nation' ? nationCount(owner, f2.di, true) : iconCount(owner, f2.di, welfareById);
+  if (f2.conta === 'icona') { const di = f2.di === 'carta' ? dept.sector : f2.di; return f2.kind === 'nation' ? nationCount(owner, di, true) : iconCount(owner, di, welfareById); }
   // fabbrica: quante fabbriche possiede del settore del reparto in cui la carta è installata
   // (carta Sotto nel Tessile → conta le fabbriche Tessili sulla mappa). Vedi Borsa a fabbriche.
   if (f2.conta === 'fabbrica') return (owner.factories || []).filter(fac => fac.sector === dept.sector).length;
@@ -1940,11 +1993,10 @@ function installTrackTile(state, p, cmd) {
   // Tag "attiva subito" (tile.instant): ON (default = comportamento storico) → il giocatore incassa la resa
   // della tile all'acquisto. OFF → niente resa immediata, la tile frutta solo quando il reparto PRODUCE
   // (trackProduction, ogni attivazione con prod ≥ pos della tile). Le tile PV non hanno resa immediata comunque.
-  const g = (tile.instant !== false) ? cellGain(state, p, d, { [tile.cellType]: tile.amount }) : null; // fix ordine arg (era (p,d,cell,welfare) → cell=welfare → null): la resa una-tantum all'acquisto non avveniva mai
-  const acc = p.tileGains[tile.id] ?? (p.tileGains[tile.id] = { coins: 0, res: 0, uses: 0 });
-  if (g?.coins) { addCoins(state, p, g.coins, 'trackTile'); acc.coins += g.coins; acc.uses++; log(state, `${p.name} installa la tile "${tile.name}" su ${d.sector} (pos.${cmd.pos}): +${g.coins} ⓜ subito.`); }
-  else if (g?.res) { addRes(p, d.sector, g.res, 'trackTile'); acc.res += g.res; acc.uses++; log(state, `${p.name} installa la tile "${tile.name}" su ${d.sector} (pos.${cmd.pos}): +${g.res} ${RESOURCE_OF[d.sector]} subito.`); }
-  else if (tile.cellType === 'pv') log(state, `${p.name} installa la tile "${tile.name}" su ${d.sector} (pos.${cmd.pos}): +${tile.amount} PV a fine partita.`);
+  // La resa "subito" applica la formula una tantum (tileProduce aggiunge da sé nel settore giusto e paga gli scambi).
+  const g = (tile.instant !== false) ? tileProduce(state, p, d, tile) : { coins: 0, res: 0 };
+  if (g.coins || g.res) { const acc = p.tileGains[tile.id] ?? (p.tileGains[tile.id] = { coins: 0, res: 0, uses: 0 }); acc.coins += Math.max(0, g.coins); acc.res += Math.max(0, g.res); acc.uses++; log(state, `${p.name} installa la tile "${tile.name}" su ${d.sector} (pos.${cmd.pos}): resa immediata.`); }
+  else if (tileEffect(tile).f1?.tipo === 'punti') log(state, `${p.name} installa la tile "${tile.name}" su ${d.sector} (pos.${cmd.pos}): PV a fine partita.`);
   else if (tile.instant === false) log(state, `${p.name} installa la tile "${tile.name}" su ${d.sector} (pos.${cmd.pos}): si attiva producendo (nessuna resa immediata).`);
   else log(state, `${p.name} installa la tile "${tile.name}" su ${d.sector} (pos.${cmd.pos}).`);
   checkObjectives(state, p);

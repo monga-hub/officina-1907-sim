@@ -10,6 +10,7 @@
     "simulate": "node scripts/simulate.js",
     "impiegati-check": "node scripts/impiegati-check.js",
     "corsi-check": "node src/game/corsi.js && node scripts/corsi-check.js",
+    "tile-check": "node scripts/tile-check.js",
     "decisionlog": "node scripts/decisionlog.js"
   },
   "dependencies": {

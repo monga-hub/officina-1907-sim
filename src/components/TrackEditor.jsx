@@ -1,5 +1,7 @@
 import React from 'react';
 import { TRACK_TILES, TRACK_TILE_CAP_DEFAULT, trackGridPos, TRACK_MODELS, TRACK_MODEL_DEFAULT } from '../game/data.js';
+import { tileEffect } from '../game/engine.js';
+import { SECTORS } from '../game/data.js';
 
 // Tipi di casella ciclabili con il click. 2.0: template unico per i 3 reparti (prima terziario aveva
 // un layout proprio) + celle "slot tile" (7/11/15, inerti finché non comprate) e 3 milestone distinte
@@ -135,11 +137,22 @@ export default function TrackEditor({ track, setTrack, model = TRACK_MODEL_DEFAU
 // ---------- Tile acquistabili (mercato 1/2/3, sbloccate dalle milestone del tracciato) ----------
 // v2 (16/07/2026): catalogo unico condiviso dai 3 reparti, niente più `role` per tile (editor unificato).
 // Chiave bumpata da v1 così il vecchio salvataggio triplicato per reparto non riappare come doppioni.
-const TRACKTILES_KEY = 'officina1907-tracktiles-v2';
+// v3 (29/07/2026): tile passano al modello formula {verbo,f1,f2} come le carte (prendi/perOgni/scambia + tipo
+// 'punti'). Chiave bumpata: i vecchi salvataggi cellType vengono migrati al volo con tileEffect e riscritti.
+const TRACKTILES_KEY = 'officina1907-tracktiles-v3';
 const TRACKTILECAP_KEY = 'officina1907-tracktilecap-v1';
 
+// Normalizza una tile (legacy cellType o già-formula) alla forma {…, effect:{verbo,f1,f2}} senza cellType/amount.
+const normTile = t => { const { cellType, amount, ...rest } = t; return { ...rest, effect: tileEffect(t) }; };
+
 export function loadTrackTiles() {
-  try { const raw = localStorage.getItem(TRACKTILES_KEY); if (raw) { const v = JSON.parse(raw); if (Array.isArray(v)) return v; } } catch { /* no-op */ }
+  try {
+    const raw = localStorage.getItem(TRACKTILES_KEY);
+    if (raw) { const v = JSON.parse(raw); if (Array.isArray(v)) return v.map(normTile); }
+    // migra un eventuale salvataggio v2 (cellType) una volta sola
+    const old = localStorage.getItem('officina1907-tracktiles-v2');
+    if (old) { const v = JSON.parse(old); if (Array.isArray(v)) { const m = v.map(normTile); saveTrackTiles(m); return m; } }
+  } catch { /* no-op */ }
   return structuredClone(TRACK_TILES);
 }
 export function saveTrackTiles(v) { try { localStorage.setItem(TRACKTILES_KEY, JSON.stringify(v)); } catch { /* no-op */ } }
@@ -150,41 +163,44 @@ export function loadTrackTileCap() {
 }
 export function saveTrackTileCap(v) { try { localStorage.setItem(TRACKTILECAP_KEY, JSON.stringify(v)); } catch { /* no-op */ } }
 
-// effetti passivi soli per ora (niente scambi/scelte — vedi discussione in sessione). Niente scelta di
-// settore (a differenza dei lavoratori): una tile paga sempre nel reparto dove viene installata.
-// cellType = combinazione tipo(marchi/risorsa/punti vittoria) × verbo(prendi=fisso, perOgni=per carta/tensione)
-const TIPO_OF = {
-  coins: 'marchi', coinsPerIcon: 'marchi', coinsPerTension: 'marchi', coinsPerFactory: 'marchi',
-  res: 'risorsa', resPerIcon: 'risorsa', resPerTension: 'risorsa', resPerFactory: 'risorsa',
-  pv: 'punti', pvPerIcon: 'punti', pvPerTension: 'punti', pvPerFactory: 'punti',
-};
-const VERBO_OF = {
-  coins: 'prendi', res: 'prendi', pv: 'prendi',
-  coinsPerIcon: 'perOgni', resPerIcon: 'perOgni', pvPerIcon: 'perOgni',
-  coinsPerTension: 'perOgni', resPerTension: 'perOgni', pvPerTension: 'perOgni',
-  coinsPerFactory: 'perOgni', resPerFactory: 'perOgni', pvPerFactory: 'perOgni',
-};
-const CONTA_OF = {
-  coinsPerIcon: 'icona', resPerIcon: 'icona', pvPerIcon: 'icona',
-  coinsPerTension: 'tensione', resPerTension: 'tensione', pvPerTension: 'tensione',
-  coinsPerFactory: 'fabbrica', resPerFactory: 'fabbrica', pvPerFactory: 'fabbrica',
-};
-const BASE_OF = { marchi: 'coins', risorsa: 'res', punti: 'pv' };
-const cellTypeFor = (tipo, verbo, conta) => {
-  const base = BASE_OF[tipo] || 'coins';
-  if (verbo === 'prendi') return base;
-  if (conta === 'tensione') return `${base}PerTension`;
-  if (conta === 'fabbrica') return `${base}PerFactory`;
-  return `${base}PerIcon`;
-};
+// Le tile usano la formula {verbo,f1,f2} delle carte (prendi/perOgni/scambia) + il tipo 'punti' (PV di fine
+// partita, solo prendi/perOgni). settore 'carta' = il settore del reparto dove la tile è installata; 'scelta' = pending.
+const VERBI = ['prendi', 'scambia', 'perOgni'];
+const CONTA = ['icona', 'tensione', 'fabbrica'];
+const SETT_OPT = [...SECTORS, 'carta', 'scelta'];
+const settLabel = s => (s === 'carta' ? 'reparto' : s);
+const wn = (v, max) => Math.max(0, Math.min(max, Number(v) || 0));
+
+// un fattore della formula: quantità + tipo (ris/mon/punti) + settore (solo per risorsa). `pv` abilita 'punti'.
+function FattoreTile({ f, onCh, pv }) {
+  const set = patch => onCh({ ...f, ...patch });
+  return (
+    <span style={{ whiteSpace: 'nowrap' }}>
+      <input type="number" min="0" max="20" value={f?.q ?? 0} onChange={e => set({ q: wn(e.target.value, 20) })} style={{ width: 38 }} />
+      <select value={f?.tipo || 'risorsa'} onChange={e => set({ tipo: e.target.value })}>
+        <option value="risorsa">ris.</option><option value="moneta">mon.</option>{pv && <option value="punti">PV</option>}
+      </select>
+      {f?.tipo === 'risorsa' && <select value={f.settore || 'carta'} onChange={e => set({ settore: e.target.value })}>{SETT_OPT.map(s => <option key={s} value={s}>{settLabel(s)}</option>)}</select>}
+    </span>
+  );
+}
 
 export function TrackTileEditor({ tiles, setTiles, cap, setCap }) {
   const save = next => { setTiles(next); saveTrackTiles(next); };
   const upd = (i, patch) => save(tiles.map((t, j) => (j === i ? { ...t, ...patch } : t)));
+  const updEff = (i, patch) => upd(i, { effect: { ...tiles[i].effect, ...patch } });
   const remove = i => save(tiles.filter((_, j) => j !== i));
+  const setVerbo = (i, verbo) => {
+    const e = tiles[i].effect || {};
+    const f1 = e.f1?.tipo ? { ...e.f1 } : { q: 1, tipo: 'risorsa', settore: 'carta' };
+    const eff = { verbo, f1 };
+    if (verbo === 'scambia') { if (f1.tipo === 'punti') f1.tipo = 'risorsa'; eff.f2 = e.f2?.tipo && e.f2.tipo !== 'punti' ? e.f2 : { q: 1, tipo: 'moneta' }; }
+    if (verbo === 'perOgni') eff.f2 = e.f2?.conta ? e.f2 : { conta: 'icona', kind: 'sector', di: 'carta' };
+    upd(i, { effect: eff });
+  };
   const add = market => save([...tiles, {
     id: 'tt' + Math.random().toString(36).slice(2, 8), market, name: 'Nuova tile',
-    cellType: market === 1 ? 'coinsPerIcon' : 'resPerIcon', amount: 1, cost: 0, copies: 4,
+    effect: { verbo: 'prendi', f1: { q: 1, tipo: 'risorsa', settore: 'carta' } }, cost: 0, copies: 4,
   }]);
   const setMode = mode => { const next = { ...cap, mode }; setCap(next); saveTrackTileCap(next); };
   return (
@@ -195,7 +211,8 @@ export function TrackTileEditor({ tiles, setTiles, cap, setCap }) {
         catalogo per Terziario/Secondario/Primario (un solo editor), ma in partita ogni reparto ha il suo mercato e
         la sua scorta indipendenti: esaurire una tile in un reparto non tocca le copie degli altri due.
         "Costo" in risorse del proprio settore (Tessuti/Acciaio/Coloranti a seconda del reparto), oggi 0 di default.
-        <b>Attiva</b>: "subito" (default) = chi piazza la tile incassa la resa all'acquisto; "produci" = nessuna resa immediata, la tile frutta solo quando il reparto produce quella casella. (Le tile PV non hanno resa immediata comunque.)</p>
+        <b>Formula</b> come le carte operaio: <code>prendi</code> (risorse/marchi/PV), <code>perOgni</code> (× carte/tensione/fabbriche), <code>scambia</code> (paga fattore 1 → prendi fattore 2). Settore <b>reparto</b> = il settore dove la tile è installata; <b>scelta</b> = decide il giocatore. Il tipo <b>PV</b> vale a fine partita.
+        <b>Attiva</b>: "subito" = resa all'acquisto; "produci" = a ogni attivazione del reparto (uno <code>scambia</code> "produci" paga e prende ogni volta, solo se puoi permettertelo).</p>
       <p>
         Scorta: <button className={cap?.mode !== 'limitato' ? 'sel' : ''} onClick={() => setMode('illimitato')}>Illimitata (ogni giocatore sceglie liberamente)</button>{' '}
         <button className={cap?.mode === 'limitato' ? 'sel' : ''} onClick={() => setMode('limitato')}>Limitata ("copie" = pool condiviso tra i giocatori, per reparto)</button>
@@ -204,32 +221,31 @@ export function TrackTileEditor({ tiles, setTiles, cap, setCap }) {
         <div key={market} style={{ marginBottom: 16 }}>
           <h4>Mercato {market}</h4>
           <table className="pv-editor">
-            <thead><tr><th>Nome</th><th>Fattore 1</th><th>Verbo</th><th>Fattore 2</th><th>Costo</th><th>Copie</th><th>Attiva</th><th></th></tr></thead>
+            <thead><tr><th>Nome</th><th>verbo</th><th>fattore 1</th><th>fattore 2 / contatore</th><th>Costo</th><th>Copie</th><th>Attiva</th><th></th></tr></thead>
             <tbody>
               {tiles.map((t, i) => {
                 if (t.market !== market) return null;
-                const tipo = TIPO_OF[t.cellType] || 'marchi';
-                const verbo = VERBO_OF[t.cellType] || 'prendi';
-                const conta = CONTA_OF[t.cellType] || 'icona';
-                const setPart = (part, val) => {
-                  const nt = part === 'tipo' ? val : tipo, nv = part === 'verbo' ? val : verbo, nc = part === 'conta' ? val : conta;
-                  upd(i, { cellType: cellTypeFor(nt, nv, nc) });
-                };
+                const e = t.effect || { verbo: 'prendi', f1: { q: 1, tipo: 'risorsa', settore: 'carta' } };
+                const isPV = e.f1?.tipo === 'punti';
                 return (
                 <tr key={t.id}>
-                  <td><input value={t.name} onChange={e => upd(i, { name: e.target.value })} style={{ width: 140 }} /></td>
+                  <td><input value={t.name} onChange={ev => upd(i, { name: ev.target.value })} style={{ width: 130 }} /></td>
+                  <td><select value={e.verbo} onChange={ev => setVerbo(i, ev.target.value)}>{VERBI.map(v => <option key={v} value={v}>{v}</option>)}</select></td>
+                  <td><FattoreTile f={e.f1} onCh={f => updEff(i, { f1: f })} pv={e.verbo !== 'scambia'} /></td>
                   <td>
-                    <select value={tipo} onChange={e => setPart('tipo', e.target.value)}><option value="marchi">marchi</option><option value="risorsa">risorsa</option><option value="punti">punti vittoria</option></select>
-                    <input type="number" min="1" max="9" value={t.amount} onChange={e => upd(i, { amount: Math.max(1, Math.min(9, Number(e.target.value) || 1)) })} style={{ width: 40 }} />
+                    {e.verbo === 'scambia' && <FattoreTile f={e.f2} onCh={f => updEff(i, { f2: f })} pv={false} />}
+                    {e.verbo === 'perOgni' && (
+                      <span>
+                        <select value={e.f2?.conta || 'icona'} onChange={ev => updEff(i, { f2: { ...e.f2, conta: ev.target.value } })}>{CONTA.map(x => <option key={x} value={x}>{x}</option>)}</select>
+                        {e.f2?.conta === 'icona' && <select value={e.f2?.di || 'carta'} onChange={ev => updEff(i, { f2: { ...e.f2, kind: 'sector', di: ev.target.value } })}>{[...SECTORS, 'carta'].map(s => <option key={s} value={s}>{settLabel(s)}</option>)}</select>}
+                      </span>
+                    )}
+                    {e.verbo === 'prendi' && <small>—</small>}
                   </td>
-                  <td><select value={verbo} onChange={e => setPart('verbo', e.target.value)}><option value="prendi">prendi</option><option value="perOgni">perOgni</option></select></td>
-                  <td>{verbo === 'perOgni' ? (
-                    <select value={conta} onChange={e => setPart('conta', e.target.value)}><option value="icona">per carta (icona)</option><option value="tensione">per tensione</option><option value="fabbrica">per fabbrica</option></select>
-                  ) : <small>—</small>}</td>
-                  <td><input type="number" min="0" max="20" value={t.cost} onChange={e => upd(i, { cost: Math.max(0, Math.min(20, Number(e.target.value) || 0)) })} style={{ width: 44 }} /></td>
-                  <td><input type="number" min="0" max="9" value={t.copies} onChange={e => upd(i, { copies: Math.max(0, Math.min(9, Number(e.target.value) || 0)) })} style={{ width: 44 }} /></td>
-                  <td>{tipo === 'punti' ? <small>—</small> : (
-                    <button className={t.instant !== false ? 'sel' : ''} onClick={() => upd(i, { instant: t.instant === false })} title="Subito: risorse all'acquisto · Produci: solo quando il reparto produce quella casella">{t.instant !== false ? 'subito' : 'produci'}</button>
+                  <td><input type="number" min="0" max="20" value={t.cost} onChange={ev => upd(i, { cost: Math.max(0, Math.min(20, Number(ev.target.value) || 0)) })} style={{ width: 44 }} /></td>
+                  <td><input type="number" min="0" max="9" value={t.copies} onChange={ev => upd(i, { copies: Math.max(0, Math.min(9, Number(ev.target.value) || 0)) })} style={{ width: 44 }} /></td>
+                  <td>{isPV ? <small>fine</small> : (
+                    <button className={t.instant !== false ? 'sel' : ''} onClick={() => upd(i, { instant: t.instant === false })} title="Subito: resa all'acquisto · Produci: a ogni attivazione del reparto">{t.instant !== false ? 'subito' : 'produci'}</button>
                   )}</td>
                   <td><button className="ghost" onClick={() => remove(i)}>✕</button></td>
                 </tr>

@@ -195,17 +195,18 @@ export const TRACK_MAX = 16;
 // market: 1 o 2 — quale mercato la propone (slot 7/11 la accettano solo dal proprio; slot 15
 // accetta l'unione di entrambi, ma solo dello STESSO reparto — vedi role). role: sezione dedicata
 // per reparto (terziario/secondario/primario) — cataloghi indipendenti, scorta (copies) mai condivisa
-// tra reparti: un reparto non può esaurire le tile di un altro. cellType/amount: stessa grammatica
-// delle celle del tracciato, solo bonus passivi per ora (niente scambi/scelte — vedi discussione in sessione).
+// tra reparti: un reparto non può esaurire le tile di un altro. effect: stessa grammatica formula
+// {verbo,f1,f2} delle carte operaio — prendi/perOgni/scambia, con in più il tipo 'punti' (PV di fine
+// partita). settore 'carta' = il settore del reparto dove la tile è installata; 'scelta' = pending.
 // Catalogo condiviso dai 3 reparti: stesso contenuto ovunque, ma ogni reparto ha il suo mercato e la
 // sua scorta indipendenti a runtime (vedi trackTileStock in engine.js, tenuto per-reparto).
 export const TRACK_TILES = [
-  { id: 'tt1', market: 1, name: '3 Marchi', cellType: 'coins', amount: 3, cost: 0, copies: 4 },
-  { id: 'tt2', market: 1, name: '1 risorsa', cellType: 'res', amount: 1, cost: 1, copies: 4 },
-  { id: 'tt4', market: 2, name: '1 Risorsa per carta', cellType: 'resPerIcon', amount: 1, cost: 2, copies: 4 },
-  { id: 'tt5', market: 2, name: '3 marchi per carta', cellType: 'coinsPerIcon', amount: 3, cost: 1, copies: 4 },
-  { id: 'ttd1acqk', market: 3, name: '1 PV per carta', cellType: 'pvPerIcon', amount: 1, cost: 3, copies: 4 },
-  { id: 'ttb02zhl', market: 3, name: '6 PV', cellType: 'pv', amount: 6, cost: 3, copies: 4 },
+  { id: 'tt1', market: 1, name: '3 Marchi', effect: { verbo: 'prendi', f1: { q: 3, tipo: 'moneta' } }, cost: 0, copies: 4 },
+  { id: 'tt2', market: 1, name: '1 risorsa', effect: { verbo: 'prendi', f1: { q: 1, tipo: 'risorsa', settore: 'carta' } }, cost: 0, copies: 4 },
+  { id: 'tt4', market: 2, name: '1 Risorsa per carta', effect: { verbo: 'perOgni', f1: { q: 1, tipo: 'risorsa', settore: 'carta' }, f2: { conta: 'icona', kind: 'sector', di: 'carta' } }, cost: 0, copies: 4 },
+  { id: 'tt5', market: 2, name: '3 marchi per carta', effect: { verbo: 'perOgni', f1: { q: 3, tipo: 'moneta' }, f2: { conta: 'icona', kind: 'sector', di: 'carta' } }, cost: 0, copies: 4 },
+  { id: 'ttd1acqk', market: 3, name: '1 PV per carta', effect: { verbo: 'perOgni', f1: { q: 1, tipo: 'punti' }, f2: { conta: 'icona', kind: 'sector', di: 'carta' } }, cost: 0, copies: 4 },
+  { id: 'ttb02zhl', market: 3, name: '6 PV', effect: { verbo: 'prendi', f1: { q: 6, tipo: 'punti' } }, cost: 0, copies: 4 },
 ];
 // mode 'illimitato' (default, oggi): ogni giocatore sceglie liberamente, nessuna scorta condivisa.
 // 'limitato' (futuro, non ancora implementato): consumerebbe `copies` da un pool condiviso.
