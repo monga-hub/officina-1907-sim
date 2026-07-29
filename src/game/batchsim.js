@@ -1807,12 +1807,12 @@ export function formatReport(games, cfg) {
     });
   }
   L.push('— QUADRANTI motore × fabbrica: quale archetipo vince? (soglia "alto" = ≥2 completi su 3) —');
-  L.push('archetipo'.padEnd(22) + ' | quota | PV medi | win% | commesse   (base win% = ' + pct(1 / P) + ')');
+  L.push('archetipo'.padEnd(22) + ' | quota |    N | PV medi | win% | commesse   (base win% = ' + pct(1 / P) + ')');
   for (const [k, q] of Object.entries(QUAD)) {
-    if (!q.n) { L.push(k.padEnd(22) + ' | ' + '—'); continue; }
-    L.push(k.padEnd(22) + ' | ' + pct(q.n / (nSeatsTot || 1)).padStart(5) + ' | ' + (q.pv / q.n).toFixed(1).padStart(7) + ' | ' + pct(q.w / q.n).padStart(4) + ' | ' + (q.nc / q.n).toFixed(1));
+    if (!q.n) { L.push(k.padEnd(22) + ' |   0% |    0 | ' + '—'); continue; }
+    L.push(k.padEnd(22) + ' | ' + pct(q.n / (nSeatsTot || 1)).padStart(5) + ' | ' + String(q.n).padStart(4) + ' | ' + (q.pv / q.n).toFixed(1).padStart(7) + ' | ' + pct(q.w / q.n).padStart(4) + ' | ' + (q.nc / q.n).toFixed(1));
   }
-  L.push('(win% sopra la base = archetipo vincente. NB correlazione, non causa: un quadrante può vincere perché è già un motore forte, non perché completarlo faccia vincere.)');
+  L.push(`(N = giocatori-partita nel quadrante su ${nSeatsTot} totali — la robustezza di ogni media. win% sopra la base = archetipo vincente. NB correlazione, non causa: l'archetipo è uno STATO FINALE, non una scelta iniziale, quindi "i vincitori finiscono con più motore", non "il motore fa vincere" — servirebbe un A/B sulla difficoltà del motore.)`);
   L.push('');
 
   // stessa distribuzione ma per SETTORE (Tessile/Metallurgica/Chimica), non per reparto: le plance assegnano
