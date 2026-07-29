@@ -392,7 +392,12 @@ export function runOneGame(config) {
   tel.tracks = s.players.map(p => ({
     pos: ['terziario', 'secondario', 'primario'].map(r => p.depts[r].prod),
     ms: ['terziario', 'secondario', 'primario'].map(r => p.depts[r].prod >= s.milestonePos[r]),
+    // slot occupati per reparto: distingue COMPLETEZZA-FABBRICA (slot) da COMPLETEZZA-MOTORE (tracciato)
+    sopra: ['terziario', 'secondario', 'primario'].map(r => p.depts[r].sopra.length),
+    sotto: ['terziario', 'secondario', 'primario'].map(r => p.depts[r].sotto.length),
   }));
+  // cap slot per reparto (editabile): un reparto è "completo 5/5" quando sopra+sotto = questo totale
+  tel.slotCap = ['terziario', 'secondario', 'primario'].map(r => s.slots[r].sopra + s.slots[r].sotto);
   // Chiusura Impiegati: stato finale di ogni reparto + quanta parte del tracciato è arrivata da Impiegati.
   // Serve alle due domande di fine partita: "gap di sviluppo compensato" (poche carte Sopra + tanti
   // Impiegati = la carta sta tappando un buco di offerta carte) e milestone marginali (sotto, nel report).
@@ -1735,6 +1740,28 @@ export function formatReport(games, cfg) {
   L.push('— DISTRIBUZIONE FINALE DEI TRACCIATI (posizione /16, tutti i reparti insieme) —');
   L.push(posKeys.map(k => `${k}:${pct(posDist[k] / (posAll.length || 1))}`).join(' · '));
   L.push('(non la media — dove si concentrano davvero i reparti a fine partita, per calibrare qualsiasi milestone futura senza indovinare.)');
+  L.push('');
+
+  // COMPLETEZZA — due assi INDIPENDENTI, da non confondere: MOTORE (tracciato a fondo corsa) vs FABBRICA
+  // (slot 5/5 = carte installate). Una modifica può muovere l'uno senza l'altro: tracciato a 16 con reparto
+  // 4/5, oppure reparto 5/5 con tracciato fermo a 13. Tenerli separati dice se una leva tocca la crescita
+  // del motore o la costruzione della fabbrica.
+  const tMax = ok[0].trackMax || 16;
+  const capSlot = ok[0].slotCap || [5, 5, 5];
+  const trkDone = { 0: 0, 1: 0, 2: 0, 3: 0 }, depDone = { 0: 0, 1: 0, 2: 0, 3: 0 };
+  let nSeatsTot = 0;
+  for (const g of ok) for (const t of g.tracks) {
+    let td = 0, dd = 0;
+    for (let i = 0; i < 3; i++) {
+      if (t.pos[i] >= tMax) td++;
+      if (t.sopra && t.sopra[i] + t.sotto[i] >= capSlot[i]) dd++;
+    }
+    trkDone[td]++; depDone[dd]++; nSeatsTot++;
+  }
+  L.push('— COMPLETEZZA: MOTORE (tracciato) vs FABBRICA (slot) — due assi indipendenti —');
+  L.push(`tracciati completi / giocatore (prod ≥ ${tMax}):     ` + [0, 1, 2, 3].map(k => `${k}: ${pct(trkDone[k] / (nSeatsTot || 1))}`).join(' · '));
+  L.push(`reparti completi / giocatore (slot ${capSlot.join('/')} pieni): ` + [0, 1, 2, 3].map(k => `${k}: ${pct(depDone[k] / (nSeatsTot || 1))}`).join(' · '));
+  L.push('(MOTORE = crescita produzione · FABBRICA = carte installate. Un cambio può muovere uno solo dei due assi: guardali separati, non è lo stesso "reparto completo".)');
   L.push('');
 
   // stessa distribuzione ma per SETTORE (Tessile/Metallurgica/Chimica), non per reparto: le plance assegnano
