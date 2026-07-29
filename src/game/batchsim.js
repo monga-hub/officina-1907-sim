@@ -1759,6 +1759,8 @@ export function formatReport(games, cfg) {
   const tMax = ok[0].trackMax || 16;
   const capSlot = ok[0].slotCap || [5, 5, 5];
   const trkDone = { 0: 0, 1: 0, 2: 0, 3: 0 }, depDone = { 0: 0, 1: 0, 2: 0, 3: 0 };
+  const joint = Array.from({ length: 4 }, () => [0, 0, 0, 0]); // joint[tracciati][reparti]
+  const xs = [], ys = [];
   let nSeatsTot = 0;
   for (const g of ok) for (const t of g.tracks) {
     let td = 0, dd = 0;
@@ -1766,12 +1768,24 @@ export function formatReport(games, cfg) {
       if (t.pos[i] >= tMax) td++;
       if (t.sopra && t.sopra[i] + t.sotto[i] >= capSlot[i]) dd++;
     }
-    trkDone[td]++; depDone[dd]++; nSeatsTot++;
+    trkDone[td]++; depDone[dd]++; joint[td][dd]++; xs.push(td); ys.push(dd); nSeatsTot++;
   }
   L.push('— COMPLETEZZA: MOTORE (tracciato) vs FABBRICA (slot) — due assi indipendenti —');
   L.push(`tracciati completi / giocatore (prod ≥ ${tMax}):     ` + [0, 1, 2, 3].map(k => `${k}: ${pct(trkDone[k] / (nSeatsTot || 1))}`).join(' · '));
   L.push(`reparti completi / giocatore (slot ${capSlot.join('/')} pieni): ` + [0, 1, 2, 3].map(k => `${k}: ${pct(depDone[k] / (nSeatsTot || 1))}`).join(' · '));
   L.push('(MOTORE = crescita produzione · FABBRICA = carte installate. Un cambio può muovere uno solo dei due assi: guardali separati, non è lo stesso "reparto completo".)');
+  // matrice incrociata: dice se i due assi sono davvero indipendenti o se muovono insieme (idea utente 29/07/2026)
+  const mx = avg(xs), my = avg(ys);
+  const cov = avg(xs.map((x, i) => (x - mx) * (ys[i] - my)));
+  const r = (sd(xs) && sd(ys)) ? cov / (sd(xs) * sd(ys)) : 0;
+  L.push(`— INCROCIO tracciati × reparti completi (% di ${nSeatsTot} giocatori-partita) · correlazione r=${r.toFixed(2)} —`);
+  L.push('  trk\\rep │' + [0, 1, 2, 3].map(d => String(d).padStart(6)).join('') + '   │ tot');
+  for (let t = 0; t < 4; t++) {
+    const rowTot = joint[t].reduce((a, x) => a + x, 0);
+    L.push(`    ${t}     │` + joint[t].map(v => pct(v / (nSeatsTot || 1)).padStart(6)).join('') + `   │ ${pct(rowTot / (nSeatsTot || 1))}`);
+  }
+  L.push('  tot     │' + [0, 1, 2, 3].map(d => pct([0, 1, 2, 3].reduce((a, t) => a + joint[t][d], 0) / (nSeatsTot || 1)).padStart(6)).join(''));
+  L.push('(r≈0 = assi indipendenti · r→1 = si completano insieme (stesso motore forte) · r→-1 = trade-off. La cella dice dove sta il collo di bottiglia: molti in "trk alto, rep basso" = mancano le carte, non la produzione.)');
   L.push('');
 
   // stessa distribuzione ma per SETTORE (Tessile/Metallurgica/Chimica), non per reparto: le plance assegnano
