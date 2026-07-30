@@ -239,6 +239,13 @@ export function loadStrikePV() {
   } catch { /* default */ }
   return readDef('officina1907-strikepv-v1', STRIKEPV_DEFAULT);
 }
+export function loadDeptPV() {
+  try {
+    const raw = localStorage.getItem('officina1907-deptcompletepv-v1');
+    if (raw !== null) { const v = Number(JSON.parse(raw)); if (Number.isFinite(v) && v >= 0) return v; }
+  } catch { /* default */ }
+  return readDef('officina1907-deptcompletepv-v1', 0);
+}
 
 const STARTCOINS_DEFAULT = [10, 10, 10, 10];
 
@@ -293,13 +300,14 @@ export function loadConversions() {
   return readDef('officina1907-conv-v1', CONV_DEFAULTS);
 }
 
-function ConversionsEditor({ conv, setConv, strikePV, setStrikePV }) {
+function ConversionsEditor({ conv, setConv, strikePV, setStrikePV, deptPV, setDeptPV }) {
   const upd = (key, value) => {
     const next = { ...conv, [key]: Math.max(1, Math.min(20, Number(value) || 1)) };
     setConv(next);
     try { localStorage.setItem('officina1907-conv-v1', JSON.stringify(next)); } catch { /* no-op */ }
   };
   const updStrike = v => { const x = Math.max(0, Math.min(99, Number(v) || 0)); setStrikePV(x); try { localStorage.setItem('officina1907-strikepv-v1', JSON.stringify(x)); } catch { /* no-op */ } };
+  const updDept = v => { const x = Math.max(0, Math.min(99, Number(v) || 0)); setDeptPV(x); try { localStorage.setItem('officina1907-deptcompletepv-v1', JSON.stringify(x)); } catch { /* no-op */ } };
   return (
     <div className="track-editor">
       <p className="hint">Conversioni di fine partita e penalità Scioperi. Salvato nel browser.</p>
@@ -315,6 +323,11 @@ function ConversionsEditor({ conv, setConv, strikePV, setStrikePV }) {
             <td>Ogni carta bloccata a fine partita</td>
             <td>= −<input type="number" min="0" max="99" value={strikePV} onChange={e => updStrike(e.target.value)} style={{ width: 48 }} /> PV</td>
             <td colSpan="2"><small>(0 = nessuna penalità)</small></td>
+          </tr>
+          <tr>
+            <td>Ogni reparto completo (5/5 slot) a fine partita</td>
+            <td>= +<input type="number" min="0" max="99" value={deptPV} onChange={e => updDept(e.target.value)} style={{ width: 48 }} /> PV</td>
+            <td colSpan="2"><small>(0 = nessun bonus · leva payoff fabbrica)</small></td>
           </tr>
         </tbody>
       </table>
@@ -1216,6 +1229,7 @@ const IMPORT_FIELDS = [
   ['contractPV', 'officina1907-contractpv-v1'],
   ['conversions', 'officina1907-conv-v1'],
   ['strikePenaltyPV', 'officina1907-strikepv-v1'],
+  ['deptCompletePV', 'officina1907-deptcompletepv-v1'],
   ['startingCoins', 'officina1907-startcoins-v1'],
   ['trattativa', 'officina1907-trattativa-v2'],
   ['borsa', 'officina1907-borsa-v2'],
@@ -1297,6 +1311,7 @@ export default function SetupScreen({ onStart }) {
   const [starMovement, setStarMovement] = useState(() => loadLS('officina1907-starmovement-v1', false));
   const [borsaFabbriche, setBorsaFabbriche] = useState(loadBorsaFabbriche);
   const [strikePV, setStrikePV] = useState(loadStrikePV);
+  const [deptPV, setDeptPV] = useState(loadDeptPV);
   const [trackModel, setTrackModelRaw] = useState(() => loadLS(TRACKMODEL_KEY, TRACK_MODEL_DEFAULT, v => !!TRACK_MODELS[v]));
   const [track, setTrack] = useState(() => loadEditorTrack(loadLS(TRACKMODEL_KEY, TRACK_MODEL_DEFAULT, v => !!TRACK_MODELS[v])));
   // cambiare modello ricarica il tracciato salvato di QUEL modello (i due non si sovrascrivono)
@@ -1332,6 +1347,7 @@ export default function SetupScreen({ onStart }) {
     // silenziosamente da DEFAULT_FACTORY_MAPS lato codice, e un futuro cambio lì rende l'export non riproducibile.
     borsaFabbriche: { ...borsaFabbriche, maps: { 2: borsaFabbriche.maps?.[2] || DEFAULT_FACTORY_MAPS[2], 3: borsaFabbriche.maps?.[3] || DEFAULT_FACTORY_MAPS[3], 4: borsaFabbriche.maps?.[4] || DEFAULT_FACTORY_MAPS[4] } },
     strikePenaltyPV: strikePV,
+    deptCompletePV: deptPV,
     slots, startTension: tension, contractCount: count, contracts, contractMarket: market,
     contractMilestoneReq: milestoneReq, contractEngine,
     // toggle in "Editor nuovo mazzo": mazzo unificato 84 carte (lavoratori+impiegati), 6 nazioni (+Greci),
@@ -1432,7 +1448,7 @@ export default function SetupScreen({ onStart }) {
         {open === 'tratt' && <TrattativaEditor tratt={trattativa} setTratt={setTrattativa} />}
         {open === 'borsa' && <BorsaEditor borsa={borsa} setBorsa={setBorsa} borsaExit={borsaExit} setBorsaExit={setBorsaExit} borsaRefresh={borsaRefresh} setBorsaRefresh={setBorsaRefresh} starMovement={starMovement} setStarMovement={setStarMovement} />}
         {open === 'borsafabbriche' && <BorsaFabbricheEditor bf={borsaFabbriche} setBf={setBorsaFabbriche} />}
-        {open === 'conv' && <ConversionsEditor conv={conversions} setConv={setConversions} strikePV={strikePV} setStrikePV={setStrikePV} />}
+        {open === 'conv' && <ConversionsEditor conv={conversions} setConv={setConversions} strikePV={strikePV} setStrikePV={setStrikePV} deptPV={deptPV} setDeptPV={setDeptPV} />}
         {open === 'monete' && <StartCoinsEditor coins={startCoins} setCoins={setStartCoins} n={n} />}
         {open === 'newdeck' && <NewDeckEditor newWorkers={newWorkers} setNewWorkers={setNewWorkers} />}
         {open === 'impiegati' && <ImpiegatiDeckEditor newWorkers={newWorkers} setNewWorkers={setNewWorkers} />}
@@ -1443,7 +1459,7 @@ export default function SetupScreen({ onStart }) {
         {open === 'clock' && <ClockEditor clocks={clocks} setClocks={setClocks} />}
         {open === 'export' && <ExportConfig cfg={cfg()} />}
         {open === 'import' && <ImportConfig setters={{
-          contractPV: setContractPV, conversions: setConversions, strikePenaltyPV: setStrikePV,
+          contractPV: setContractPV, conversions: setConversions, strikePenaltyPV: setStrikePV, deptCompletePV: setDeptPV,
           startingCoins: setStartCoins, trattativa: setTrattativa, borsa: setBorsa, borsaExit: setBorsaExit, borsaRefresh: setBorsaRefresh, borsaFabbriche: setBorsaFabbriche, slots: setSlots,
           startTension: setTension, contractCount: setCount, contracts: setContracts, contractMarket: setMarket, starMovement: setStarMovement,
           contractMilestoneReq: setMilestoneReq, contractEngine: setContractEngine, welfareEnabled: setWelfareEnabled,
