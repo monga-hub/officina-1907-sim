@@ -319,7 +319,7 @@ export function runOneGame(config) {
     // #5 bonus lavoratore: registra l'effetto della carta assunta + chi
     if (cmd.type === 'hire' || (cmd.type === 'trattativa' && cmd.f3 === 'buy')) {
       const wcard = WORKER_BY_ID[cmd.cardId || cmd.f3card];
-      if (wcard) tel.hires.push({ eff: effSig(formulaOf(wcard)), seat: s.current, nation: wcard.nation, sector: wcard.sector, turn: s.turn, cardId: wcard.id, deck: wcard.deck });
+      if (wcard) tel.hires.push({ eff: effSig(formulaOf(wcard)), seat: s.current, nation: wcard.nation, sector: wcard.sector, turn: s.turn, cardId: wcard.id, deck: wcard.deck, side: cmd.side });
     }
     // Fondazione fabbrica: c'era un sito che estende un cluster (accessibilità) e l'ha scelto (convenienza)?
     if (cmd.type === 'buildFactory') {
@@ -1052,8 +1052,9 @@ export function formatReport(games, cfg) {
   const cardAgg = {};
   for (const g of ok) for (const h of g.hires) {
     if (!h.cardId) continue;
-    const a = cardAgg[h.cardId] || (cardAgg[h.cardId] = { cardId: h.cardId, deck: h.deck, nation: h.nation, sector: h.sector, picked: 0, wins: 0, appear: 0 });
+    const a = cardAgg[h.cardId] || (cardAgg[h.cardId] = { cardId: h.cardId, deck: h.deck, nation: h.nation, sector: h.sector, picked: 0, wins: 0, appear: 0, sopra: 0, sotto: 0 });
     a.picked++; if (h.seat === g.winner) a.wins++;
+    if (h.side === 'sopra') a.sopra++; else if (h.side === 'sotto') a.sotto++;
   }
   for (const g of ok) for (const [cardId, n] of Object.entries(g.cardAppear || {})) {
     const a = cardAgg[cardId] || (cardAgg[cardId] = { cardId, deck: WORKER_BY_ID[cardId]?.deck, nation: WORKER_BY_ID[cardId]?.nation, sector: WORKER_BY_ID[cardId]?.sector, picked: 0, wins: 0, appear: 0 });
@@ -2947,10 +2948,14 @@ export function formatReport(games, cfg) {
   L.push('');
 
   if (cardRows.length) {
-    L.push('— BONUS LAVORATORE PER CARTA (singola carta · pick rate = presa/apparsa, la vera forza) —');
-    L.push('Carta      | Mazzetto | Nazione     | Settore       | apparsa | presa | pick% | win%');
+    L.push('— BONUS LAVORATORE PER CARTA (singola carta · pick rate = presa/apparsa, la vera forza · Sopra/Sotto = dove la installa chi la prende) —');
+    L.push('Carta      | Mazzetto | Nazione     | Settore       | apparsa | presa | pick% | win% | Sopra | Sotto | %Sopra');
     const byPickRate = [...cardRows].sort((x, y) => (y.pickRate ?? -1) - (x.pickRate ?? -1));
-    for (const c of byPickRate) L.push(`${c.cardId.padEnd(10)} | ${(c.deck ?? '—').toString().padEnd(8)} | ${(c.nation ?? '—').padEnd(11)} | ${(c.sector ?? '—').padEnd(13)} | ${String(c.appear).padStart(7)} | ${String(c.picked).padStart(5)} | ${(c.pickRate == null ? '  —' : pct(c.pickRate)).padStart(5)} | ${pct(c.wr).padStart(4)}`);
+    for (const c of byPickRate) {
+      const placed = (c.sopra || 0) + (c.sotto || 0);
+      const pctSopra = placed ? pct(c.sopra / placed) : '  —';
+      L.push(`${c.cardId.padEnd(10)} | ${(c.deck ?? '—').toString().padEnd(8)} | ${(c.nation ?? '—').padEnd(11)} | ${(c.sector ?? '—').padEnd(13)} | ${String(c.appear).padStart(7)} | ${String(c.picked).padStart(5)} | ${(c.pickRate == null ? '  —' : pct(c.pickRate)).padStart(5)} | ${pct(c.wr).padStart(4)} | ${String(c.sopra || 0).padStart(5)} | ${String(c.sotto || 0).padStart(5)} | ${pctSopra.padStart(6)}`);
+    }
     const allCardIds = workerPool.map(w => w.id);
     const neverPickedCards = allCardIds.filter(id => !cardAgg[id]?.picked);
     if (neverPickedCards.length) L.push(`Mai scelte: ${neverPickedCards.join(', ')}`);
