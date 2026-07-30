@@ -410,9 +410,14 @@ export function runOneGame(config) {
   tel.corsi = s.corsi.enabled ? {
     cfg: s.corsi,
     trimestreFinale: s.trimestre,
+    spesaLibera: !!s.corsi.spesaLibera?.enabled,
     posti: SECTORS.flatMap(sector => s.corsi.posti[sector].slice(0, s.corsi.trimestri).map((tot, tri) => ({
       sector, tri, tot, occupati: s.corsiLog.filter(c => c.sector === sector && c.tri === tri).length, chiuso: tri < s.trimestre,
     }))),
+    // spesa libera: i posti sono un TOTALE condiviso per trimestre (postiTotali), non per reparto — saturazione per-trimestre
+    postiTot: s.corsi.spesaLibera?.enabled ? s.corsi.spesaLibera.postiTotali.slice(0, s.corsi.trimestri).map((tot, tri) => ({
+      tri, tot, occupati: s.corsiLog.filter(c => c.tri === tri).length, chiuso: tri < s.trimestre,
+    })) : null,
     // quanto tracciato finale di ogni reparto è arrivato dai Corsi (contro-fattuale a fine partita, come `imp`)
     perSeat: s.players.map((p, seat) => DEPT_ROLES_B.map(role => ({
       role, sector: p.depts[role].sector, prod: p.depts[role].prod, sopra: p.depts[role].sopra.length,
@@ -2227,7 +2232,23 @@ export function formatReport(games, cfg) {
         L.push(`  per reparto d'iscrizione: ${perRep}   |   per trimestre: ${perTri}`);
         L.push(`  (uno squilibrio tra reparti a posti uguali = un reparto è più appetibile, non che i posti siano sbagliati.)`);
 
-        // 2 + 7. SATURAZIONE E POSTI INUTILIZZATI — la metrica che dice subito se i posti sono troppi
+        // 2 + 7. SATURAZIONE E POSTI INUTILIZZATI — la metrica che dice subito se i posti sono troppi.
+        // In SPESA LIBERA i posti sono un pool CONDIVISO per trimestre (postiTotali), non per reparto:
+        // misurarli per reparto darebbe saturazioni >100% e "persi" negativi (il pool si spalma sui 3 reparti).
+        if (withCorsi[0].corsi.spesaLibera) {
+          L.push(`▸ SATURAZIONE POSTI (spesa libera — pool CONDIVISO per trimestre, non per reparto) — ${'trimestre'.padEnd(20)} | posti | occupati | saturaz. | persi`);
+          const aggT = {};
+          for (const g of withCorsi) for (const p2 of (g.corsi.postiTot || [])) {
+            const e = (aggT[p2.tri] ??= { tri: p2.tri, tot: 0, occ: 0, persi: 0, mai: 0 });
+            e.tot += p2.tot; e.occ += p2.occupati;
+            if (p2.chiuso) e.persi += Math.max(0, p2.tot - p2.occupati); else e.mai += Math.max(0, p2.tot - p2.occupati);
+          }
+          for (const e of Object.values(aggT)) L.push(`  ${('T' + (e.tri + 1)).padEnd(20)} | ${String(e.tot).padStart(5)} | ${String(e.occ).padStart(8)} | ${pct(e.occ / Math.max(1, e.tot)).padStart(8)} | ${String(e.persi).padStart(5)}`);
+          const totP = Object.values(aggT).reduce((a, e) => a + e.tot, 0), totO = Object.values(aggT).reduce((a, e) => a + e.occ, 0);
+          const totMai = Object.values(aggT).reduce((a, e) => a + e.mai, 0);
+          L.push(`  TOTALE: ${totO}/${totP} occupati (${pct(totO / Math.max(1, totP))}) · ${Object.values(aggT).reduce((a, e) => a + e.persi, 0)} persi alla chiusura · ${totMai} in trimestri mai raggiunti (posti FANTASMA)`);
+          L.push('  (spesa libera: una formazione occupa 1 posto del TOTALE del suo trimestre, chiunque la faccia — la saturazione per reparto non ha senso qui.)');
+        } else {
         L.push(`▸ SATURAZIONE POSTI — ${'reparto × trim'.padEnd(20)} | posti | occupati | saturaz. | persi`);
         const agg = {};
         for (const g of withCorsi) for (const p2 of g.corsi.posti) {
@@ -2245,6 +2266,7 @@ export function formatReport(games, cfg) {
         const totMai = Object.values(agg).reduce((a, e) => a + e.mai, 0);
         L.push(`  TOTALE: ${totO}/${totP} occupati (${pct(totO / Math.max(1, totP))}) · ${Object.values(agg).reduce((a, e) => a + e.persi, 0)} persi alla chiusura · ${totMai} in trimestri mai raggiunti (la partita finisce prima: sono posti FANTASMA, non scarsità)`);
         L.push('  (saturazione ~100% con domanda respinta = troppo pochi. Sotto il 50% con nessuno respinto = troppi: il posto non è una risorsa contesa e la meccanica non decide niente.)');
+        }
 
         // 3. QUANDO — stessa lettura fatta sugli Impiegati (turno medio 17.3, spalmati su tutta la partita)
         const q = [0, 0, 0, 0];
