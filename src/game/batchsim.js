@@ -67,6 +67,7 @@ export function runOneGame(config) {
     coinsSpentByRound: { 1: s.players.map(p => ({ ...p.coinsSpentBy })) }, // idem per categoria di spesa: serve a datare "a cosa rinunci" per quadrimestre
     resGenByRound: { 1: s.players.map(p => ({ ...p.resGen })) }, // snapshot cumulativo risorse prodotte per settore, stesso pattern di coinsGainedByRound
     tracksByRound: { 1: s.players.map(p => DEPT_ROLES_B.map(r => p.depts[r].prod)) }, // posizione tracciato per round — quante caselle ⓜ sono "attive" (Caso A vs B)
+    deptSlotsByRound: { 1: s.players.map(p => DEPT_ROLES_B.map(r => p.depts[r].sopra.length + p.depts[r].sotto.length)) }, // slot pieni per reparto per round — datare il 1° commit-fabbrica (gemello di tracksByRound)
     coinCellFlag,
     pvByRound: { 1: s.players.map(p => scorePlayer(s, p).total) }, // #1 timeline PV
     completions: [], firstContract: Array(P).fill(null),
@@ -362,6 +363,7 @@ export function runOneGame(config) {
       tel.coinsSpentByRound[s.turn] = s.players.map(p => ({ ...p.coinsSpentBy }));
       tel.resGenByRound[s.turn] = s.players.map(p => ({ ...p.resGen }));
       tel.tracksByRound[s.turn] = s.players.map(p => DEPT_ROLES_B.map(r => p.depts[r].prod));
+      tel.deptSlotsByRound[s.turn] = s.players.map(p => DEPT_ROLES_B.map(r => p.depts[r].sopra.length + p.depts[r].sotto.length));
       tel.pvByRound[s.turn] = s.players.map(p => scorePlayer(s, p).total);
       tel.turnSeat[s.turn] = s.current;
       lastTurn = s.turn;
@@ -398,6 +400,7 @@ export function runOneGame(config) {
   }));
   // cap slot per reparto (editabile): un reparto è "completo 5/5" quando sopra+sotto = questo totale
   tel.slotCap = ['terziario', 'secondario', 'primario'].map(r => s.slots[r].sopra + s.slots[r].sotto);
+  tel.activations = s.activationLog; // potenza di produzione per attivazione (idea utente 30/07/2026)
   // Chiusura Impiegati: stato finale di ogni reparto + quanta parte del tracciato è arrivata da Impiegati.
   // Serve alle due domande di fine partita: "gap di sviluppo compensato" (poche carte Sopra + tanti
   // Impiegati = la carta sta tappando un buco di offerta carte) e milestone marginali (sotto, nel report).
@@ -1819,6 +1822,116 @@ export function formatReport(games, cfg) {
     L.push(k.padEnd(22) + ' | ' + pct(q.n / (nSeatsTot || 1)).padStart(5) + ' | ' + String(q.n).padStart(4) + ' | ' + (q.pv / q.n).toFixed(1).padStart(7) + ' | ' + pct(q.w / q.n).padStart(4) + ' | ' + (q.nc / q.n).toFixed(1));
   }
   L.push(`(N = giocatori-partita nel quadrante su ${nSeatsTot} totali — la robustezza di ogni media. win% sopra la base = archetipo vincente. NB correlazione, non causa: l'archetipo è uno STATO FINALE, non una scelta iniziale, quindi "i vincitori finiscono con più motore", non "il motore fa vincere" — servirebbe un A/B sulla difficoltà del motore.)`);
+  L.push('');
+
+  // POTENZA DI PRODUZIONE per attivazione (idea utente 30/07/2026): la DISTRIBUZIONE, non la media —
+  // per capire quanto spesso esistono davvero motori esplosivi, non il massimo teorico.
+  // "produzione" = risorse+marchi resi da UNA attivazione (tracciato + carte Sotto, moltiplicatore cluster incluso).
+  const acts = ok.flatMap(g => g.activations || []);
+  if (acts.length) {
+    const totals = acts.map(a => a.total).sort((x, y) => x - y);
+    const ptl = arr => q => arr[Math.min(arr.length - 1, Math.floor(q * arr.length))];
+    const pt = ptl(totals);
+    const sum = k => acts.reduce((a, x) => a + x[k], 0);
+    L.push('— POTENZA DI PRODUZIONE per attivazione (tracciato + carte Sotto, cluster incluso) —');
+    L.push(`resa/attivazione: media ${(sum('total') / acts.length).toFixed(1)} · mediana ${pt(0.5)} · P90 ${pt(0.9)} · P95 ${pt(0.95)} · max ${totals[totals.length - 1]}  (n=${acts.length} attivazioni)`);
+    const st = sum('track'), ss = sum('sotto'), tt = st + ss;
+    L.push(`scomposizione: tracciato ${pct(st / (tt || 1))} · carte Sotto ${pct(ss / (tt || 1))}  (se le Sotto superano il tracciato, sono loro il motore dominante)`);
+    const mc = { 1: 0, 2: 0, 3: 0, 4: 0 };
+    for (const a of acts) mc[Math.min(4, a.mult || 1)]++;
+    L.push(`moltiplicatore cluster effettivo: ×1 ${pct(mc[1] / acts.length)} · ×2 ${pct(mc[2] / acts.length)} · ×3 ${pct(mc[3] / acts.length)} · ×4+ ${pct(mc[4] / acts.length)}`);
+    const peaks = ok.map(g => (g.activations || []).reduce((m, a) => Math.max(m, a.total), 0)).sort((x, y) => x - y);
+    const pp = ptl(peaks);
+    L.push(`picco per partita (max resa in una singola attivazione): media ${(peaks.reduce((a, x) => a + x, 0) / peaks.length).toFixed(1)} · P90 ${pp(0.9)} · P95 ${pp(0.95)} · record ${peaks[peaks.length - 1]}`);
+    // motore ≥10: turno della prima attivazione ≥10 e quante ≥10 DOPO la prima (il vero rendimento del motore)
+    const firstTurns = [], after = { 0: 0, 1: 0, 2: 0, '3+': 0 }; let withEngine = 0, pg = 0;
+    for (const g of ok) {
+      const bySeat = {};
+      for (const a of (g.activations || [])) (bySeat[a.seat] ??= []).push(a);
+      for (const k of Object.keys(bySeat)) {
+        pg++;
+        const seq = bySeat[k].sort((x, y) => x.turn - y.turn);
+        const fi = seq.findIndex(a => a.total >= 10);
+        if (fi < 0) continue;
+        withEngine++; firstTurns.push(seq[fi].turn);
+        const n = seq.slice(fi + 1).filter(a => a.total >= 10).length;
+        after[n >= 3 ? '3+' : n]++;
+      }
+    }
+    L.push(`motore ≥10: raggiunto dal ${pct(withEngine / (pg || 1))} dei giocatori-partita · 1ª volta al turno medio ${firstTurns.length ? (firstTurns.reduce((a, x) => a + x, 0) / firstTurns.length).toFixed(1) : '—'} (mediana ${med(firstTurns)})`);
+    L.push(`  poi lo riattiva ≥10:  0 volte ${pct(after[0] / Math.max(1, withEngine))} · 1 ${pct(after[1] / Math.max(1, withEngine))} · 2 ${pct(after[2] / Math.max(1, withEngine))} · 3+ ${pct(after['3+'] / Math.max(1, withEngine))}`);
+    L.push('(un motore da 16 attivato una volta è spettacolo; attivato 5 volte è probabilmente rotto. È la distribuzione, non la media, a dirlo. Nota: uno scambio Sotto "a scelta" completa dopo un pending, la sua parte non è contata qui — rara.)');
+    L.push('');
+  }
+
+  // COMMITMENT — intenzione vs comportamento (idea utente 30/07/2026): il quadrante finale confonde
+  // "chi ha TENTATO una strategia lunga e fallito" con "chi ha sempre giocato tattico" (survivorship).
+  // Si datano il PRIMO turno in cui un asse supera un SEGNALE di commitment e l'esito.
+  // ⚠ I SEGNALI SONO IPOTESI SPERIMENTALI, non verità: il vero "punto di non ritorno" va SCOPERTO tarandoli
+  //    (10 potrebbe già essere commitment; 14 identificherebbe solo chi è quasi arrivato). Trattali come parametri.
+  const TRACK_COMMIT_SIGNAL = 12; // IPOTESI: tracciato oltre la 2ª milestone = investimento reale sul motore
+  const DEPT_COMMIT_SIGNAL = 4;   // IPOTESI: reparto a 4/5 slot = investimento reale sulla fabbrica
+  const COMMIT = { opportunista: { n: 0, w: 0, pv: 0 }, quasi: { n: 0, w: 0, pv: 0 }, abbandonato: { n: 0, w: 0, pv: 0 }, riuscito: { n: 0, w: 0, pv: 0 } };
+  const fcTurns = { fallito: [], riuscito: [] };        // turno del 1° superamento-segnale, per esito
+  const fcBuckets = { fallito: [0, 0, 0], riuscito: [0, 0, 0] }; // [<25%, 25-50%, >50%] della durata partita
+  const commitRhythm = [{ lo: 1, hi: 8 }, { lo: 9, hi: 16 }, { lo: 17, hi: 24 }, { lo: 25, hi: 1e9 }].map(b => ({ ...b, n: 0, w: 0 })); // win% per turno del 1° commitment
+  for (const g of ok) {
+    const rounds = Object.keys(g.tracksByRound).map(Number).sort((a, b) => a - b);
+    const lastR = rounds[rounds.length - 1] || 1;
+    const pvFin = g.pvByRound[Math.max(...Object.keys(g.pvByRound).map(Number))];
+    g.tracks.forEach((t, seat) => {
+      let completed = false;
+      for (let i = 0; i < 3; i++) {
+        if (t.pos[i] >= tMax) completed = true;
+        if (t.sopra && (t.sopra[i] + t.sotto[i]) >= capSlot[i]) completed = true;
+      }
+      let firstCommit = null, commitAxis = null; // 1° turno e ASSE che supera il segnale (per datare l'abbandono)
+      for (const rr of rounds) {
+        const tr = g.tracksByRound[rr] && g.tracksByRound[rr][seat];
+        const ds = g.deptSlotsByRound[rr] && g.deptSlotsByRound[rr][seat];
+        const it = tr ? tr.findIndex(p => p >= TRACK_COMMIT_SIGNAL) : -1;
+        const id = ds ? ds.findIndex(x => x >= DEPT_COMMIT_SIGNAL) : -1;
+        if (it >= 0 || id >= 0) {
+          firstCommit = rr;
+          if (it >= 0 && id >= 0) commitAxis = (tMax - tr[it]) <= (capSlot[id] - ds[id]) ? { kind: 'motore', idx: it } : { kind: 'fabbrica', idx: id };
+          else commitAxis = it >= 0 ? { kind: 'motore', idx: it } : { kind: 'fabbrica', idx: id };
+          break;
+        }
+      }
+      let cat, outcome;
+      if (firstCommit === null) { cat = 'opportunista'; outcome = null; }
+      else if (completed) { cat = 'riuscito'; outcome = 'riuscito'; }
+      else {
+        // fallito: near-miss (asse committato a ≤1 dal completamento, "quasi") vs abbandonato (≥2 corto: ha mollato/pivotato)
+        const gap = commitAxis.kind === 'motore' ? (tMax - t.pos[commitAxis.idx]) : (capSlot[commitAxis.idx] - (t.sopra[commitAxis.idx] + t.sotto[commitAxis.idx]));
+        cat = gap <= 1 ? 'quasi' : 'abbandonato'; outcome = 'fallito';
+      }
+      const c = COMMIT[cat]; c.n++; if (seat === g.winner) c.w++; c.pv += (pvFin[seat] || 0);
+      if (firstCommit !== null) {
+        fcTurns[outcome].push(firstCommit);
+        fcBuckets[outcome][firstCommit / lastR < 0.25 ? 0 : firstCommit / lastR < 0.5 ? 1 : 2]++;
+        const rb = commitRhythm.find(b => firstCommit >= b.lo && firstCommit <= b.hi);
+        if (rb) { rb.n++; if (seat === g.winner) rb.w++; }
+      }
+    });
+  }
+  L.push('— COMMITMENT: TENTATIVO vs ESITO (idea utente 30/07/2026) — separa "tattico deliberato" da "commit fallito", e near-miss da abbandono (scioglie il survivorship del quadrante) —');
+  L.push(`(SEGNALE commitment [IPOTESI tarabile, non verità]: un tracciato ≥ ${TRACK_COMMIT_SIGNAL}/${tMax} O un reparto ≥ ${DEPT_COMMIT_SIGNAL}/${capSlot[0]} slot. quasi = asse committato a ≤1 dal completamento · abbandonato = ≥2 corto (ha mollato/pivotato) · riuscito = completa ≥1 asse.)`);
+  L.push('categoria'.padEnd(16) + ' | quota |    N | win% | PV medi   (base win% = ' + pct(1 / P) + ')');
+  for (const [k, c] of [['opportunista', COMMIT.opportunista], ['commit quasi', COMMIT.quasi], ['commit abbandon.', COMMIT.abbandonato], ['commit riuscito', COMMIT.riuscito]]) {
+    if (!c.n) { L.push(k.padEnd(16) + ' |   0% |    0 | —'); continue; }
+    L.push(k.padEnd(16) + ' | ' + pct(c.n / (nSeatsTot || 1)).padStart(5) + ' | ' + String(c.n).padStart(4) + ' | ' + pct(c.w / c.n).padStart(4) + ' | ' + (c.pv / c.n).toFixed(1).padStart(7));
+  }
+  const nFall = COMMIT.quasi.n + COMMIT.abbandonato.n, wFall = COMMIT.quasi.w + COMMIT.abbandonato.w;
+  L.push(`  → TEST TRAPPOLA: win% fallito TOT (quasi+abbandon., N ${nFall}) = ${nFall ? pct(wFall / nFall) : '—'}  vs  opportunista = ${COMMIT.opportunista.n ? pct(COMMIT.opportunista.w / COMMIT.opportunista.n) : '—'}`);
+  L.push('— QUANDO NASCE IL COMMITMENT (turno del 1° superamento-segnale, per esito) —');
+  for (const k of ['riuscito', 'fallito']) {
+    const b = fcBuckets[k], tot = b[0] + b[1] + b[2];
+    L.push(`  ${k.padEnd(9)} turno medio ${fcTurns[k].length ? avg(fcTurns[k]).toFixed(1) : '—'} · prima 25% ${pct(b[0] / (tot || 1))} · 25-50% ${pct(b[1] / (tot || 1))} · dopo 50% ${pct(b[2] / (tot || 1))}`);
+  }
+  L.push('— RITMO STRATEGICO: win% per turno del 1° commitment (esiste una finestra ottimale?) —');
+  for (const b of commitRhythm) { const lab = b.hi > 900 ? `${b.lo}+` : `${b.lo}-${b.hi}`; L.push(`  turno ${lab.padEnd(6)} | N ${String(b.n).padStart(4)} | win% ${b.n ? pct(b.w / b.n) : '—'}`); }
+  L.push('(TEST TRAPPOLA: fallito < opportunista → specializzarsi è −EV, è una TRAPPOLA; fallito ≥ opportunista → alternativa valida ma difficile. RITMO: win% a campana → finestra ottimale di commitment; sale verso i tardivi → premia l\'adattamento; scende → premia la lettura iniziale. abbandonato vs quasi = ha cambiato piano vs mancato per poco.)');
   L.push('');
 
   // stessa distribuzione ma per SETTORE (Tessile/Metallurgica/Chimica), non per reparto: le plance assegnano

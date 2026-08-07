@@ -580,6 +580,7 @@ export function initGame(config) {
     pending: null, // { type: 'sciopero'|'effect', ... }
     pendingQueue: [],
     activationCoins: null, // marchi guadagnati nell'attivazione in corso
+    activationLog: [], // { turn, seat, sector, track, sotto, mult, total } — potenza di produzione per attivazione
     log: [],
   };
   log(state, `Partita a ${n}: ${players.map(p => `${p.name} (${p.boardName}${p.isAI ? ', AI' : ''})`).join(' · ')}. Seed ${seed}.`);
@@ -634,7 +635,7 @@ export function iconCount(player, sector, welfareById = WELFARE_BY_ID) {
   for (const id of player.direzione.sopra) {
     if (typeof id !== 'string') continue;
     const imp = WORKER_BY_ID[id];
-    if (imp?.power) { if (sector in imp.power) c++; } // Impiegato: icona su entrambi i settori di power
+    if (imp?.power) { if (imp.power[sector] > 0) c++; } // Impiegato: icona solo sui settori con avanzamento >0 (valore 0 = nessuna icona)
     else if (welfareById[id]?.s1 === sector) c++;
   }
   return c;
@@ -1786,8 +1787,10 @@ function doActivate(state, p, sector) {
   log(state, `${p.name} attiva il reparto ${sector}.`);
   // 1. Tensione +1 (se il reparto non è vuoto)
   raiseTension(state, p, dept, 1, 'attivazione');
-  // 2. Risorse dal tracciato
+  // 2. Risorse dal tracciato (misuro la resa per la telemetria "potenza di produzione")
+  const ct0 = p.coins, rt0 = totalResources(p);
   trackProduction(state, p, dept);
+  const trackAmt = (p.coins - ct0) + (totalResources(p) - rt0);
   // 3. Carte Sotto non bloccate. Se factoryActivates è ON, ogni carta scatta N volte = fabbriche del settore
   // del reparto (floor 1 = comportamento normale, cap 3). Le fabbriche potenziano le attivazioni bonus.
   let sottoTimes = 1;
@@ -1812,6 +1815,10 @@ function doActivate(state, p, sector) {
     for (let t = 1; t < sottoTimes; t++) for (const id of cards) applyCardEffect(state, p, dept, WORKER_BY_ID[id]);
     p.sottoVal.extraC += p.coins - c1; p.sottoVal.extraR += totalResources(p) - r1;
   }
+  // Telemetria "potenza di produzione": resa totale di QUESTA attivazione (tracciato + carte Sotto, cluster incluso).
+  // NB: uno scambio Sotto con 'scelta' apre un pending e completa dopo → la sua parte non è contata qui (rara).
+  const sottoAmt = (p.coins - c0) + (totalResources(p) - r0);
+  state.activationLog.push({ turn: state.turn, seat: p.id, sector, track: trackAmt, sotto: sottoAmt, mult: sottoTimes, total: trackAmt + sottoAmt });
   // 4. Sciopero (dopo aver incassato)
   state.phase = 'resolving';
   checkStrike(state, p, dept);
