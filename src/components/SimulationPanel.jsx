@@ -59,11 +59,11 @@ const MODE_LABEL = {
 export default function SimulationPanel(baseCfg) {
   const [mode, setMode] = useState('regressione');
   const [nGames, setNGames] = useState(500); // usato solo in modalità Personalizzata
-  const [rolloutOn, setRolloutOn] = useState(false);
+  const [rolloutOn, setRolloutOn] = useState(true);
   const [depth, setDepth] = useState(6);
   const [rollouts, setRollouts] = useState(1);
   const [nPlayers, setNPlayers] = useState(4);
-  const [coins, setCoins] = useState([10, 10, 10, 10]);
+  const [coins, setCoins] = useState([15, 15, 15, 15]);
   const [seedBase, setSeedBase] = useState('');
   const [progress, setProgress] = useState(null);
   const [report, setReport] = useState('');

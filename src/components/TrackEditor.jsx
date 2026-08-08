@@ -29,6 +29,8 @@ const CELL_TYPES = [
   // in fondo per non spostare gli indici hardcoded in typeIndexOf
   { key: 'cf', cell: { coinsPerFactory: 1 }, label: 'ⓜ×🏭', desc: '1 marco per fabbrica posseduta adiacente alla risorsa del settore prodotto (forza-settore)' },
   { key: 'rf', cell: { resPerFactory: 1 }, label: '⚙R×🏭', desc: '1 risorsa del reparto per fabbrica posseduta adiacente alla risorsa del settore prodotto (forza-settore)' },
+  { key: 'c4', cell: { coins: 4 }, label: '4ⓜ', desc: '4 marchi' },
+  { key: 'pv7', cell: { pv: 7 }, label: '7PV', desc: 'soglia 7 PV a fine partita' },
 ];
 
 function typeIndexOf(cell) {
@@ -49,6 +51,8 @@ function typeIndexOf(cell) {
   if (cell.milestone && cell.opensMarket === 2) return 10;
   if (cell.tileSlot === 3) return 11;
   if (cell.milestone && cell.opensMarket === 3) return 12;
+  if (cell.coins === 4) return 18;
+  if (cell.pv === 7) return 19;
   return 0;
 }
 

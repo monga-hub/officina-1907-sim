@@ -11,7 +11,6 @@ const newDeck = extra => initGame({
   seed: 1,
   players: Array.from({ length: 4 }, (_, i) => ({ name: `AI ${i + 1}`, isAI: true })),
   workers: NEW_WORKERS_MERGED, nations: NATIONS_NUOVO, nodeBanks: NEW_NODE_BANKS, welfareEnabled: false,
-  corsi: { enabled: false }, // i Corsi sono ON di default (28/07/2026): qui li spegniamo per testare il mercato Impiegati che sostituirebbero
   ...extra,
 });
 
@@ -86,7 +85,7 @@ for (let g = 0; g < 6; g++) {
   const tel = runOneGame({
     seed: 7000 + g, players: Array.from({ length: 4 }, (_, i) => ({ name: `AI ${i + 1}`, isAI: true })),
     workers: NEW_WORKERS_MERGED, newWorkers: NEW_WORKERS_MERGED, nations: NATIONS_NUOVO, nodeBanks: NEW_NODE_BANKS,
-    welfareEnabled: false, aiRollout: null, corsi: { enabled: false },
+    welfareEnabled: false, aiRollout: null,
   });
   assert.ok(!tel.failed, `seed ${7000 + g}: partita completata`);
   for (const b of tel.impiegatiBuys) {

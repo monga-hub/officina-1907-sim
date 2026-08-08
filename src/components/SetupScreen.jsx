@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { TRACK_MODELS, TRACK_MODEL_DEFAULT, BORSA_FABBRICHE_DEFAULT, FACTORY_MAP, DEFAULT_FACTORY_MAPS, SECTORS, SECTOR_COLORS, CONTRACTS, expandContracts, CLOCK_THRESHOLD, NATIONS, NATIONS_NUOVO, NEW_NODE_BANKS, TENSION_LIMIT, nodeLabel } from '../game/data.js';
 import { describeCond } from '../game/engine.js';
-import { CORSI_DEFAULT } from '../game/corsi.js';
 import { INDICATOR_TARGETS, INDICATOR_UNITS, recalcTile, starsFor, winZ } from '../game/batchsim.js';
 import TrackEditor, {
   loadEditorTrack, toGameTracks, saveEditorTrack,
@@ -387,199 +386,6 @@ function ClockEditor({ clocks, setClocks }) {
       </table>
       <button className="ghost" onClick={() => { const d = readDef('officina1907-clocks-v1', CLOCKS_DEFAULT); setClocks({ ...d }); saveLS('officina1907-clocks-v1', d); }}>Ripristina default</button>
       <button className="ghost" onClick={() => writeDef('officina1907-clocks-v1', clocks)}>⭐ Rendi questi valori i default</button>
-    </div>
-  );
-}
-
-// --- Corsi di Formazione: spazio di design, nessun valore cablato ---
-// L'editor è diviso nelle stesse due metà del modulo (corsi.js): MODELLO = la scarsità (quando e
-// quanto puoi formarti), EFFETTO = il payoff (cosa ottieni). Vanno tarati separatamente, quindi
-// vanno anche mostrati separatamente: un pannello unico invita a cambiare due cose insieme e a non
-// sapere più quale delle due ha mosso i numeri.
-export const loadCorsi = () => loadLS('officina1907-corsi-v1', CORSI_DEFAULT);
-function CorsiEditor({ corsi, setCorsi }) {
-  const upd = patch => { const next = { ...corsi, ...patch }; setCorsi(next); saveLS('officina1907-corsi-v1', next); };
-  const updEff = patch => upd({ effetto: { ...corsi.effetto, ...patch } });
-  const nT = corsi.trimestri;
-  const updBound = (i, v) => { const b = [...corsi.bounds]; b[i] = Math.max(0, Number(v) || 0); upd({ bounds: b }); };
-  // Aggiungere un trimestre deve dare una soglia SENSATA, non 0: una soglia a 0 nasce già chiusa, e
-  // il trimestre appena creato non si aprirebbe mai. Prolunga con l'ultimo passo usato.
-  const updTrimestri = n => {
-    n = Number(n);
-    const b = [...corsi.bounds];
-    while (b.length < n) {
-      const last = b[b.length - 1] ?? 0;
-      b.push(last + (b.length > 1 ? last - b[b.length - 2] : last || 6));
-    }
-    upd({ trimestri: n, bounds: b });
-  };
-  const updPosto = (sec, t, v) => {
-    const posti = { ...corsi.posti, [sec]: [...(corsi.posti[sec] || [])] };
-    posti[sec][t] = Math.max(0, Math.min(99, Number(v) || 0));
-    upd({ posti });
-  };
-  // il numero di reparti coinvolti È la lunghezza di `passi`: un solo dato, nessun invariante da mantenere a mano
-  const updNSettori = n => {
-    const passi = Array.from({ length: Number(n) }, (_, i) => corsi.effetto.passi[i] ?? 1);
-    updEff({ passi });
-  };
-  const updPasso = (i, v) => { const passi = [...corsi.effetto.passi]; passi[i] = Math.max(0, Math.min(20, Number(v) || 0)); updEff({ passi }); };
-  const totPosti = WSETT.reduce((a, s) => a + (corsi.posti[s] || []).slice(0, nT).reduce((b, x) => b + (x || 0), 0), 0);
-  return (
-    <div className="track-editor">
-      <p className="hint">
-        I Corsi <b>sostituiscono gli Impiegati</b> quando sono attivi (il banco Impiegati sparisce dal nodo).
-        I posti sono una risorsa <b>pubblica condivisa</b>: quello che prendi tu non c'è più per gli altri, e
-        alla chiusura del trimestre i posti rimasti sono persi. Salvato nel browser.
-      </p>
-      <p className="hint">
-        ⚠ <b>I valori di partenza sono seed values, non un bilanciamento.</b> Soglie, posti, costo ed effetto
-        sono il primo valore plausibile per far partire l'esperimento — nessuno è stato tarato su un batch.
-        Serve il report per sceglierli, e per le soglie serve prima la sezione «PASSO DEL CLOCK».
-      </p>
-      <label style={{ display: 'block', margin: '8px 0' }}>
-        <input type="checkbox" checked={corsi.enabled} onChange={e => upd({ enabled: e.target.checked })} /> <b>Corsi di Formazione attivi</b> (spenti = Impiegati come oggi)
-      </label>
-
-      <h4 style={{ margin: '14px 0 4px' }}>Modello — la scarsità</h4>
-      <p className="hint">Quando e quanto ci si può formare. Nessun rapporto con quanti passi dà un corso.</p>
-      <label>Nodo d'iscrizione:{' '}
-        <select value={corsi.nodo} onChange={e => upd({ nodo: e.target.value })}>
-          {['Sindacato', 'Servizi', 'Tessile', 'Metallurgica', 'Chimica'].map(x => <option key={x} value={x}>{nodeLabel(x)}</option>)}
-        </select>
-      </label>{'  '}
-      <label>Trimestri:{' '}
-        <select value={nT} onChange={e => updTrimestri(e.target.value)}>
-          {[1, 2, 3, 4].map(x => <option key={x} value={x}>{x}</option>)}
-        </select>
-      </label>{'  '}
-      <label>Trigger:{' '}
-        <select value={corsi.trigger} onChange={e => upd({ trigger: e.target.value })}>
-          <option value="clock">Clock partita</option>
-          <option value="turno">Turno assoluto</option>
-        </select>
-      </label>
-      <table className="pv-editor" style={{ marginTop: 8 }}>
-        <thead>
-          <tr><th>Apertura</th>{Array.from({ length: nT }, (_, t) => <th key={t}>T{t + 1}</th>)}</tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td style={{ textAlign: 'left' }}>Chiude a {corsi.trigger === 'turno' ? 'turno' : 'clock'} ≥</td>
-            {Array.from({ length: nT }, (_, t) => (
-              <td key={t}><input type="number" min="0" max="99" value={corsi.bounds[t] ?? 0} onChange={e => updBound(t, e.target.value)} style={{ width: 52 }} /></td>
-            ))}
-          </tr>
-          <tr>
-            <td style={{ textAlign: 'left' }}><small>intervallo aperto</small></td>
-            {Array.from({ length: nT }, (_, t) => (
-              <td key={t}><small>{(t === 0 ? 0 : corsi.bounds[t - 1] ?? 0)}–{(corsi.bounds[t] ?? 0) - 1}</small></td>
-            ))}
-          </tr>
-        </tbody>
-      </table>
-      <table className="pv-editor" style={{ marginTop: 8 }}>
-        <thead><tr><th>Posti per reparto</th>{Array.from({ length: nT }, (_, t) => <th key={t}>T{t + 1}</th>)}<th>tot</th></tr></thead>
-        <tbody>
-          {WSETT.map(sec => (
-            <tr key={sec}>
-              <td style={{ textAlign: 'left' }}>{sec}</td>
-              {Array.from({ length: nT }, (_, t) => (
-                <td key={t}><input type="number" min="0" max="99" value={corsi.posti[sec]?.[t] ?? 0} onChange={e => updPosto(sec, t, e.target.value)} style={{ width: 52 }} /></td>
-              ))}
-              <td><small>{(corsi.posti[sec] || []).slice(0, nT).reduce((a, x) => a + (x || 0), 0)}</small></td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <p className="hint">
-        {totPosti} posti in tutta la partita. I reparti non devono essere uguali: l'asimmetria è una leva di bilanciamento.
-        Con 4 giocatori il bersaglio è ~2.9 formazioni a testa (~12 posti occupati) — metterne molti di più
-        significa che il posto non è conteso e la meccanica non fa scegliere niente.
-      </p>
-      <label>Costo (ⓜ, fisso):{' '}
-        <input type="number" min="0" max="30" value={typeof corsi.costo === 'number' ? corsi.costo : 0} onChange={e => upd({ costo: Math.max(0, Number(e.target.value) || 0) })} style={{ width: 56 }} />
-      </label>{'  '}
-      <label>Max formazioni per giocatore in un trimestre:{' '}
-        <input type="number" min="0" max="9" value={corsi.maxPerTrimestre} onChange={e => upd({ maxPerTrimestre: Math.max(0, Number(e.target.value) || 0) })} style={{ width: 52 }} /> <small>(0 = nessun limite)</small>
-      </label>
-
-      <h4 style={{ margin: '14px 0 4px' }}>Effetto — il payoff</h4>
-      <p className="hint">Cosa dà una formazione. Nessun rapporto con posti e trimestri: si tarano separatamente.</p>
-      <label>Reparti coinvolti:{' '}
-        <select value={corsi.effetto.passi.length} onChange={e => updNSettori(e.target.value)}>
-          {[1, 2, 3].map(x => <option key={x} value={x}>{x}</option>)}
-        </select>
-      </label>{'  '}
-      <label>Scelta dei reparti secondari:{' '}
-        <select value={corsi.effetto.scelta} onChange={e => updEff({ scelta: e.target.value })}>
-          <option value="ia">Scelta IA (decisione vera)</option>
-          <option value="max">Massimo valore (tracciato più avanti)</option>
-          <option value="min">Recupero (tracciato più indietro)</option>
-          <option value="fisso">Fisso (ordine ciclico, nessuna scelta)</option>
-          <option value="pool">Distribuzione libera (pool di cubetti)</option>
-        </select>
-      </label>
-      {corsi.effetto.scelta === 'pool' && (
-        <p className="hint" style={{ color: '#b5651d' }}>
-          <b>Pool:</b> il corso dà <b>{corsi.effetto.passi.reduce((a, x) => a + x, 0)} cubetti</b> (la SOMMA dei passi sotto — la forma
-          per-reparto è ignorata) da piazzare liberamente sui 3 reparti. Il posto che prendi è solo la risorsa contesa:
-          il payoff è slegato, non c'è quota obbligata al reparto d'iscrizione.
-        </p>
-      )}
-      <table className="pv-editor" style={{ marginTop: 8 }}>
-        <thead><tr><th>Passi</th>{corsi.effetto.passi.map((_, i) => <th key={i}>{i === 0 ? 'reparto iscritto' : `secondario ${i}`}</th>)}<th>tot</th></tr></thead>
-        <tbody>
-          <tr>
-            <td style={{ textAlign: 'left' }}>avanzamento</td>
-            {corsi.effetto.passi.map((v, i) => (
-              <td key={i}><input type="number" min="0" max="20" value={v} onChange={e => updPasso(i, e.target.value)} style={{ width: 52 }} /></td>
-            ))}
-            <td><small>{corsi.effetto.passi.reduce((a, x) => a + x, 0)}</small></td>
-          </tr>
-        </tbody>
-      </table>
-      <p className="hint">
-        Gli Impiegati di oggi sono <code>3+1</code> su 2 reparti, ~4 passi reali per 4ⓜ. <code>[4]</code> = un solo
-        reparto, <code>[2,2]</code> = due pari, <code>[2,1,1]</code> = tutti e tre. Il report
-        «CORSI DI FORMAZIONE — dimensionamento» misura passi reali, saturazione dei posti e domanda respinta.
-      </p>
-      {(() => {
-        const SL = corsi.spesaLibera || { enabled: false, min: 2, max: 4, postiTotali: [6, 6, 6] };
-        const updSL = patch => upd({ spesaLibera: { ...SL, ...patch } });
-        const updPT = (i, v) => { const postiTotali = [...SL.postiTotali]; postiTotali[i] = Math.max(0, Number(v) || 0); updSL({ postiTotali }); };
-        return (
-          <div style={{ marginTop: 18, padding: 10, border: '1px solid #b5651d', borderRadius: 6 }}>
-            <h4 style={{ margin: '0 0 4px' }}>Modello semplice — spesa libera <small>(alternativo)</small></h4>
-            <label>
-              <input type="checkbox" checked={SL.enabled} onChange={e => updSL({ enabled: e.target.checked })} /> <b>Attiva spesa libera</b>
-            </label>
-            <p className="hint">
-              Quando è attivo <b>sostituisce</b> costo, posti-per-reparto ed effetto qui sopra. Al Sindacato il giocatore
-              spende da <b>min</b> a <b>max</b> marchi e ottiene altrettanti avanzamenti (1 marco = 1 cubetto), piazzabili
-              liberi sui 3 reparti. I posti sono un <b>totale condiviso</b> per trimestre (una formazione = un posto).
-            </p>
-            {SL.enabled && (<>
-              <label>Marchi spendibili: da{' '}
-                <input type="number" min="1" max="20" value={SL.min} onChange={e => updSL({ min: Math.max(1, Number(e.target.value) || 1) })} style={{ width: 52 }} /> a{' '}
-                <input type="number" min="1" max="20" value={SL.max} onChange={e => updSL({ max: Math.max(1, Number(e.target.value) || 1) })} style={{ width: 52 }} />
-                {'  '}<small>(= avanzamenti ottenuti)</small>
-              </label>
-              <table className="pv-editor" style={{ marginTop: 8 }}>
-                <thead><tr><th>Posti totali</th>{Array.from({ length: corsi.trimestri }, (_, i) => <th key={i}>T{i + 1}</th>)}</tr></thead>
-                <tbody><tr>
-                  <td style={{ textAlign: 'left' }}>condivisi tra i 3 corsi</td>
-                  {Array.from({ length: corsi.trimestri }, (_, i) => <td key={i}><input type="number" min="0" max="30" value={SL.postiTotali[i] ?? 0} onChange={e => updPT(i, e.target.value)} style={{ width: 52 }} /></td>)}
-                </tr></tbody>
-              </table>
-            </>)}
-          </div>
-        );
-      })()}
-      <div style={{ marginTop: 12 }}>
-        <button className="ghost" onClick={() => { const d = readDef('officina1907-corsi-v1', CORSI_DEFAULT); setCorsi(structuredClone(d)); saveLS('officina1907-corsi-v1', d); }}>Ripristina default</button>
-        <button className="ghost" onClick={() => writeDef('officina1907-corsi-v1', corsi)}>⭐ Rendi questi valori i default</button>
-      </div>
     </div>
   );
 }
@@ -1244,6 +1050,7 @@ const IMPORT_FIELDS = [
   ['contractMarket', 'officina1907-market-v2'],
   ['contractMilestoneReq', 'officina1907-contractmsreq-v2'],
   ['contractEngine', 'officina1907-contractengine-v1'],
+  ['sottoInstantEffect', 'officina1907-sottoinstant-v1'],
   ['welfareEnabled', 'officina1907-welfareenabled-v1'],
   ['trackTiles', 'officina1907-tracktiles-v2'],
   ['trackTileCap', 'officina1907-tracktilecap-v1'],
@@ -1328,9 +1135,9 @@ export default function SetupScreen({ onStart }) {
   const [market, setMarket] = useState(loadMarket);
   const [milestoneReq, setMilestoneReq] = useState(loadMilestoneReq);
   const [contractEngine, setContractEngine] = useState(() => loadLS('officina1907-contractengine-v1', false));
+  const [sottoInstantEffect, setSottoInstantEffect] = useState(() => loadLS('officina1907-sottoinstant-v1', true));
   const [families, setFamilies] = useState(loadFamilies);
   const [clocks, setClocks] = useState(loadClocks);
-  const [corsi, setCorsi] = useState(loadCorsi);
   const [targets, setTargets] = useState(loadTargets);
   const [welfareEnabled, setWelfareEnabled] = useState(loadWelfareEnabled);
   const [newWorkers, setNewWorkers] = useState(loadNewWorkers);
@@ -1349,7 +1156,7 @@ export default function SetupScreen({ onStart }) {
     strikePenaltyPV: strikePV,
     deptCompletePV: deptPV,
     slots, startTension: tension, contractCount: count, contracts, contractMarket: market,
-    contractMilestoneReq: milestoneReq, contractEngine,
+    contractMilestoneReq: milestoneReq, contractEngine, sottoInstantEffect,
     // toggle in "Editor nuovo mazzo": mazzo unificato 84 carte (lavoratori+impiegati), 6 nazioni (+Greci),
     // 5 mazzetti fisici (nodeBanks) al posto delle coppie di nazioni adiacenti. Niente più azione separata
     // a Servizi per gli Impiegati — sempre Welfare/Macchinari classico lì (servicesMode di default).
@@ -1369,7 +1176,6 @@ export default function SetupScreen({ onStart }) {
     newWorkers, families,
     trackTiles, trackTileCap,
     clockThreshold: clocks, indicatorTargets: targets,
-    corsi, // Corsi di Formazione: default enabled:false, nessun effetto finché non si accende
   });
   const start = () => {
     onStart({
@@ -1431,7 +1237,6 @@ export default function SetupScreen({ onStart }) {
             ['monete', '🪙 Editor monete iniziali'],
             ['newdeck', '🃏 Editor nuovo mazzo'],
             ['impiegati', '👔 Editor carte Impiegato'],
-            ['corsi', '🎓 Editor Corsi di Formazione'],
             ['families', '📜 Editor Piano Industriale'],
             ['tracktiles', '🧩 Editor tile tracciato'],
             ['target', '🎯 Editor bersagli indicatori'],
@@ -1450,9 +1255,8 @@ export default function SetupScreen({ onStart }) {
         {open === 'borsafabbriche' && <BorsaFabbricheEditor bf={borsaFabbriche} setBf={setBorsaFabbriche} />}
         {open === 'conv' && <ConversionsEditor conv={conversions} setConv={setConversions} strikePV={strikePV} setStrikePV={setStrikePV} deptPV={deptPV} setDeptPV={setDeptPV} />}
         {open === 'monete' && <StartCoinsEditor coins={startCoins} setCoins={setStartCoins} n={n} />}
-        {open === 'newdeck' && <NewDeckEditor newWorkers={newWorkers} setNewWorkers={setNewWorkers} />}
+        {open === 'newdeck' && <NewDeckEditor newWorkers={newWorkers} setNewWorkers={setNewWorkers} sottoInstantEffect={sottoInstantEffect} setSottoInstantEffect={setSottoInstantEffect} />}
         {open === 'impiegati' && <ImpiegatiDeckEditor newWorkers={newWorkers} setNewWorkers={setNewWorkers} />}
-        {open === 'corsi' && <CorsiEditor corsi={corsi} setCorsi={setCorsi} />}
         {open === 'families' && <FamilyEditor families={families} setFamilies={setFamilies} baseCfg={{ ...cfg(), nPlayers: 4 }} />}
         {open === 'tracktiles' && <TrackTileEditor tiles={trackTiles} setTiles={setTrackTiles} cap={trackTileCap} setCap={setTrackTileCap} />}
         {open === 'target' && <TargetEditor targets={targets} setTargets={setTargets} />}
@@ -1462,10 +1266,10 @@ export default function SetupScreen({ onStart }) {
           contractPV: setContractPV, conversions: setConversions, strikePenaltyPV: setStrikePV, deptCompletePV: setDeptPV,
           startingCoins: setStartCoins, trattativa: setTrattativa, borsa: setBorsa, borsaExit: setBorsaExit, borsaRefresh: setBorsaRefresh, borsaFabbriche: setBorsaFabbriche, slots: setSlots,
           startTension: setTension, contractCount: setCount, contracts: setContracts, contractMarket: setMarket, starMovement: setStarMovement,
-          contractMilestoneReq: setMilestoneReq, contractEngine: setContractEngine, welfareEnabled: setWelfareEnabled,
+          contractMilestoneReq: setMilestoneReq, contractEngine: setContractEngine, sottoInstantEffect: setSottoInstantEffect, welfareEnabled: setWelfareEnabled,
           trackTiles: setTrackTiles, trackTileCap: setTrackTileCap,
           clockThreshold: setClocks, indicatorTargets: setTargets, tracks: setTrack,
-          newWorkers: setNewWorkers, families: setFamilies, corsi: setCorsi,
+          newWorkers: setNewWorkers, families: setFamilies,
         }} />}
         {open === 'sim' && <SimulationPanel {...cfg()} />}
         <button className="primary" onClick={start}>Inizia la partita</button>

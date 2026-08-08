@@ -8,9 +8,6 @@ import {
   TRACK_TILES, TRACK_TILE_CAP_DEFAULT, IMPIEGATI_BANK, IMPIEGATI_MARKET,
   BORSA_INDICI_DEFAULT, BORSA_FABBRICHE_DEFAULT, FACTORY_MAP, DEFAULT_FACTORY_MAPS,
 } from './data.js';
-// Corsi di Formazione: tutte le regole (trimestri/posti/costi e distribuzione dei passi) vivono in
-// corsi.js, non qui. Il motore chiama solo questa API — vedi il commento in testa a quel file.
-import { mergeCorsi, chiudiTrimestri, corsoCommands, costoCorso, distribuzione } from './corsi.js';
 
 const STRIKE_PENALTY_PV = 3; // penalità PV di default per ogni carta bloccata (Sciopero) a fine partita
 
@@ -533,6 +530,7 @@ export function initGame(config) {
     singlePlace: !!config.singlePlace,   // true: la commessa ha un solo vincitore (PV 1°) e si rinfresca subito, niente 2° posto
     slots: mergeSlots(config.slots),     // cap Sopra/Sotto per reparto + Direzione (editabile)
     contractEngine: !!config.contractEngine, // commessa completata → carta-motore sotto Direzione (risorsa/turno per forza-settore dominante)
+    sottoInstantEffect: !!config.sottoInstantEffect, // true: installare una carta Sotto ne esegue subito l'azione, invece di aspettare l'attivazione del reparto
     starMovement: !!config.starMovement, // 2 giocatori: movimento a stella (pentagramma), +1 per scavallare a un nodo a fianco
     // bonus carta-motore ora è PER-CARTA (contract.engine: {yield, amount, uses}); nessun valore globale, solo il master toggle contractEngine.
     // requisito milestone per completare commesse di ogni taglia (0-3): quante milestone di tracciato servono
@@ -549,11 +547,6 @@ export function initGame(config) {
     // Borsa a indici: id nodo 'Servizi' = "Borsa" a schermo (NODE_LABEL). Default enabled:false → invariato.
     borsaIndici: mergeBorsaIndici(config.borsaIndici),
     quad: 0, // quadrimestre corrente (0..3), avanza alle soglie di Clock in borsaIndici.quadBounds
-    // Corsi di Formazione (28/07/2026): sostituiscono gli Impiegati quando enabled. Default OFF.
-    corsi: mergeCorsi(config.corsi),
-    trimestre: 0,      // trimestre corrente (0-based); == corsi.trimestri → tutti chiusi
-    corsiLog: [],      // { turn, tri, seat, sector } — è la fonte di verità dei posti occupati (risorsa CONDIVISA)
-    corsiSession: false, // una formazione per visita; azzerato dal 'move'
     indexCount: { ...Object.fromEntries(SECTORS.map(s => [s, 0])), Sindacato: 0 }, // driver a contatore
     borsaFabbriche: mergeBorsaFabbriche(config.borsaFabbriche), // sostituisce gli indici quando enabled
     // mappa per numero giocatori: config.borsaFabbriche.maps[n] > map singola (legacy) > default per n
@@ -581,6 +574,7 @@ export function initGame(config) {
     pendingQueue: [],
     activationCoins: null, // marchi guadagnati nell'attivazione in corso
     activationLog: [], // { turn, seat, sector, track, sotto, mult, total } — potenza di produzione per attivazione
+    strikeLog: [], // { turn, seat, role, sector, byOpponent, cardId, resolved } — un evento per ogni sciopero con carta bloccabile (esclusi i "nessuna carta bloccabile"); cardId/resolved si riempiono dopo, da strikeBlock/doUnblockSciopero
     log: [],
   };
   log(state, `Partita a ${n}: ${players.map(p => `${p.name} (${p.boardName}${p.isAI ? ', AI' : ''})`).join(' · ')}. Seed ${seed}.`);
@@ -613,8 +607,6 @@ export function currentPlayer(state) { return state.players[state.current]; }
 export function deptOfSector(player, sector) {
   return DEPT_ROLES.map(r => player.depts[r]).find(d => d.sector === sector);
 }
-// posizione di un tracciato — passata a corsi.js, che non deve conoscere la forma di player.depts
-const trackPos = (player, sector) => deptOfSector(player, sector)?.prod ?? 0;
 
 // sopraOnly: le carte Sotto sono fisicamente infilate sotto la plancia — la loro icona (nazione/settore
 // stampata in alto sulla carta) non è visibile in gioco. I moltiplicatori "per icona"/"per nazione" contano
@@ -929,9 +921,12 @@ function checkStrike(state, owner, dept, byOpponent = false) {
   const options = [...dept.sopra, ...dept.sotto].filter(id => !dept.blocked.includes(id));
   dept.tension = 0;
   if (options.length === 0) {
+    // niente da bloccare: non è una "carta bloccata" risolvibile dal Sindacato, escluso dal log (denominatore % risolti)
     log(state, `${owner.name}: SCIOPERO in ${dept.sector} — nessuna carta bloccabile, Tensione azzerata.`);
     return;
   }
+  // cardId si riempie in 'strikeBlock' (qui non è ancora deciso quale carta) — resolved lo mette doUnblockSciopero
+  state.strikeLog.push({ turn: state.turn, seat: owner.id, role: dept.role, sector: dept.sector, byOpponent, cardId: null, resolved: false });
   log(state, `${owner.name}: SCIOPERO in ${dept.sector}! Deve bloccare una carta.`);
   state.pendingQueue.push({ type: 'sciopero', playerId: owner.id, role: dept.role, options });
   advancePending(state);
@@ -1242,7 +1237,6 @@ function finishTurn(state) {
   if (lastOfRound) {
     state.roundTurns = 0;
     state.turn += 1;
-    chiudiTrimestri(state); // trigger 'turno': il clock non si muove, i trimestri sì
     // rete di sicurezza: se il Clock non può più avanzare (es. requisito milestone irraggiungibile
     // che blocca una taglia), la partita finirebbe mai. Cap round generoso (~3× la durata normale).
     if (state.turn > MAX_ROUNDS) { log(state, `Raggiunto il limite di ${MAX_ROUNDS} round: la partita si chiude d'ufficio.`); endGame(state); return; }
@@ -1266,7 +1260,6 @@ function advanceClock(state, amount) {
     state.clock += 1;
   }
   checkQuadClose(state); // i quadrimestri sono scanditi dal Clock: qui si pagano i dividendi
-  chiudiTrimestri(state); // idem i trimestri dei Corsi: i posti rimasti nel trimestre che chiude sono persi
   if (!state.finalRound && state.clock >= state.clockThreshold) {
     state.finalRound = true;
     if (state.endOnTrigger) {
@@ -1353,11 +1346,7 @@ export function legalCommands(state) {
     // Assumi (tutti i nodi perimetrali). Al Sindacato ogni banco (Lavoratore/Impiegato) si può usare
     // una sola volta a visita — gate della sessione combinabile, vedi sindacatoSession.
     const ss = state.sindacatoSession;
-    // I Corsi SOSTITUISCONO gli Impiegati: quando sono attivi il banco Impiegati sparisce dal nodo,
-    // altrimenti si sommerebbero due sorgenti di avanzamento e l'A/B non misurerebbe più niente.
-    cmds.push(...corsoCommands(state, p, trackPos));
     for (const bank of state.nodeBanks[node]) {
-      if (state.corsi.enabled && bank === IMPIEGATI_BANK) continue;
       if (ss && bank === IMPIEGATI_BANK && ss.hireImpiegato) continue;
       if (ss && bank !== IMPIEGATI_BANK && ss.hireLavoratore) continue;
       for (const cardId of bankMarket(state, bank)) {
@@ -1542,9 +1531,7 @@ function canPay(p, req) {
 // borsaFabbriche/factoryMap/factoryHexById/factoryHexes/hexResource: geometria+config, scritte solo in
 // initGame (verificato: nessun write nel path di applyCommand) → condivise per riferimento invece di clonate.
 // L'occupazione delle fabbriche vive in hexFactory (mutabile), non qui.
-// 'corsi' = config dei Corsi, scritta solo da mergeCorsi in initGame (l'occupazione dei posti vive in
-// corsiLog, mutabile, non qui) → condivisa per riferimento. Clonarla a ogni lookahead IA è puro spreco.
-const STATIC_KEYS = new Set(['tracks', 'milestonePos', 'marketUnlockPos', 'tileSlotPos', 'welfareById', 'trackTileById', 'rules', 'nations', 'nodeBanks', 'bankIds', 'borsaFabbriche', 'factoryMap', 'factoryHexById', 'factoryHexes', 'hexResource', 'corsi']);
+const STATIC_KEYS = new Set(['tracks', 'milestonePos', 'marketUnlockPos', 'tileSlotPos', 'welfareById', 'trackTileById', 'rules', 'nations', 'nodeBanks', 'bankIds', 'borsaFabbriche', 'factoryMap', 'factoryHexById', 'factoryHexes', 'hexResource']);
 function deepClone(o) {
   if (o === null || typeof o !== 'object') return o;
   if (Array.isArray(o)) { const n = o.length, a = new Array(n); for (let i = 0; i < n; i++) a[i] = deepClone(o[i]); return a; }
@@ -1568,6 +1555,9 @@ export function applyCommand(prev, cmd) {
       const owner = state.players[pend.playerId];
       const dept = owner.depts[pend.role];
       dept.blocked.push(cmd.cardId);
+      // aggancia lo sciopero (loggato in checkStrike senza carta ancora decisa) alla carta appena bloccata
+      const strikeEvt = [...state.strikeLog].reverse().find(e => e.seat === owner.id && e.role === pend.role && e.cardId === null);
+      if (strikeEvt) strikeEvt.cardId = cmd.cardId;
       const wBlk = WORKER_BY_ID[cmd.cardId];
       let setback = '';
       // Le carte Sopra avevano avanzato il tracciato del loro V all'assunzione: bloccandole lo si toglie.
@@ -1624,7 +1614,6 @@ export function applyCommand(prev, cmd) {
       state.sindacatoSession = cmd.node === 'Sindacato'
         ? { hireLavoratore: false, hireImpiegato: false, trattativa: false, unblock: false }
         : null;
-      state.corsiSession = false; // una formazione per visita, ovunque sia il nodo dei Corsi
       log(state, `${p.name} sposta il Procuratore a ${cmd.node}.`);
       return state;
     }
@@ -1635,8 +1624,6 @@ export function applyCommand(prev, cmd) {
       log(state, `${p.name}: una fabbrica produce ${RESOURCE_OF[cmd.sector]} (scelta).`);
       return state;
     }
-    case 'corso':
-      return doCorso(state, p, cmd);
     case 'hire':
       return doHire(state, p, cmd);
     case 'activate':
@@ -1711,30 +1698,6 @@ function recordActivation(state) {
   state.activationCoins = null;
 }
 
-// Corso di Formazione. Occupa un posto pubblico nel reparto `cmd.sector` per il trimestre corrente,
-// poi applica la distribuzione dei passi decisa da corsi.js. Qui NON c'è nessun numero: quanto costa e
-// quanti passi dà lo dicono costoCorso()/distribuzione(), cioè i dati dell'editor.
-// A differenza dell'Impiegato non consuma slot in Direzione: il posto nel corso È la scarsità.
-function doCorso(state, p, cmd) {
-  const tri = state.trimestre;
-  // Spesa libera: paga cmd.spend (1 marco = 1 cubetto), niente reparto d'iscrizione (posto condiviso) →
-  // per i log/telemetria uso il reparto dominante. Modello classico: paga costoCorso, reparto = cmd.sector.
-  const sector = cmd.sector ?? cmd.sectors[0];
-  const cost = cmd.spend ?? costoCorso(state.corsi, tri, cmd.sector);
-  spendCoins(p, 'direzione', cost); // stessa voce di spesa degli Impiegati, per confronto
-  state.corsiLog.push({ turn: state.turn, tri, seat: p.id, sector });
-  state.corsiSession = true;
-  const dist = distribuzione(state.corsi, cmd.sectors, cmd.passi);
-  log(state, `${p.name} si iscrive al corso ${sector} (T${tri + 1}): ${dist.map(d => `${d.sector} +${d.passi}`).join(', ')}.`);
-  for (const d of dist) advanceTrack(state, p, deptOfSector(p, d.sector), d.passi, `corso di formazione T${tri + 1}`);
-  p.lastDirTurn = state.turn;
-  checkObjectives(state, p);
-  // Al Sindacato le sotto-azioni sono combinabili nella stessa visita (come faceva l'Impiegato): il turno
-  // non finisce. Se i Corsi sono stati spostati su un altro nodo, l'azione chiude il turno come le altre.
-  if (p.node === 'Sindacato' && state.sindacatoSession) return state;
-  finishTurn(state);
-  return state;
-}
 
 function doHire(state, p, cmd) {
   const w = WORKER_BY_ID[cmd.cardId];
@@ -1764,6 +1727,7 @@ function doHire(state, p, cmd) {
     dept.sotto.push(w.id);
     if (dept.slotTurn.sotto[dept.sotto.length - 1] == null) dept.slotTurn.sotto[dept.sotto.length - 1] = state.turn;
     log(state, `${p.name} assume ${w.nation} ${w.sector || '(2 reparti)'} [V${w.v}] Sotto in ${dept.sector}: «${w.effectText || 'nessun bonus'}».`);
+    if (state.sottoInstantEffect) applyCardEffect(state, p, dept, w); // esegue subito l'azione invece di aspettare l'attivazione
   }
   checkObjectives(state, p);
   if (p.node === 'Sindacato' && state.sindacatoSession) {
@@ -1771,7 +1735,7 @@ function doHire(state, p, cmd) {
     // un pending (tile), legalCommands lo serve comunque per primo; risolto quello, si torna qui da sé.
     if (cmd.bank === IMPIEGATI_BANK) state.sindacatoSession.hireImpiegato = true;
     else state.sindacatoSession.hireLavoratore = true;
-  } else {
+  } else if (!state.pending) { // applyCardEffect può aver aperto una scelta (scambia "a scelta") — non chiudere il turno finché non è risolta
     finishTurn(state);
   }
   return state;
@@ -2072,6 +2036,8 @@ function doUnblockSciopero(state, p, cmd) {
   spendCoins(p, 'sindacato', cost);
   const d = p.depts[cmd.role];
   d.blocked = d.blocked.filter(id => id !== cmd.cardId);
+  const strikeEvt = [...state.strikeLog].reverse().find(e => e.seat === p.id && e.role === cmd.role && e.cardId === cmd.cardId && !e.resolved);
+  if (strikeEvt) strikeEvt.resolved = true;
   // ripristina il V sul tracciato se la carta liberata è una Sopra (senza ripagare le caselle già riscosse,
   // per questo non passa da advanceTrack — ma le milestone tile vanno comunque controllate)
   if (d.sopra.includes(cmd.cardId)) {

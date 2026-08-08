@@ -2,7 +2,6 @@
 import { initGame, applyCommand, scorePlayer, WORKER_BY_ID, formulaOf, convBucketOf, describeCond, tileValue, tileEffect, bankMarket, legalCommands, indexNames, indexValue, factoryMajorityWinner, factorySectorMajorityWinner } from './engine.js';
 import { chooseCommand } from './ai.js';
 import { SECTORS, OBJECTIVE_TILES, WELFARE, TRACK_TILES, IMPIEGATI_BANK, RESOURCE_OF, FACTORY_MAP } from './data.js';
-import { costoCorso, distribuzione, bloccoCorso } from './corsi.js';
 
 
 // categoria azione per la heatmap: comando → colonna
@@ -106,10 +105,6 @@ export function runOneGame(config) {
     // stato del tracciato prima, avanzamenti REALI (il tracciato satura a trackMax: la potenza nominale
     // può andare in parte sprecata) e milestone attraversate in quella singola salita.
     impiegatiBuys: [], // {turn, seat, cardId, nation, coinsBefore, steps:[{sector, role, nominal, from, to, gained, sopra, ms:[1..3]}]}
-    // Corsi di Formazione: stessa forma di impiegatiBuys (i due sistemi vanno confrontati riga per riga)
-    // più i due assi che gli Impiegati non avevano — il trimestre e la SATURAZIONE dei posti condivisi.
-    corsiBuys: [],    // {turn, seat, tri, sector, sectors, costo, coinsBefore, steps:[{...come sopra}]}
-    corsiBlocked: [], // {turn, seat, tri, reason} — una volta per visita: la domanda respinta dalla scarsità
   };
   // apparizioni per carta: quante volte una carta ENTRA nel mercato di un banco (cima per i banchi
   // lavoratori, una delle 3 scoperte per gli Impiegati), non quanti turni ci resta — così "apparsa"
@@ -251,27 +246,6 @@ export function runOneGame(config) {
         return { sector, role, nominal, from: cp.depts[role].prod, sopra: cp.depts[role].sopra.length };
       }),
     } : null;
-    // Corso di formazione: stessa tecnica dell'Impiegato — fotografa i tracciati PRIMA, il delta si legge dopo.
-    const corsoBuy = cmd.type === 'corso' ? {
-      turn: s.turn, seat: s.current, tri: s.trimestre, sector: cmd.sector, sectors: cmd.sectors,
-      costo: costoCorso(s.corsi, s.trimestre, cmd.sector), coinsBefore: cp.coins,
-      steps: distribuzione(s.corsi, cmd.sectors, cmd.passi).map(({ sector, passi }) => {
-        const role = DEPT_ROLES_B.find(r => cp.depts[r].sector === sector);
-        return { sector, role, nominal: passi, from: cp.depts[role].prod, sopra: cp.depts[role].sopra.length };
-      }),
-    } : null;
-    // "Corso perso": il giocatore è al nodo dei Corsi e NON può formarsi. Registrato una volta per visita
-    // (il nodo cambia a ogni turno, quindi turno+seat identificano la visita). È un LIMITE SUPERIORE della
-    // domanda repressa: dice che l'occasione non c'era, non che il giocatore l'avrebbe presa.
-    // `corsiSession` escluso di proposito: chi si è appena formato è "bloccato" per costruzione, e quel
-    // conteggio (= 1 per ogni corso fatto) sommergerebbe il segnale vero, che è chi NON ha potuto formarsi.
-    if (s.corsi.enabled && s.phase === 'action' && cp.node === s.corsi.nodo && !s.corsiSession) {
-      const last = tel.corsiBlocked[tel.corsiBlocked.length - 1];
-      if (!last || last.turn !== s.turn || last.seat !== s.current) {
-        const reason = bloccoCorso(s, cp, (pl, sec) => pl.depts[DEPT_ROLES_B.find(r => pl.depts[r].sector === sec)].prod);
-        if (reason) tel.corsiBlocked.push({ turn: s.turn, seat: s.current, tri: s.trimestre, reason });
-      }
-    }
     if (cmd.type === 'buyWelfare') tel.welfareBuyTurns[s.current].push(s.turn);
     // La tile si sceglie al raggiungimento della milestone (resolveTrackTile): il ripiego "compra alla Borsa"
     // è stato rimosso dal design il 28/07/2026 (scelta obbligatoria). Il seat è quello del pending, non
@@ -320,7 +294,16 @@ export function runOneGame(config) {
     // #5 bonus lavoratore: registra l'effetto della carta assunta + chi
     if (cmd.type === 'hire' || (cmd.type === 'trattativa' && cmd.f3 === 'buy')) {
       const wcard = WORKER_BY_ID[cmd.cardId || cmd.f3card];
-      if (wcard) tel.hires.push({ eff: effSig(formulaOf(wcard)), seat: s.current, nation: wcard.nation, sector: wcard.sector, turn: s.turn, cardId: wcard.id, deck: wcard.deck, side: cmd.side });
+      // costo-opportunità (idea utente 08/08/2026): il menu Sopra/Sotto REALMENTE sul tavolo in questa
+      // decisione (prima di applyCommand) — serve a "quante Sopra avrebbe potuto comprare invece" per
+      // distinguere Sotto scelta perché preferita da Sotto scelta perché era l'unica disponibile.
+      const menu = cmd.type === 'hire' ? legalCommands(s).filter(c => c.type === 'hire') : null;
+      if (wcard) tel.hires.push({
+        eff: effSig(formulaOf(wcard)), seat: s.current, nation: wcard.nation, sector: wcard.sector,
+        turn: s.turn, cardId: wcard.id, deck: wcard.deck, side: cmd.side, v: wcard.v,
+        menuSopra: menu ? menu.filter(c => c.side === 'sopra').length : null,
+        menuSotto: menu ? menu.filter(c => c.side === 'sotto').length : null,
+      });
     }
     // Fondazione fabbrica: c'era un sito che estende un cluster (accessibilità) e l'ha scelto (convenienza)?
     if (cmd.type === 'buildFactory') {
@@ -343,16 +326,6 @@ export function runOneGame(config) {
           .filter(([, pos]) => pos > st.from && pos <= st.to).map(([m]) => Number(m));
       }
       tel.impiegatiBuys.push(impBuy);
-    }
-    if (corsoBuy) {
-      const bp = s.players[corsoBuy.seat];
-      for (const st of corsoBuy.steps) {
-        st.to = bp.depts[st.role].prod;
-        st.gained = st.to - st.from; // < nominal se il tracciato era già a fondo corsa
-        st.ms = Object.entries(s.marketUnlockPos[st.role] || {})
-          .filter(([, pos]) => pos > st.from && pos <= st.to).map(([m]) => Number(m));
-      }
-      tel.corsiBuys.push(corsoBuy);
     }
     noteMilestoneCross();
     for (const b of s.bankIds) noteBankTop(b);
@@ -400,33 +373,14 @@ export function runOneGame(config) {
   }));
   // cap slot per reparto (editabile): un reparto è "completo 5/5" quando sopra+sotto = questo totale
   tel.slotCap = ['terziario', 'secondario', 'primario'].map(r => s.slots[r].sopra + s.slots[r].sotto);
-  tel.activations = s.activationLog; // potenza di produzione per attivazione (idea utente 30/07/2026)
+  tel.activationLog = s.activationLog; // potenza di produzione per attivazione (idea utente 30/07/2026) — NB: non sovrascrivere tel.activations (numeri per-seat, riga sopra), serve intatto a EFFICIENZA MEDIA
+  tel.strikes = s.strikeLog; // scioperi (idea utente 08/08/2026) — un evento per ogni Tensione a limite, a prescindere dallo sblocco successivo
   // Chiusura Impiegati: stato finale di ogni reparto + quanta parte del tracciato è arrivata da Impiegati.
   // Serve alle due domande di fine partita: "gap di sviluppo compensato" (poche carte Sopra + tanti
   // Impiegati = la carta sta tappando un buco di offerta carte) e milestone marginali (sotto, nel report).
   // NB: `imp` è una sottostima quando lo sblocco Sciopero ripristina `prod` — raro, ma il verso è noto.
   tel.msPos = Object.fromEntries(DEPT_ROLES_B.map(r => [r, s.marketUnlockPos[r] || {}]));
   tel.trackMax = s.trackMax;
-  // Chiusura Corsi: saturazione dei posti per reparto × trimestre. `chiuso` distingue i posti PERSI
-  // (trimestre finito, non torneranno) da quelli ancora liberi in un trimestre mai raggiunto perché
-  // la partita è finita prima — due difetti di dimensionamento diversi, non vanno sommati.
-  tel.corsi = s.corsi.enabled ? {
-    cfg: s.corsi,
-    trimestreFinale: s.trimestre,
-    spesaLibera: !!s.corsi.spesaLibera?.enabled,
-    posti: SECTORS.flatMap(sector => s.corsi.posti[sector].slice(0, s.corsi.trimestri).map((tot, tri) => ({
-      sector, tri, tot, occupati: s.corsiLog.filter(c => c.sector === sector && c.tri === tri).length, chiuso: tri < s.trimestre,
-    }))),
-    // spesa libera: i posti sono un TOTALE condiviso per trimestre (postiTotali), non per reparto — saturazione per-trimestre
-    postiTot: s.corsi.spesaLibera?.enabled ? s.corsi.spesaLibera.postiTotali.slice(0, s.corsi.trimestri).map((tot, tri) => ({
-      tri, tot, occupati: s.corsiLog.filter(c => c.tri === tri).length, chiuso: tri < s.trimestre,
-    })) : null,
-    // quanto tracciato finale di ogni reparto è arrivato dai Corsi (contro-fattuale a fine partita, come `imp`)
-    perSeat: s.players.map((p, seat) => DEPT_ROLES_B.map(role => ({
-      role, sector: p.depts[role].sector, prod: p.depts[role].prod, sopra: p.depts[role].sopra.length,
-      corso: tel.corsiBuys.filter(b => b.seat === seat).reduce((n, b) => n + (b.steps.find(x => x.role === role)?.gained || 0), 0),
-    }))),
-  } : null;
   tel.impFinal = s.players.map((p, seat) => DEPT_ROLES_B.map(role => ({
     role, sector: p.depts[role].sector, prod: p.depts[role].prod, sopra: p.depts[role].sopra.length,
     imp: tel.impiegatiBuys.filter(b => b.seat === seat)
@@ -559,6 +513,52 @@ export function runOneGame(config) {
   tel.sottoFinal = s.players.map(sottoTot);         // carte Sotto a fine partita: il "dopo" degli snapshot milestone
   tel.sottoCap = DEPT_ROLES_B.reduce((n, r) => n + s.slots[r].sotto, 0); // slot Sotto totali disponibili
   tel.contracts = s.players.map(p => p.contractsWon.map(c => ({ size: c.size, turn: c.turn })));
+  // STRATEGIA SOTTO vs SOPRA (idea utente 08/08/2026): mix di costruzione, profilo finale, prestazione,
+  // timing rispetto alle commesse e commitment, per giocatore-partita — per distinguere Sotto DOMINANTE
+  // (vince sempre appena disponibile) da SITUAZIONALE (vince solo col contesto giusto) da semplicemente
+  // PIÙ ACCESSIBILE (scelta perché era l'unica sul tavolo, non perché preferita — vedi menuSopra/menuSotto).
+  tel.sottoStrategy = s.players.map((p, seat) => {
+    const hireSeq = tel.hires.filter(h => h.seat === seat).sort((a, b) => a.turn - b.turn);
+    const sottoHires = hireSeq.filter(h => h.side === 'sotto');
+    const sopraHires = hireSeq.filter(h => h.side === 'sopra');
+    const sopraCount = sopraHires.length;
+    const sottoCount = sottoHires.length;
+    const contractTurns = tel.contracts[seat].map(c => c.turn).sort((a, b) => a - b);
+    const [t1, t2] = contractTurns;
+    // commitment: prima finestra di 3 assunzioni consecutive con ≥2/3 Sotto → da lì in poi, quanto TIENE la direzione
+    let commitTurn = null, commitIdx = null;
+    for (let i = 2; i < hireSeq.length; i++) {
+      if (hireSeq.slice(i - 2, i + 1).filter(h => h.side === 'sotto').length >= 2) { commitTurn = hireSeq[i].turn; commitIdx = i; break; }
+    }
+    const afterCommit = commitIdx == null ? [] : hireSeq.slice(commitIdx + 1);
+    const bothAvail = hireSeq.filter(h => h.menuSopra > 0 && h.menuSotto > 0); // decisioni con VERA scelta sul tavolo
+    const sottoOptsSeen = sottoHires.filter(h => h.menuSopra != null).map(h => h.menuSopra);
+    const sopraOptsSeen = sopraHires.filter(h => h.menuSotto != null).map(h => h.menuSotto);
+    const r = tel.results.find(x => x.playerId === seat);
+    const totalSottoCap = DEPT_ROLES_B.reduce((a, role) => a + s.slots[role].sotto, 0);
+    return {
+      seat, sopraCount, sottoCount, ratio: sopraCount ? sottoCount / sopraCount : (sottoCount ? Infinity : 0),
+      firstSottoTurn: sottoHires[0]?.turn ?? null, lastSottoTurn: sottoHires.at(-1)?.turn ?? null,
+      profile: sottoCount >= 4 ? '4+' : sottoCount <= 1 ? '0-1' : String(sottoCount),
+      normalizedSotto: totalSottoCap ? sottoCount / totalSottoCap : null,
+      pv: r?.total ?? null, rank: tel.results.findIndex(x => x.playerId === seat) + 1,
+      win: tel.results[0]?.playerId === seat ? 1 : 0,
+      completions: tel.contracts[seat].length,
+      milestones: tel.milestoneSnap.filter(m => m.seat === seat).length,
+      tracksFinal: DEPT_ROLES_B.map(role => p.depts[role].prod),
+      coinsFinal: p.coins, resFinal: Object.values(p.resources).reduce((a, n) => a + n, 0),
+      sottoPre1: t1 == null ? sottoCount : sottoHires.filter(h => h.turn < t1).length,
+      sottoBetween: (t1 == null || t2 == null) ? 0 : sottoHires.filter(h => h.turn >= t1 && h.turn < t2).length,
+      sottoPost2: t2 == null ? 0 : sottoHires.filter(h => h.turn >= t2).length,
+      commitTurn, maintainRatio: afterCommit.length ? afterCommit.filter(h => h.side === 'sotto').length / afterCommit.length : null,
+      // costo-opportunità: quante Sopra c'erano REALMENTE sul tavolo quando ha scelto Sotto (e viceversa) —
+      // vicino a 0 = "Sotto era l'unica opzione" (categoria C); alto = preferenza vera anche con alternative (A/B)
+      avgSopraOptsWhenSotto: sottoOptsSeen.length ? avg(sottoOptsSeen) : null,
+      avgSottoOptsWhenSopra: sopraOptsSeen.length ? avg(sopraOptsSeen) : null,
+      bothAvailCount: bothAvail.length,
+      bothAvailChoseSotto: bothAvail.filter(h => h.side === 'sotto').length, // preferenza rivelata a parità di opportunità
+    };
+  });
   tel.build = s.players.map(p => ({ lastHire: p.lastHireTurn, lastDir: p.lastDirTurn })); // #3 tempo di costruzione
   // turno di riempimento di ogni slot Sopra/Sotto (reparto, mediato sui 3 reparti) e Direzione (Welfare/Macchinario) — assorbimento marchi in fabbrica piena
   tel.slotTurn = {
@@ -769,7 +769,6 @@ const REPORT_MAP = [
   ['CICLO DEL MOTORE', 2, '🔵', 'Completamento'],
   // blocco Direzione/Impiegati (storicamente "macchinari"): sviluppo del motore, non economia
   ['PASSO DEL CLOCK', 1, '🟢'],
-  ['CORSI DI FORMAZIONE — dimensionamento', 2, '🟢', 'Costruzione'],
   ['IMPIEGATI — che lavoro', 2, '🟢', 'Costruzione'],
   ['MACCHINARI: ACCESSO O VALORE', 2, '🔵', 'Costruzione'], ['MACCHINARI: CON vs SENZA', 2, '⚪', 'Costruzione'],
   ['MACCHINARI: CAUSA, SELEZIONE O SOGLIA', 2, '⚪', 'Costruzione'], ["RISORSE PRODOTTE DOPO L'ACQUISTO", 2, '⚪', 'Costruzione'],
@@ -1708,9 +1707,26 @@ export function formatReport(games, cfg) {
   // aggregati fabbrica/nodi: le vecchie tabelle per-posto (visite nodi, attivazioni, sindacato)
   // raccontavano la stessa storia di heatmap + PV per posizione — compresse in tre righe.
   L.push('— FABBRICA E NODI (aggregati) —');
-  L.push(`Assunzioni: Sopra ${sopra} (${pct(sopra / (sopra + sotto || 1))}) · Sotto ${sotto} (${pct(sotto / (sopra + sotto || 1))}) · attivazioni reparto/giocatore: ${avg(ok.flatMap(g => g.activations)).toFixed(1)}`);
+  const allActivations = ok.flatMap(g => g.activationLog || []); // array di EVENTI (oggetti), non numeri — la media è "N eventi / N giocatori-partita"
+  L.push(`Assunzioni: Sopra ${sopra} (${pct(sopra / (sopra + sotto || 1))}) · Sotto ${sotto} (${pct(sotto / (sopra + sotto || 1))}) · attivazioni reparto/giocatore: ${(allActivations.length / (ok.length * P || 1)).toFixed(1)}`);
   L.push('attivazioni per settore (media/giocatore): ' + SECTORS.map(sc => `${sc} ${avg(ok.flatMap(g => g.activationsBySector.map(v => v[sc] || 0))).toFixed(1)}`).join(' · '));
   L.push('Sindacato (media/giocatore): ' + SIND_KEYS.map(k => `${SIND_LABEL[k]} ${avg(ok.flatMap(g => g.sindacato.map(v => v[k] || 0))).toFixed(1)}`).join(' · ') + ` · scioperi subiti ${avg(ok.flatMap(g => g.strikesByOpponent)).toFixed(1)}`);
+
+  // SCIOPERI (idea utente 08/08/2026): conteggio esplicito richiesto per il confronto A/B — la meccanica
+  // "Sotto immediata" aumenta assunzioni Sotto e attivazioni; questa riga dice se aumenta anche la Tensione
+  // fino allo sciopero (feedback produttività→instabilità) o se l'efficienza sale senza destabilizzare.
+  {
+    const allStrikes = ok.flatMap(g => g.strikes || []);
+    const nGP = ok.length * P; // giocatori-partita, denominatore comune a tutte le medie/giocatore
+    const perAct = allActivations.length ? (allStrikes.length / allActivations.length) : 0;
+    const bySector = Object.fromEntries(SECTORS.map(sc => [sc, allStrikes.filter(x => x.sector === sc).length]));
+    const pvStrikesTot = ok.reduce((a, g) => a + g.results.reduce((b, r) => b + (r.pvStrikes || 0), 0), 0);
+    L.push(`SCIOPERI: totali ${allStrikes.length} · per giocatore ${(allStrikes.length / (nGP || 1)).toFixed(2)} · per partita ${(allStrikes.length / (ok.length || 1)).toFixed(2)} · per attivazione ${perAct.toFixed(3)} (= ${(perAct * 100).toFixed(1)} ogni 100 attivazioni)`);
+    L.push('  per reparto: ' + SECTORS.map(sc => `${sc} ${bySector[sc]} (${pct(bySector[sc] / (allStrikes.length || 1))})`).join(' · '));
+    const resolved = allStrikes.filter(x => x.resolved).length;
+    L.push(`  risolti dal Sindacato: ${resolved}/${allStrikes.length} (${pct(resolved / (allStrikes.length || 1))})  (il resto resta bloccato a fine partita, o la partita finisce prima che qualcuno paghi per sbloccarlo)`);
+    L.push(`  PV persi per scioperi: totali ${pvStrikesTot.toFixed(0)} · per giocatore ${(pvStrikesTot / (nGP || 1)).toFixed(2)}  (a −${cfg.strikePenaltyPV ?? '?'} PV/carta bloccata ANCORA attiva a fine partita — uno sciopero sbloccato in tempo dal Sindacato non conta qui)`);
+  }
   L.push('');
 
   L.push(`— COMMESSE — prima della partita: piccola ${pct(firstSize.small / ok.length)} · media ${pct(firstSize.medium / ok.length)} · grande ${pct(firstSize.large / ok.length)}`);
@@ -1827,7 +1843,7 @@ export function formatReport(games, cfg) {
   // POTENZA DI PRODUZIONE per attivazione (idea utente 30/07/2026): la DISTRIBUZIONE, non la media —
   // per capire quanto spesso esistono davvero motori esplosivi, non il massimo teorico.
   // "produzione" = risorse+marchi resi da UNA attivazione (tracciato + carte Sotto, moltiplicatore cluster incluso).
-  const acts = ok.flatMap(g => g.activations || []);
+  const acts = ok.flatMap(g => g.activationLog || []);
   if (acts.length) {
     const totals = acts.map(a => a.total).sort((x, y) => x - y);
     const ptl = arr => q => arr[Math.min(arr.length - 1, Math.floor(q * arr.length))];
@@ -1840,14 +1856,14 @@ export function formatReport(games, cfg) {
     const mc = { 1: 0, 2: 0, 3: 0, 4: 0 };
     for (const a of acts) mc[Math.min(4, a.mult || 1)]++;
     L.push(`moltiplicatore cluster effettivo: ×1 ${pct(mc[1] / acts.length)} · ×2 ${pct(mc[2] / acts.length)} · ×3 ${pct(mc[3] / acts.length)} · ×4+ ${pct(mc[4] / acts.length)}`);
-    const peaks = ok.map(g => (g.activations || []).reduce((m, a) => Math.max(m, a.total), 0)).sort((x, y) => x - y);
+    const peaks = ok.map(g => (g.activationLog || []).reduce((m, a) => Math.max(m, a.total), 0)).sort((x, y) => x - y);
     const pp = ptl(peaks);
     L.push(`picco per partita (max resa in una singola attivazione): media ${(peaks.reduce((a, x) => a + x, 0) / peaks.length).toFixed(1)} · P90 ${pp(0.9)} · P95 ${pp(0.95)} · record ${peaks[peaks.length - 1]}`);
     // motore ≥10: turno della prima attivazione ≥10 e quante ≥10 DOPO la prima (il vero rendimento del motore)
     const firstTurns = [], after = { 0: 0, 1: 0, 2: 0, '3+': 0 }; let withEngine = 0, pg = 0;
     for (const g of ok) {
       const bySeat = {};
-      for (const a of (g.activations || [])) (bySeat[a.seat] ??= []).push(a);
+      for (const a of (g.activationLog || [])) (bySeat[a.seat] ??= []).push(a);
       for (const k of Object.keys(bySeat)) {
         pg++;
         const seq = bySeat[k].sort((x, y) => x.turn - y.turn);
@@ -1933,6 +1949,77 @@ export function formatReport(games, cfg) {
   for (const b of commitRhythm) { const lab = b.hi > 900 ? `${b.lo}+` : `${b.lo}-${b.hi}`; L.push(`  turno ${lab.padEnd(6)} | N ${String(b.n).padStart(4)} | win% ${b.n ? pct(b.w / b.n) : '—'}`); }
   L.push('(TEST TRAPPOLA: fallito < opportunista → specializzarsi è −EV, è una TRAPPOLA; fallito ≥ opportunista → alternativa valida ma difficile. RITMO: win% a campana → finestra ottimale di commitment; sale verso i tardivi → premia l\'adattamento; scende → premia la lettura iniziale. abbandonato vs quasi = ha cambiato piano vs mancato per poco.)');
   L.push('');
+
+  // STRATEGIA SOTTO vs SOPRA (idea utente 08/08/2026): la domanda non è "chi ha più Sotto vince di più"
+  // (correlazione quasi inutile) ma "Sotto è dominante, situazionale, o solo più accessibile?" — vedi
+  // tel.sottoStrategy in runOneGame per il dettaglio del calcolo di ogni campo.
+  {
+    const ss = ok.flatMap(g => g.sottoStrategy || []);
+    const nSS = ss.length;
+    L.push('— STRATEGIA SOTTO vs SOPRA: dominante, situazionale o solo più accessibile? (idea utente 08/08/2026) —');
+    if (nSS) {
+      L.push(`mix medio: Sopra ${avg(ss.map(x => x.sopraCount)).toFixed(1)} · Sotto ${avg(ss.map(x => x.sottoCount)).toFixed(1)} · rapporto Sotto/Sopra ${avg(ss.filter(x => Number.isFinite(x.ratio)).map(x => x.ratio)).toFixed(2)} · Sotto/slot-Sotto-disponibili ${pct(avg(ss.filter(x => x.normalizedSotto != null).map(x => x.normalizedSotto)))}`);
+
+      // 2. profilo finale → 3. prestazione (correlazione grezza, dichiarata come tale)
+      const buckets = ['0-1', '2', '3', '4+'];
+      L.push('— per profilo finale (N Sotto a fine partita) — CORRELAZIONE GREZZA, non ancora controllata per opportunità —');
+      L.push('profilo'.padEnd(8) + ' | quota |    N | PV medi | win% | rank medio | commesse | milestone | 1ª Sotto | ultima Sotto');
+      for (const b of buckets) {
+        const xs = ss.filter(x => x.profile === b);
+        if (!xs.length) { L.push(b.padEnd(8) + ' |   0% |    0 | —'); continue; }
+        L.push(b.padEnd(8) + ' | ' + pct(xs.length / nSS).padStart(5) + ' | ' + String(xs.length).padStart(4) + ' | '
+          + avg(xs.map(x => x.pv)).toFixed(1).padStart(7) + ' | ' + pct(avg(xs.map(x => x.win))).padStart(4) + ' | '
+          + avg(xs.map(x => x.rank)).toFixed(2).padStart(10) + ' | ' + avg(xs.map(x => x.completions)).toFixed(1).padStart(8) + ' | '
+          + avg(xs.map(x => x.milestones)).toFixed(1).padStart(9) + ' | ' + (xs.some(x => x.firstSottoTurn != null) ? avg(xs.filter(x => x.firstSottoTurn != null).map(x => x.firstSottoTurn)).toFixed(1) : '—').padStart(8) + ' | '
+          + (xs.some(x => x.lastSottoTurn != null) ? avg(xs.filter(x => x.lastSottoTurn != null).map(x => x.lastSottoTurn)).toFixed(1) : '—'));
+      }
+      L.push(`(base win% = ${pct(1 / P)}. Se il win% sale monotono col profilo, la correlazione grezza è forte — ma non dice ancora SE è dominanza o solo accessibilità: guarda il costo-opportunità sotto.)`);
+      L.push('');
+
+      // 4. confronto temporale: Sotto prima/tra/dopo le prime due commesse
+      const withT1 = ss.filter(x => x.sottoPre1 + x.sottoBetween + x.sottoPost2 > 0 || x.sottoCount === 0);
+      L.push(`— timing rispetto alle commesse (Sotto installate prima della 1ª / tra 1ª e 2ª / dopo la 2ª) —`);
+      L.push(`  prima 1ª commessa: ${avg(withT1.map(x => x.sottoPre1)).toFixed(1)} · tra 1ª e 2ª: ${avg(withT1.map(x => x.sottoBetween)).toFixed(1)} · dopo 2ª: ${avg(withT1.map(x => x.sottoPost2)).toFixed(1)}`);
+      L.push('');
+
+      // 5. commitment: chi passa a strategia chiaramente Sotto-heavy, e se poi tiene la direzione
+      const committed = ss.filter(x => x.commitTurn != null), never = ss.filter(x => x.commitTurn == null);
+      L.push('— commitment: quando (se mai) il giocatore passa a Sotto-heavy (≥2 Sotto nelle ultime 3 assunzioni), e se poi tiene —');
+      L.push(`si committa: ${pct(committed.length / nSS)} (N ${committed.length}) al turno medio ${committed.length ? avg(committed.map(x => x.commitTurn)).toFixed(1) : '—'} · mai: ${pct(never.length / nSS)} (N ${never.length})`);
+      const maintained = committed.filter(x => x.maintainRatio != null);
+      L.push(`  di chi si committa, tiene la direzione dopo (quota Sotto tra le assunzioni successive): media ${maintained.length ? pct(avg(maintained.map(x => x.maintainRatio))) : '—'} (N con altre assunzioni dopo il commit: ${maintained.length})`);
+      L.push(`  PV medi/win%: committed ${committed.length ? avg(committed.map(x => x.pv)).toFixed(1) : '—'}/${committed.length ? pct(avg(committed.map(x => x.win))) : '—'}  vs  mai-committed ${never.length ? avg(never.map(x => x.pv)).toFixed(1) : '—'}/${never.length ? pct(avg(never.map(x => x.win))) : '—'}`);
+      L.push('');
+
+      // 6. IL TEST CHE CONTA: controllo del costo-opportunità — quante Sopra c'erano davvero disponibili
+      // quando ha scelto Sotto (e viceversa), e cosa fa quando ENTRAMBE erano davvero sul tavolo.
+      const sopraOpts = ss.filter(x => x.avgSopraOptsWhenSotto != null).map(x => x.avgSopraOptsWhenSotto);
+      const sottoOpts = ss.filter(x => x.avgSottoOptsWhenSopra != null).map(x => x.avgSottoOptsWhenSopra);
+      L.push('— costo-opportunità: cosa aveva DAVVERO sul tavolo quando ha scelto? (il test che distingue dominante da solo-accessibile) —');
+      L.push(`quando sceglie Sotto, Sopra alternative disponibili in media: ${sopraOpts.length ? avg(sopraOpts).toFixed(2) : '—'}  ·  quando sceglie Sopra, Sotto alternative disponibili in media: ${sottoOpts.length ? avg(sottoOpts).toFixed(2) : '—'}`);
+      L.push('(vicino a 0 = quella scelta era quasi sempre l\'UNICA sul tavolo → "più accessibile" (C), non preferenza; alto = c\'era davvero da scegliere.)');
+      const bothN = ss.reduce((a, x) => a + x.bothAvailCount, 0), bothSotto = ss.reduce((a, x) => a + x.bothAvailChoseSotto, 0);
+      L.push(`preferenza rivelata a PARITÀ di opportunità (entrambe Sopra e Sotto disponibili nella stessa decisione): sceglie Sotto ${bothN ? pct(bothSotto / bothN) : '—'} delle volte (N decisioni ${bothN}, base 50% = indifferenza)`);
+      // terzili per tasso di preferenza rivelata (solo chi ha avuto almeno 2 decisioni "entrambe disponibili") → PV/win% per terzile
+      const withPref = ss.filter(x => x.bothAvailCount >= 2).map(x => ({ ...x, prefRate: x.bothAvailChoseSotto / x.bothAvailCount })).sort((a, b) => a.prefRate - b.prefRate);
+      if (withPref.length >= 3) {
+        const t = Math.ceil(withPref.length / 3);
+        const low = withPref.slice(0, t), mid = withPref.slice(t, 2 * t), high = withPref.slice(2 * t);
+        L.push('  per terzile di preferenza rivelata (bassa/media/alta quota di Sotto quando entrambe erano disponibili):');
+        for (const [lbl, xs] of [['bassa', low], ['media', mid], ['alta', high]]) {
+          if (!xs.length) continue;
+          L.push(`    ${lbl.padEnd(6)} pref ${pct(avg(xs.map(x => x.prefRate)))} (N ${xs.length}) → PV medi ${avg(xs.map(x => x.pv)).toFixed(1)} · win% ${pct(avg(xs.map(x => x.win)))}`);
+        }
+        L.push('  (se PV/win% salgono dal terzile basso all\'alto A PARITÀ di opportunità, è A: Sotto dominante. Se non salgono (o scendono), è B/C: il vantaggio grezzo di sopra era guidato dal contesto/accessibilità, non da Sotto in sé.)');
+      } else {
+        L.push('  (troppo poche decisioni con entrambe le opzioni disponibili per terzili affidabili — aumenta N partite.)');
+      }
+      L.push('(N.B. bothAvailCount/menuSopra/menuSotto contano solo le assunzioni dirette "hire" — le carte prese via Trattativa scambio-lavoratore non hanno un menu comparabile e sono escluse da questo test, non dal conteggio Sopra/Sotto sopra.)');
+    } else {
+      L.push('(nessun dato: nessuna partita valida)');
+    }
+    L.push('');
+  }
 
   // stessa distribuzione ma per SETTORE (Tessile/Metallurgica/Chimica), non per reparto: le plance assegnano
   // i settori a reparti diversi per giocatore, quindi solo qui si vede se un settore è sistematicamente più
@@ -2282,11 +2369,10 @@ export function formatReport(games, cfg) {
   }
 
   // ===== PASSO DEL CLOCK (28/07/2026) =====
-  // Nasce da una domanda dell'autore sui Corsi: prima di scegliere le soglie dei trimestri bisogna sapere
   // A CHE TURNO arriva davvero ogni valore di clock. Il clock NON avanza col tempo — sale solo quando
   // qualcuno completa una commessa — quindi "clock 6" non è "un terzo della partita": è un momento che va
   // misurato. Senza questa riga le soglie si indovinano. Serve a chiunque tari una finestra sul clock
-  // (trimestri dei Corsi, quadrimestri della Borsa), non solo ai Corsi.
+  // (es. i quadrimestri della Borsa).
   // Nessuna cattura nuova: tel.clockByRound registra già il clock a ogni turno, qui viene solo invertito.
   {
     const rows = [];
@@ -2302,7 +2388,7 @@ export function formatReport(games, cfg) {
       if (turni.length) rows.push({ v, turno: avg(turni), frac: avg(frazioni), quote: turni.length / ok.length });
     }
     L.push('=== PASSO DEL CLOCK — a che turno arriva ogni valore? ===');
-    L.push('(il clock sale solo con le commesse completate, non col tempo: un valore di clock NON corrisponde alla frazione di partita che sembra. Chi tara una finestra sul clock — trimestri dei Corsi, quadrimestri della Borsa — deve leggere questa tabella PRIMA di scegliere le soglie.)');
+    L.push('(il clock sale solo con le commesse completate, non col tempo: un valore di clock NON corrisponde alla frazione di partita che sembra. Chi tara una finestra sul clock — es. i quadrimestri della Borsa — deve leggere questa tabella PRIMA di scegliere le soglie.)');
     if (!rows.length) {
       L.push('Il clock non è mai avanzato in questo batch.');
     } else {
@@ -2317,109 +2403,6 @@ export function formatReport(games, cfg) {
       L.push('  (soglie equidistanti sul CLOCK non danno trimestri equidistanti nella PARTITA: se il clock accelera verso la fine, l\'ultimo trimestre si mangia il grosso del gioco.)');
     }
     L.push('');
-  }
-
-  // ===== CORSI DI FORMAZIONE (28/07/2026) =====
-  // Modulo a spazio di design: il report non serve a dire "i Corsi funzionano", serve a dire DOVE sono
-  // tarati male. Ogni blocco punta a un parametro preciso dell'editor, così il ciclo è: leggi → cambia
-  // quel numero → rilancia. I bersagli sono le proprietà misurate sugli Impiegati (sezione qui sotto).
-  {
-    const withCorsi = ok.filter(g => g.corsi);
-    if (withCorsi.length) {
-      const C = withCorsi[0].corsi.cfg;
-      const buys = withCorsi.flatMap(g => g.corsiBuys.map(b => ({ ...b, winner: b.seat === g.winner, turns: g.turns })));
-      const nTri = C.trimestri;
-      const nPG = withCorsi.length * withCorsi[0].corsi.perSeat.length; // giocatori-partita
-      L.push('=== CORSI DI FORMAZIONE — dimensionamento (28/07/2026) ===');
-      L.push(`(risorsa PUBBLICA: ${nTri} trimestri su ${C.trigger}, soglie ${C.bounds.slice(0, nTri).join('/')}, effetto ${C.effetto.passi.join('+')} passi su ${C.effetto.passi.length} reparto/i, scelta settore '${C.effetto.scelta}', costo ${JSON.stringify(C.costo)}${C.maxPerTrimestre ? `, max ${C.maxPerTrimestre}/giocatore per trimestre` : ''}. Bersagli dagli Impiegati: ~2.9 formazioni a testa, spalmate sulla partita, ~4 passi l'una, forte contributo alla 2ª milestone.)`);
-      L.push('  ⚠ i parametri qui sopra sono SEED VALUES, non un bilanciamento: primo valore plausibile per far partire l\'esperimento, mai tarato contro un batch. Questo report serve a sceglierli, non li presuppone.');
-      if (!buys.length) {
-        L.push('Nessuna formazione in questo batch: posti a zero, costo fuori portata o trimestri chiusi troppo presto.');
-      } else {
-        // 1. FORMAZIONI EFFETTUATE — totale, per giocatore, per reparto, per trimestre
-        const perSeat = withCorsi.flatMap(g => g.corsi.perSeat.map((_, seat) => g.corsiBuys.filter(b => b.seat === seat).length));
-        const conCorso = perSeat.filter(n => n > 0);
-        L.push(`▸ FORMAZIONI — ${buys.length} tot · ${(buys.length / withCorsi.length).toFixed(1)} per partita · ${(buys.length / nPG).toFixed(1)} per giocatore (bersaglio ~2.9) · ${pct(conCorso.length / nPG)} dei giocatori-partita se ne fa almeno una`);
-        const perRep = SECTORS.map(s2 => `${s2} ${buys.filter(b => b.sector === s2).length}`).join(' · ');
-        const perTri = Array.from({ length: nTri }, (_, t) => `T${t + 1} ${buys.filter(b => b.tri === t).length}`).join(' · ');
-        L.push(`  per reparto d'iscrizione: ${perRep}   |   per trimestre: ${perTri}`);
-        L.push(`  (uno squilibrio tra reparti a posti uguali = un reparto è più appetibile, non che i posti siano sbagliati.)`);
-
-        // 2 + 7. SATURAZIONE E POSTI INUTILIZZATI — la metrica che dice subito se i posti sono troppi.
-        // In SPESA LIBERA i posti sono un pool CONDIVISO per trimestre (postiTotali), non per reparto:
-        // misurarli per reparto darebbe saturazioni >100% e "persi" negativi (il pool si spalma sui 3 reparti).
-        if (withCorsi[0].corsi.spesaLibera) {
-          L.push(`▸ SATURAZIONE POSTI (spesa libera — pool CONDIVISO per trimestre, non per reparto) — ${'trimestre'.padEnd(20)} | posti | occupati | saturaz. | persi`);
-          const aggT = {};
-          for (const g of withCorsi) for (const p2 of (g.corsi.postiTot || [])) {
-            const e = (aggT[p2.tri] ??= { tri: p2.tri, tot: 0, occ: 0, persi: 0, mai: 0 });
-            e.tot += p2.tot; e.occ += p2.occupati;
-            if (p2.chiuso) e.persi += Math.max(0, p2.tot - p2.occupati); else e.mai += Math.max(0, p2.tot - p2.occupati);
-          }
-          for (const e of Object.values(aggT)) L.push(`  ${('T' + (e.tri + 1)).padEnd(20)} | ${String(e.tot).padStart(5)} | ${String(e.occ).padStart(8)} | ${pct(e.occ / Math.max(1, e.tot)).padStart(8)} | ${String(e.persi).padStart(5)}`);
-          const totP = Object.values(aggT).reduce((a, e) => a + e.tot, 0), totO = Object.values(aggT).reduce((a, e) => a + e.occ, 0);
-          const totMai = Object.values(aggT).reduce((a, e) => a + e.mai, 0);
-          L.push(`  TOTALE: ${totO}/${totP} occupati (${pct(totO / Math.max(1, totP))}) · ${Object.values(aggT).reduce((a, e) => a + e.persi, 0)} persi alla chiusura · ${totMai} in trimestri mai raggiunti (posti FANTASMA)`);
-          L.push('  (spesa libera: una formazione occupa 1 posto del TOTALE del suo trimestre, chiunque la faccia — la saturazione per reparto non ha senso qui.)');
-        } else {
-        L.push(`▸ SATURAZIONE POSTI — ${'reparto × trim'.padEnd(20)} | posti | occupati | saturaz. | persi`);
-        const agg = {};
-        for (const g of withCorsi) for (const p2 of g.corsi.posti) {
-          const k = `${p2.sector}|${p2.tri}`;
-          const e = (agg[k] ??= { sector: p2.sector, tri: p2.tri, tot: 0, occ: 0, persi: 0, mai: 0 });
-          e.tot += p2.tot; e.occ += p2.occupati;
-          // posti mai occupati: PERSI se il trimestre si è chiuso, FANTASMA se la partita è finita prima
-          if (p2.chiuso) e.persi += p2.tot - p2.occupati; else e.mai += p2.tot - p2.occupati;
-        }
-        for (const e of Object.values(agg)) {
-          const lbl = `${e.sector} T${e.tri + 1}`;
-          L.push(`  ${lbl.padEnd(20)} | ${String(e.tot).padStart(5)} | ${String(e.occ).padStart(8)} | ${pct(e.occ / Math.max(1, e.tot)).padStart(8)} | ${String(e.persi).padStart(5)}`);
-        }
-        const totP = Object.values(agg).reduce((a, e) => a + e.tot, 0), totO = Object.values(agg).reduce((a, e) => a + e.occ, 0);
-        const totMai = Object.values(agg).reduce((a, e) => a + e.mai, 0);
-        L.push(`  TOTALE: ${totO}/${totP} occupati (${pct(totO / Math.max(1, totP))}) · ${Object.values(agg).reduce((a, e) => a + e.persi, 0)} persi alla chiusura · ${totMai} in trimestri mai raggiunti (la partita finisce prima: sono posti FANTASMA, non scarsità)`);
-        L.push('  (saturazione ~100% con domanda respinta = troppo pochi. Sotto il 50% con nessuno respinto = troppi: il posto non è una risorsa contesa e la meccanica non decide niente.)');
-        }
-
-        // 3. QUANDO — stessa lettura fatta sugli Impiegati (turno medio 17.3, spalmati su tutta la partita)
-        const q = [0, 0, 0, 0];
-        for (const b of buys) q[Math.min(3, Math.floor(((b.turn - 1) / Math.max(1, b.turns)) * 4))]++;
-        L.push(`▸ QUANDO — turno medio ${avg(buys.map(b => b.turn)).toFixed(1)} · per quarto di partita: ${q.map((n, i) => `Q${i + 1} ${pct(n / buys.length)}`).join(' · ')}`);
-        L.push('  (i trimestri sono la leva diretta su questa riga: se un quarto è vuoto, la soglia di quel trimestre cade nel punto sbagliato.)');
-
-        // 4. AVANZAMENTI — nominali, reali, sprecati
-        const steps = buys.flatMap(b => b.steps);
-        const nom = steps.reduce((n, x) => n + x.nominal, 0), real = steps.reduce((n, x) => n + x.gained, 0);
-        const tmax = withCorsi[0].trackMax || 16;
-        L.push(`▸ AVANZAMENTI — ${real} passi reali su ${nom} nominali (sprecati ${pct((nom - real) / nom)}, tracciato a fondo corsa) · ${(real / buys.length).toFixed(1)} passi per formazione (bersaglio ~4) · posizione media del tracciato all'iscrizione ${avg(steps.map(x => x.from)).toFixed(1)}/${tmax}`);
-        L.push(`  costo medio ${avg(buys.map(b => b.costo)).toFixed(1)} ⓜ → ${(real / Math.max(1, buys.reduce((a, b) => a + b.costo, 0))).toFixed(2)} passi per marchio`);
-
-        // 5. MILESTONE ATTRAVERSATE + valore marginale
-        const msLevel = {};
-        for (const x of steps) for (const m of x.ms) msLevel[m] = (msLevel[m] || 0) + 1;
-        const msTot = Object.values(msLevel).reduce((a, b2) => a + b2, 0);
-        let msReached = 0, msNec = 0, msFin = 0;
-        for (const g of withCorsi) for (const seatArr of g.corsi.perSeat) for (const d of seatArr) {
-          for (const pos of Object.values(g.msPos[d.role] || {})) {
-            if (d.prod < pos) continue;
-            msReached++; msFin++;
-            if (d.prod - d.corso < pos) msNec++;
-          }
-        }
-        L.push(`▸ MILESTONE ATTRAVERSATE — ${pct(buys.filter(b => b.steps.some(x => x.ms.length)).length / buys.length)} delle formazioni ne attraversa almeno una · per livello: ${[1, 2, 3].map(m => `${m}ª ${msLevel[m] || 0}`).join(' · ')} · ${pct(msTot / Math.max(1, msReached))} di tutte quelle raggiunte nel batch`);
-        L.push(`  valore marginale: ${pct(msNec / Math.max(1, msFin))} delle milestone raggiunte NON ci sarebbe senza i passi da Corso (limite superiore: tiene fermo tutto il resto)`);
-        L.push('  (il bersaglio degli Impiegati è la 2ª milestone a metà partita: se qui domina la 1ª, i corsi arrivano troppo presto o danno troppo pochi passi.)');
-
-        // 6. CORSO PERSO — la domanda respinta dalla scarsità
-        const blocked = withCorsi.flatMap(g => g.corsiBlocked);
-        const byReason = {};
-        for (const b of blocked) byReason[b.reason] = (byReason[b.reason] || 0) + 1;
-        L.push(`▸ CORSO PERSO — ${blocked.length} visite al nodo senza potersi formare (${(blocked.length / withCorsi.length).toFixed(1)} per partita) su ${buys.length} formazioni riuscite`);
-        L.push(`  motivo: ${Object.entries(byReason).sort((a, b2) => b2[1] - a[1]).map(([r, n]) => `${r} ${n} (${pct(n / Math.max(1, blocked.length))})`).join(' · ') || '—'}`);
-        L.push("  (SCARSITÀ vera = 'tutti i reparti saturi' + 'trimestri chiusi': è la competizione, ed è voluta. 'marchi insufficienti' NON è scarsità di posti — è il costo, si corregge sul costo. Limite superiore: essere al nodo non prova che volesse formarsi.)");
-      }
-      L.push('');
-    }
   }
 
   // ===== IMPIEGATI: CHE LAVORO FANNO (28/07/2026) =====

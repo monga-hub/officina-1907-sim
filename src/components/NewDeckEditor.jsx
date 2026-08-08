@@ -160,7 +160,7 @@ function ImpiegatiEditor({ workers, setWorkers }) {
 // ---------- pannelli principali ----------
 const resetAll = setNewWorkers => () => { setNewWorkers(structuredClone(NEW_WORKERS_MERGED)); saveNewWorkers(NEW_WORKERS_MERGED); };
 
-export default function NewDeckEditor({ newWorkers, setNewWorkers }) {
+export default function NewDeckEditor({ newWorkers, setNewWorkers, sottoInstantEffect, setSottoInstantEffect }) {
   const n = newWorkers.filter(c => !c.power).length;
   return (
     <div className="track-editor">
@@ -168,6 +168,12 @@ export default function NewDeckEditor({ newWorkers, setNewWorkers }) {
         V/tipo di bonus alla creazione — la colonna "Mazzetto" è editabile se vuoi ribilanciare a mano. La
         nazionalità resta solo un'etichetta (obiettivi/flag), non determina più il mazzetto. Gli Impiegati non
         sono qui: hanno un mazzo a parte, vedi "👔 Editor carte Impiegato".</p>
+      <h4 style={{ textAlign: 'left' }}>Installazione Sotto = azione immediata</h4>
+      <label style={{ display: 'block', margin: '4px 0 10px' }}>
+        <button className={sottoInstantEffect ? 'sel' : ''} onClick={() => setSottoInstantEffect(true)}>Attiva</button>
+        <button className={!sottoInstantEffect ? 'sel' : ''} onClick={() => setSottoInstantEffect(false)}>Disattiva</button>
+        <span className="hint" style={{ marginLeft: 8 }}>{sottoInstantEffect ? 'ogni carta installata Sotto esegue subito la sua azione, invece di aspettare l\'attivazione del reparto' : 'le carte Sotto agiscono solo quando il reparto viene attivato (default)'}</span>
+      </label>
       <NewWorkersEditor workers={newWorkers} setWorkers={setNewWorkers} />
       <button className="ghost" onClick={resetAll(setNewWorkers)}>Ripristina default (lavoratori + impiegati)</button>
     </div>

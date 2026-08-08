@@ -423,7 +423,6 @@ function bestActionAtRollout(state, { depth, rollouts }) {
 // in quel punto, non solo il risultato finale. Strumento permanente di debug (vedi scripts/decisionlog.js).
 function labelCmd(cmd) {
   if (cmd.type === 'hire') return `Assumi ${cmd.cardId}`;
-  if (cmd.type === 'corso') return `Corso ${cmd.sectors.join('+')}`;
   if (cmd.type === 'activate') return `Produci ${cmd.sector}`;
   if (cmd.type === 'buyWelfare') return (cmd.side === 'sotto' ? 'Macchinario ' : 'Welfare ') + cmd.cardId;
   if (cmd.type === 'buyStruttura') return `Struttura (${cmd.side}) ${cmd.idx}`;
@@ -488,9 +487,7 @@ function actionCandidates(state, p) {
   const out = [];
   const legal = legalCommands(state);
   for (const c of legal) {
-    // 'corso': nessuna euristica dedicata — bestActionAt applica il comando e valuta lo stato, quindi
-    // l'IA "capisce" i Corsi (e la scelta dei settori in modalità 'ia') senza una riga di codice IA.
-    if (c.type === 'hire' || c.type === 'corso' || c.type === 'activate' || c.type === 'buyWelfare' || c.type === 'buyStruttura' || c.type === 'buyShare' || c.type === 'buildFactory') out.push(c);
+    if (c.type === 'hire' || c.type === 'activate' || c.type === 'buyWelfare' || c.type === 'buyStruttura' || c.type === 'buyShare' || c.type === 'buildFactory') out.push(c);
   }
   if (node === 'Sindacato') {
     const ss = state.sindacatoSession;
