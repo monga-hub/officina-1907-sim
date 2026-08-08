@@ -8,18 +8,14 @@
     "terziario": [
       null,
       {
-        "coinsPerIcon": 1
+        "coins": 2
       },
-      null,
+      {
+        "coins": 2
+      },
       null,
       {
         "res": 1
-      },
-      {
-        "coins": 1
-      },
-      {
-        "pv": 2
       },
       {
         "tileSlot": 1
@@ -40,32 +36,30 @@
         "opensMarket": 2
       },
       null,
-      {
-        "pv": 3
-      },
+      null,
       {
         "tileSlot": 3
       },
       {
         "milestone": true,
         "opensMarket": 3
+      },
+      null,
+      {
+        "pv": 3
       }
     ],
     "secondario": [
       null,
       {
-        "coinsPerIcon": 1
+        "coins": 2
       },
-      null,
+      {
+        "coins": 2
+      },
       null,
       {
         "res": 1
-      },
-      {
-        "coins": 1
-      },
-      {
-        "pv": 2
       },
       {
         "tileSlot": 1
@@ -86,32 +80,30 @@
         "opensMarket": 2
       },
       null,
-      {
-        "pv": 3
-      },
+      null,
       {
         "tileSlot": 3
       },
       {
         "milestone": true,
         "opensMarket": 3
+      },
+      null,
+      {
+        "pv": 3
       }
     ],
     "primario": [
       null,
       {
-        "coinsPerIcon": 1
+        "coins": 2
       },
-      null,
+      {
+        "coins": 2
+      },
       null,
       {
         "res": 1
-      },
-      {
-        "coins": 1
-      },
-      {
-        "pv": 2
       },
       {
         "tileSlot": 1
@@ -132,15 +124,17 @@
         "opensMarket": 2
       },
       null,
-      {
-        "pv": 3
-      },
+      null,
       {
         "tileSlot": 3
       },
       {
         "milestone": true,
         "opensMarket": 3
+      },
+      null,
+      {
+        "pv": 3
       }
     ]
   },
@@ -179,7 +173,7 @@
     },
     "unblock": {
       "enabled": true,
-      "cost": 2
+      "cost": 3
     }
   },
   "borsa": {
@@ -214,13 +208,13 @@
     ],
     "setupBalance": "perColorePerIsola",
     "passiveIncome": false,
-    "factoryActivates": true,
+    "factoryActivates": false,
     "factoryMultCap": 0,
     "neutralFactory": true,
     "milestoneGate": false,
     "foundingResource": true,
     "majorityBonus": {
-      "pv": 10,
+      "pv": 7,
       "enabled": true
     },
     "maps": {
@@ -586,7 +580,7 @@
             "id": "L13",
             "col": 5,
             "row": 4,
-            "type": "risorsa",
+            "type": "costruibile",
             "isola": "L"
           },
           {
@@ -663,7 +657,7 @@
             "id": "R11",
             "col": 6,
             "row": 4,
-            "type": "costruibile",
+            "type": "risorsa",
             "isola": "R"
           },
           {
@@ -742,12 +736,6 @@
             "L2",
             "L4"
           ],
-          "L9": [
-            "L13",
-            "L5",
-            "R11",
-            "R4"
-          ],
           "L10": [
             "L11",
             "L6",
@@ -759,10 +747,10 @@
             "L7",
             "L8"
           ],
-          "L13": [
-            "L12",
-            "L9",
-            "R11"
+          "L12": [
+            "L11",
+            "L13",
+            "L8"
           ],
           "L2": [
             "L1",
@@ -800,6 +788,12 @@
             "L12",
             "L4",
             "L7"
+          ],
+          "L9": [
+            "L13",
+            "L5",
+            "R11",
+            "R4"
           ],
           "R1": [
             "L3",
@@ -871,10 +865,10 @@
             "R6",
             "R8"
           ],
-          "L12": [
-            "L11",
-            "L13",
-            "L8"
+          "L13": [
+            "L12",
+            "L9",
+            "R11"
           ]
         }
       }
@@ -888,7 +882,7 @@
     "majorityCardTiebreak": true
   },
   "strikePenaltyPV": 5,
-  "deptCompletePV": 0,
+  "deptCompletePV": 7,
   "slots": {
     "terziario": {
       "sopra": 3,
@@ -1663,9 +1657,9 @@
   },
   "contractMarket": 2,
   "contractMilestoneReq": {
-    "small": 1,
-    "medium": 1,
-    "large": 1
+    "small": 0,
+    "medium": 0,
+    "large": 0
   },
   "contractEngine": true,
   "workers": [
@@ -1677,8 +1671,9 @@
       "effect": {
         "verbo": "prendi",
         "f1": {
-          "q": 2,
-          "tipo": "moneta"
+          "q": 1,
+          "tipo": "risorsa",
+          "settore": "Tessile"
         }
       },
       "deck": "A"
@@ -1691,8 +1686,9 @@
       "effect": {
         "verbo": "prendi",
         "f1": {
-          "q": 2,
-          "tipo": "moneta"
+          "q": 1,
+          "tipo": "risorsa",
+          "settore": "Metallurgica"
         }
       },
       "deck": "B"
@@ -1705,8 +1701,9 @@
       "effect": {
         "verbo": "prendi",
         "f1": {
-          "q": 2,
-          "tipo": "moneta"
+          "q": 1,
+          "tipo": "risorsa",
+          "settore": "Metallurgica"
         }
       },
       "deck": "C"
@@ -1719,8 +1716,9 @@
       "effect": {
         "verbo": "prendi",
         "f1": {
-          "q": 2,
-          "tipo": "moneta"
+          "q": 1,
+          "tipo": "risorsa",
+          "settore": "Chimica"
         }
       },
       "deck": "D"
@@ -1733,8 +1731,9 @@
       "effect": {
         "verbo": "prendi",
         "f1": {
-          "q": 2,
-          "tipo": "moneta"
+          "q": 1,
+          "tipo": "risorsa",
+          "settore": "Chimica"
         }
       },
       "deck": "E"
@@ -1747,8 +1746,9 @@
       "effect": {
         "verbo": "prendi",
         "f1": {
-          "q": 2,
-          "tipo": "moneta"
+          "q": 1,
+          "tipo": "risorsa",
+          "settore": "Tessile"
         }
       },
       "deck": "A"
@@ -2001,7 +2001,7 @@
       "effect": {
         "verbo": "prendi",
         "f1": {
-          "q": 1,
+          "q": 2,
           "tipo": "risorsa",
           "settore": "Chimica"
         }
@@ -2016,7 +2016,7 @@
       "effect": {
         "verbo": "prendi",
         "f1": {
-          "q": 1,
+          "q": 2,
           "tipo": "risorsa",
           "settore": "Tessile"
         }
@@ -2031,7 +2031,7 @@
       "effect": {
         "verbo": "prendi",
         "f1": {
-          "q": 1,
+          "q": 2,
           "tipo": "risorsa",
           "settore": "Metallurgica"
         }
@@ -2046,7 +2046,7 @@
       "effect": {
         "verbo": "prendi",
         "f1": {
-          "q": 1,
+          "q": 2,
           "tipo": "risorsa",
           "settore": "Tessile"
         }
@@ -2061,7 +2061,7 @@
       "effect": {
         "verbo": "prendi",
         "f1": {
-          "q": 1,
+          "q": 2,
           "tipo": "risorsa",
           "settore": "Metallurgica"
         }
@@ -2076,7 +2076,7 @@
       "effect": {
         "verbo": "prendi",
         "f1": {
-          "q": 1,
+          "q": 2,
           "tipo": "risorsa",
           "settore": "Chimica"
         }
@@ -2091,7 +2091,7 @@
       "effect": {
         "verbo": "prendi",
         "f1": {
-          "q": 1,
+          "q": 2,
           "tipo": "risorsa",
           "settore": "Chimica"
         }
@@ -2106,7 +2106,7 @@
       "effect": {
         "verbo": "prendi",
         "f1": {
-          "q": 1,
+          "q": 2,
           "tipo": "risorsa",
           "settore": "Metallurgica"
         }
@@ -2121,7 +2121,7 @@
       "effect": {
         "verbo": "prendi",
         "f1": {
-          "q": 1,
+          "q": 2,
           "tipo": "risorsa",
           "settore": "Tessile"
         }
@@ -2136,7 +2136,7 @@
       "effect": {
         "verbo": "prendi",
         "f1": {
-          "q": 1,
+          "q": 2,
           "tipo": "risorsa",
           "settore": "Metallurgica"
         }
@@ -2151,7 +2151,7 @@
       "effect": {
         "verbo": "prendi",
         "f1": {
-          "q": 1,
+          "q": 2,
           "tipo": "risorsa",
           "settore": "Chimica"
         }
@@ -2166,7 +2166,7 @@
       "effect": {
         "verbo": "prendi",
         "f1": {
-          "q": 1,
+          "q": 2,
           "tipo": "risorsa",
           "settore": "Tessile"
         }
@@ -2181,7 +2181,7 @@
       "effect": {
         "verbo": "prendi",
         "f1": {
-          "q": 1,
+          "q": 2,
           "tipo": "risorsa",
           "settore": "Tessile"
         }
@@ -2196,7 +2196,7 @@
       "effect": {
         "verbo": "prendi",
         "f1": {
-          "q": 1,
+          "q": 2,
           "tipo": "risorsa",
           "settore": "Chimica"
         }
@@ -2211,7 +2211,7 @@
       "effect": {
         "verbo": "prendi",
         "f1": {
-          "q": 1,
+          "q": 2,
           "tipo": "risorsa",
           "settore": "Metallurgica"
         }
@@ -2226,7 +2226,7 @@
       "effect": {
         "verbo": "prendi",
         "f1": {
-          "q": 1,
+          "q": 2,
           "tipo": "risorsa",
           "settore": "Metallurgica"
         }
@@ -2241,7 +2241,7 @@
       "effect": {
         "verbo": "prendi",
         "f1": {
-          "q": 1,
+          "q": 2,
           "tipo": "risorsa",
           "settore": "Tessile"
         }
@@ -2256,7 +2256,7 @@
       "effect": {
         "verbo": "prendi",
         "f1": {
-          "q": 1,
+          "q": 2,
           "tipo": "risorsa",
           "settore": "Chimica"
         }
@@ -2269,15 +2269,11 @@
       "sector": "Chimica",
       "v": 3,
       "effect": {
-        "verbo": "scambia",
+        "verbo": "prendi",
         "f1": {
-          "q": 1,
-          "tipo": "risorsa",
-          "settore": "scelta"
-        },
-        "f2": {
           "q": 2,
-          "tipo": "moneta"
+          "tipo": "risorsa",
+          "settore": "Tessile"
         }
       },
       "deck": "B"
@@ -2288,15 +2284,11 @@
       "sector": "Tessile",
       "v": 3,
       "effect": {
-        "verbo": "scambia",
+        "verbo": "prendi",
         "f1": {
-          "q": 1,
-          "tipo": "risorsa",
-          "settore": "scelta"
-        },
-        "f2": {
           "q": 2,
-          "tipo": "moneta"
+          "tipo": "risorsa",
+          "settore": "Tessile"
         }
       },
       "deck": "C"
@@ -2307,15 +2299,11 @@
       "sector": "Chimica",
       "v": 3,
       "effect": {
-        "verbo": "scambia",
+        "verbo": "prendi",
         "f1": {
-          "q": 1,
-          "tipo": "risorsa",
-          "settore": "scelta"
-        },
-        "f2": {
           "q": 2,
-          "tipo": "moneta"
+          "tipo": "risorsa",
+          "settore": "Chimica"
         }
       },
       "deck": "D"
@@ -2326,15 +2314,11 @@
       "sector": "Metallurgica",
       "v": 3,
       "effect": {
-        "verbo": "scambia",
+        "verbo": "prendi",
         "f1": {
-          "q": 1,
-          "tipo": "risorsa",
-          "settore": "scelta"
-        },
-        "f2": {
           "q": 2,
-          "tipo": "moneta"
+          "tipo": "risorsa",
+          "settore": "Metallurgica"
         }
       },
       "deck": "E"
@@ -2345,15 +2329,11 @@
       "sector": "Tessile",
       "v": 3,
       "effect": {
-        "verbo": "scambia",
+        "verbo": "prendi",
         "f1": {
-          "q": 1,
-          "tipo": "risorsa",
-          "settore": "scelta"
-        },
-        "f2": {
           "q": 2,
-          "tipo": "moneta"
+          "tipo": "risorsa",
+          "settore": "Tessile"
         }
       },
       "deck": "A"
@@ -2364,15 +2344,11 @@
       "sector": "Metallurgica",
       "v": 3,
       "effect": {
-        "verbo": "scambia",
+        "verbo": "prendi",
         "f1": {
-          "q": 1,
-          "tipo": "risorsa",
-          "settore": "scelta"
-        },
-        "f2": {
           "q": 2,
-          "tipo": "moneta"
+          "tipo": "risorsa",
+          "settore": "Tessile"
         }
       },
       "deck": "B"
@@ -2402,14 +2378,11 @@
       "sector": "Metallurgica",
       "v": 3,
       "effect": {
-        "verbo": "perOgni",
+        "verbo": "prendi",
         "f1": {
-          "q": 2,
+          "q": 1,
           "tipo": "risorsa",
-          "settore": "Chimica"
-        },
-        "f2": {
-          "conta": "fabbrica"
+          "settore": "Metallurgica"
         }
       },
       "deck": "D"
@@ -2422,7 +2395,7 @@
       "effect": {
         "verbo": "perOgni",
         "f1": {
-          "q": 2,
+          "q": 1,
           "tipo": "moneta"
         },
         "f2": {
@@ -2439,14 +2412,11 @@
       "sector": "Chimica",
       "v": 3,
       "effect": {
-        "verbo": "perOgni",
+        "verbo": "prendi",
         "f1": {
-          "q": 2,
+          "q": 1,
           "tipo": "risorsa",
           "settore": "Chimica"
-        },
-        "f2": {
-          "conta": "fabbrica"
         }
       },
       "deck": "A"
@@ -2476,14 +2446,11 @@
       "sector": "Tessile",
       "v": 3,
       "effect": {
-        "verbo": "perOgni",
+        "verbo": "prendi",
         "f1": {
-          "q": 2,
+          "q": 1,
           "tipo": "risorsa",
           "settore": "Tessile"
-        },
-        "f2": {
-          "conta": "fabbrica"
         }
       },
       "deck": "C"
@@ -2513,14 +2480,11 @@
       "sector": "Tessile",
       "v": 3,
       "effect": {
-        "verbo": "perOgni",
+        "verbo": "prendi",
         "f1": {
           "q": 1,
           "tipo": "risorsa",
           "settore": "Tessile"
-        },
-        "f2": {
-          "conta": "fabbrica"
         }
       },
       "deck": "E"
@@ -2550,14 +2514,11 @@
       "sector": "Metallurgica",
       "v": 3,
       "effect": {
-        "verbo": "perOgni",
+        "verbo": "prendi",
         "f1": {
-          "q": 2,
+          "q": 1,
           "tipo": "risorsa",
           "settore": "Metallurgica"
-        },
-        "f2": {
-          "conta": "fabbrica"
         }
       },
       "deck": "B"
@@ -2587,14 +2548,11 @@
       "sector": "Chimica",
       "v": 3,
       "effect": {
-        "verbo": "perOgni",
+        "verbo": "prendi",
         "f1": {
-          "q": 2,
+          "q": 1,
           "tipo": "risorsa",
           "settore": "Chimica"
-        },
-        "f2": {
-          "conta": "fabbrica"
         }
       },
       "deck": "D"
@@ -2725,13 +2683,10 @@
       "sector": "Tessile",
       "v": 4,
       "effect": {
-        "verbo": "perOgni",
+        "verbo": "prendi",
         "f1": {
-          "q": 2,
+          "q": 3,
           "tipo": "moneta"
-        },
-        "f2": {
-          "conta": "fabbrica"
         }
       },
       "deck": "A"
@@ -2762,13 +2717,10 @@
       "sector": "Metallurgica",
       "v": 4,
       "effect": {
-        "verbo": "perOgni",
+        "verbo": "prendi",
         "f1": {
-          "q": 2,
+          "q": 3,
           "tipo": "moneta"
-        },
-        "f2": {
-          "conta": "fabbrica"
         }
       },
       "deck": "C"
@@ -2799,13 +2751,10 @@
       "sector": "Metallurgica",
       "v": 4,
       "effect": {
-        "verbo": "perOgni",
+        "verbo": "prendi",
         "f1": {
-          "q": 2,
+          "q": 3,
           "tipo": "moneta"
-        },
-        "f2": {
-          "conta": "fabbrica"
         }
       },
       "deck": "E"
@@ -2836,13 +2785,10 @@
       "sector": "Chimica",
       "v": 4,
       "effect": {
-        "verbo": "perOgni",
+        "verbo": "prendi",
         "f1": {
-          "q": 2,
+          "q": 3,
           "tipo": "moneta"
-        },
-        "f2": {
-          "conta": "fabbrica"
         }
       },
       "deck": "B"
@@ -2873,13 +2819,11 @@
       "sector": "Chimica",
       "v": 4,
       "effect": {
-        "verbo": "perOgni",
+        "verbo": "prendi",
         "f1": {
-          "q": 2,
-          "tipo": "moneta"
-        },
-        "f2": {
-          "conta": "fabbrica"
+          "q": 3,
+          "tipo": "moneta",
+          "settore": "Chimica"
         }
       },
       "deck": "D"
@@ -2899,7 +2843,7 @@
         "f2": {
           "conta": "icona",
           "kind": "sector",
-          "di": "Tessile"
+          "di": "Metallurgica"
         }
       },
       "deck": "E"
@@ -2910,13 +2854,10 @@
       "sector": "Tessile",
       "v": 4,
       "effect": {
-        "verbo": "perOgni",
+        "verbo": "prendi",
         "f1": {
-          "q": 2,
+          "q": 3,
           "tipo": "moneta"
-        },
-        "f2": {
-          "conta": "fabbrica"
         }
       },
       "deck": "A"
@@ -2936,7 +2877,7 @@
         "f2": {
           "conta": "icona",
           "kind": "sector",
-          "di": "Tessile"
+          "di": "Chimica"
         }
       },
       "deck": "B"
@@ -3490,8 +3431,9 @@
       "effect": {
         "verbo": "prendi",
         "f1": {
-          "q": 2,
-          "tipo": "moneta"
+          "q": 1,
+          "tipo": "risorsa",
+          "settore": "Tessile"
         }
       },
       "deck": "A"
@@ -3504,8 +3446,9 @@
       "effect": {
         "verbo": "prendi",
         "f1": {
-          "q": 2,
-          "tipo": "moneta"
+          "q": 1,
+          "tipo": "risorsa",
+          "settore": "Metallurgica"
         }
       },
       "deck": "B"
@@ -3518,8 +3461,9 @@
       "effect": {
         "verbo": "prendi",
         "f1": {
-          "q": 2,
-          "tipo": "moneta"
+          "q": 1,
+          "tipo": "risorsa",
+          "settore": "Metallurgica"
         }
       },
       "deck": "C"
@@ -3532,8 +3476,9 @@
       "effect": {
         "verbo": "prendi",
         "f1": {
-          "q": 2,
-          "tipo": "moneta"
+          "q": 1,
+          "tipo": "risorsa",
+          "settore": "Chimica"
         }
       },
       "deck": "D"
@@ -3546,8 +3491,9 @@
       "effect": {
         "verbo": "prendi",
         "f1": {
-          "q": 2,
-          "tipo": "moneta"
+          "q": 1,
+          "tipo": "risorsa",
+          "settore": "Chimica"
         }
       },
       "deck": "E"
@@ -3560,8 +3506,9 @@
       "effect": {
         "verbo": "prendi",
         "f1": {
-          "q": 2,
-          "tipo": "moneta"
+          "q": 1,
+          "tipo": "risorsa",
+          "settore": "Tessile"
         }
       },
       "deck": "A"
@@ -3814,7 +3761,7 @@
       "effect": {
         "verbo": "prendi",
         "f1": {
-          "q": 1,
+          "q": 2,
           "tipo": "risorsa",
           "settore": "Chimica"
         }
@@ -3829,7 +3776,7 @@
       "effect": {
         "verbo": "prendi",
         "f1": {
-          "q": 1,
+          "q": 2,
           "tipo": "risorsa",
           "settore": "Tessile"
         }
@@ -3844,7 +3791,7 @@
       "effect": {
         "verbo": "prendi",
         "f1": {
-          "q": 1,
+          "q": 2,
           "tipo": "risorsa",
           "settore": "Metallurgica"
         }
@@ -3859,7 +3806,7 @@
       "effect": {
         "verbo": "prendi",
         "f1": {
-          "q": 1,
+          "q": 2,
           "tipo": "risorsa",
           "settore": "Tessile"
         }
@@ -3874,7 +3821,7 @@
       "effect": {
         "verbo": "prendi",
         "f1": {
-          "q": 1,
+          "q": 2,
           "tipo": "risorsa",
           "settore": "Metallurgica"
         }
@@ -3889,7 +3836,7 @@
       "effect": {
         "verbo": "prendi",
         "f1": {
-          "q": 1,
+          "q": 2,
           "tipo": "risorsa",
           "settore": "Chimica"
         }
@@ -3904,7 +3851,7 @@
       "effect": {
         "verbo": "prendi",
         "f1": {
-          "q": 1,
+          "q": 2,
           "tipo": "risorsa",
           "settore": "Chimica"
         }
@@ -3919,7 +3866,7 @@
       "effect": {
         "verbo": "prendi",
         "f1": {
-          "q": 1,
+          "q": 2,
           "tipo": "risorsa",
           "settore": "Metallurgica"
         }
@@ -3934,7 +3881,7 @@
       "effect": {
         "verbo": "prendi",
         "f1": {
-          "q": 1,
+          "q": 2,
           "tipo": "risorsa",
           "settore": "Tessile"
         }
@@ -3949,7 +3896,7 @@
       "effect": {
         "verbo": "prendi",
         "f1": {
-          "q": 1,
+          "q": 2,
           "tipo": "risorsa",
           "settore": "Metallurgica"
         }
@@ -3964,7 +3911,7 @@
       "effect": {
         "verbo": "prendi",
         "f1": {
-          "q": 1,
+          "q": 2,
           "tipo": "risorsa",
           "settore": "Chimica"
         }
@@ -3979,7 +3926,7 @@
       "effect": {
         "verbo": "prendi",
         "f1": {
-          "q": 1,
+          "q": 2,
           "tipo": "risorsa",
           "settore": "Tessile"
         }
@@ -3994,7 +3941,7 @@
       "effect": {
         "verbo": "prendi",
         "f1": {
-          "q": 1,
+          "q": 2,
           "tipo": "risorsa",
           "settore": "Tessile"
         }
@@ -4009,7 +3956,7 @@
       "effect": {
         "verbo": "prendi",
         "f1": {
-          "q": 1,
+          "q": 2,
           "tipo": "risorsa",
           "settore": "Chimica"
         }
@@ -4024,7 +3971,7 @@
       "effect": {
         "verbo": "prendi",
         "f1": {
-          "q": 1,
+          "q": 2,
           "tipo": "risorsa",
           "settore": "Metallurgica"
         }
@@ -4039,7 +3986,7 @@
       "effect": {
         "verbo": "prendi",
         "f1": {
-          "q": 1,
+          "q": 2,
           "tipo": "risorsa",
           "settore": "Metallurgica"
         }
@@ -4054,7 +4001,7 @@
       "effect": {
         "verbo": "prendi",
         "f1": {
-          "q": 1,
+          "q": 2,
           "tipo": "risorsa",
           "settore": "Tessile"
         }
@@ -4069,7 +4016,7 @@
       "effect": {
         "verbo": "prendi",
         "f1": {
-          "q": 1,
+          "q": 2,
           "tipo": "risorsa",
           "settore": "Chimica"
         }
@@ -4082,15 +4029,11 @@
       "sector": "Chimica",
       "v": 3,
       "effect": {
-        "verbo": "scambia",
+        "verbo": "prendi",
         "f1": {
-          "q": 1,
-          "tipo": "risorsa",
-          "settore": "scelta"
-        },
-        "f2": {
           "q": 2,
-          "tipo": "moneta"
+          "tipo": "risorsa",
+          "settore": "Tessile"
         }
       },
       "deck": "B"
@@ -4101,15 +4044,11 @@
       "sector": "Tessile",
       "v": 3,
       "effect": {
-        "verbo": "scambia",
+        "verbo": "prendi",
         "f1": {
-          "q": 1,
-          "tipo": "risorsa",
-          "settore": "scelta"
-        },
-        "f2": {
           "q": 2,
-          "tipo": "moneta"
+          "tipo": "risorsa",
+          "settore": "Tessile"
         }
       },
       "deck": "C"
@@ -4120,15 +4059,11 @@
       "sector": "Chimica",
       "v": 3,
       "effect": {
-        "verbo": "scambia",
+        "verbo": "prendi",
         "f1": {
-          "q": 1,
-          "tipo": "risorsa",
-          "settore": "scelta"
-        },
-        "f2": {
           "q": 2,
-          "tipo": "moneta"
+          "tipo": "risorsa",
+          "settore": "Chimica"
         }
       },
       "deck": "D"
@@ -4139,15 +4074,11 @@
       "sector": "Metallurgica",
       "v": 3,
       "effect": {
-        "verbo": "scambia",
+        "verbo": "prendi",
         "f1": {
-          "q": 1,
-          "tipo": "risorsa",
-          "settore": "scelta"
-        },
-        "f2": {
           "q": 2,
-          "tipo": "moneta"
+          "tipo": "risorsa",
+          "settore": "Metallurgica"
         }
       },
       "deck": "E"
@@ -4158,15 +4089,11 @@
       "sector": "Tessile",
       "v": 3,
       "effect": {
-        "verbo": "scambia",
+        "verbo": "prendi",
         "f1": {
-          "q": 1,
-          "tipo": "risorsa",
-          "settore": "scelta"
-        },
-        "f2": {
           "q": 2,
-          "tipo": "moneta"
+          "tipo": "risorsa",
+          "settore": "Tessile"
         }
       },
       "deck": "A"
@@ -4177,15 +4104,11 @@
       "sector": "Metallurgica",
       "v": 3,
       "effect": {
-        "verbo": "scambia",
+        "verbo": "prendi",
         "f1": {
-          "q": 1,
-          "tipo": "risorsa",
-          "settore": "scelta"
-        },
-        "f2": {
           "q": 2,
-          "tipo": "moneta"
+          "tipo": "risorsa",
+          "settore": "Tessile"
         }
       },
       "deck": "B"
@@ -4215,14 +4138,11 @@
       "sector": "Metallurgica",
       "v": 3,
       "effect": {
-        "verbo": "perOgni",
+        "verbo": "prendi",
         "f1": {
-          "q": 2,
+          "q": 1,
           "tipo": "risorsa",
-          "settore": "Chimica"
-        },
-        "f2": {
-          "conta": "fabbrica"
+          "settore": "Metallurgica"
         }
       },
       "deck": "D"
@@ -4235,7 +4155,7 @@
       "effect": {
         "verbo": "perOgni",
         "f1": {
-          "q": 2,
+          "q": 1,
           "tipo": "moneta"
         },
         "f2": {
@@ -4252,14 +4172,11 @@
       "sector": "Chimica",
       "v": 3,
       "effect": {
-        "verbo": "perOgni",
+        "verbo": "prendi",
         "f1": {
-          "q": 2,
+          "q": 1,
           "tipo": "risorsa",
           "settore": "Chimica"
-        },
-        "f2": {
-          "conta": "fabbrica"
         }
       },
       "deck": "A"
@@ -4289,14 +4206,11 @@
       "sector": "Tessile",
       "v": 3,
       "effect": {
-        "verbo": "perOgni",
+        "verbo": "prendi",
         "f1": {
-          "q": 2,
+          "q": 1,
           "tipo": "risorsa",
           "settore": "Tessile"
-        },
-        "f2": {
-          "conta": "fabbrica"
         }
       },
       "deck": "C"
@@ -4326,14 +4240,11 @@
       "sector": "Tessile",
       "v": 3,
       "effect": {
-        "verbo": "perOgni",
+        "verbo": "prendi",
         "f1": {
           "q": 1,
           "tipo": "risorsa",
           "settore": "Tessile"
-        },
-        "f2": {
-          "conta": "fabbrica"
         }
       },
       "deck": "E"
@@ -4363,14 +4274,11 @@
       "sector": "Metallurgica",
       "v": 3,
       "effect": {
-        "verbo": "perOgni",
+        "verbo": "prendi",
         "f1": {
-          "q": 2,
+          "q": 1,
           "tipo": "risorsa",
           "settore": "Metallurgica"
-        },
-        "f2": {
-          "conta": "fabbrica"
         }
       },
       "deck": "B"
@@ -4400,14 +4308,11 @@
       "sector": "Chimica",
       "v": 3,
       "effect": {
-        "verbo": "perOgni",
+        "verbo": "prendi",
         "f1": {
-          "q": 2,
+          "q": 1,
           "tipo": "risorsa",
           "settore": "Chimica"
-        },
-        "f2": {
-          "conta": "fabbrica"
         }
       },
       "deck": "D"
@@ -4538,13 +4443,10 @@
       "sector": "Tessile",
       "v": 4,
       "effect": {
-        "verbo": "perOgni",
+        "verbo": "prendi",
         "f1": {
-          "q": 2,
+          "q": 3,
           "tipo": "moneta"
-        },
-        "f2": {
-          "conta": "fabbrica"
         }
       },
       "deck": "A"
@@ -4575,13 +4477,10 @@
       "sector": "Metallurgica",
       "v": 4,
       "effect": {
-        "verbo": "perOgni",
+        "verbo": "prendi",
         "f1": {
-          "q": 2,
+          "q": 3,
           "tipo": "moneta"
-        },
-        "f2": {
-          "conta": "fabbrica"
         }
       },
       "deck": "C"
@@ -4612,13 +4511,10 @@
       "sector": "Metallurgica",
       "v": 4,
       "effect": {
-        "verbo": "perOgni",
+        "verbo": "prendi",
         "f1": {
-          "q": 2,
+          "q": 3,
           "tipo": "moneta"
-        },
-        "f2": {
-          "conta": "fabbrica"
         }
       },
       "deck": "E"
@@ -4649,13 +4545,10 @@
       "sector": "Chimica",
       "v": 4,
       "effect": {
-        "verbo": "perOgni",
+        "verbo": "prendi",
         "f1": {
-          "q": 2,
+          "q": 3,
           "tipo": "moneta"
-        },
-        "f2": {
-          "conta": "fabbrica"
         }
       },
       "deck": "B"
@@ -4686,13 +4579,11 @@
       "sector": "Chimica",
       "v": 4,
       "effect": {
-        "verbo": "perOgni",
+        "verbo": "prendi",
         "f1": {
-          "q": 2,
-          "tipo": "moneta"
-        },
-        "f2": {
-          "conta": "fabbrica"
+          "q": 3,
+          "tipo": "moneta",
+          "settore": "Chimica"
         }
       },
       "deck": "D"
@@ -4712,7 +4603,7 @@
         "f2": {
           "conta": "icona",
           "kind": "sector",
-          "di": "Tessile"
+          "di": "Metallurgica"
         }
       },
       "deck": "E"
@@ -4723,13 +4614,10 @@
       "sector": "Tessile",
       "v": 4,
       "effect": {
-        "verbo": "perOgni",
+        "verbo": "prendi",
         "f1": {
-          "q": 2,
+          "q": 3,
           "tipo": "moneta"
-        },
-        "f2": {
-          "conta": "fabbrica"
         }
       },
       "deck": "A"
@@ -4749,7 +4637,7 @@
         "f2": {
           "conta": "icona",
           "kind": "sector",
-          "di": "Tessile"
+          "di": "Chimica"
         }
       },
       "deck": "B"
@@ -4964,56 +4852,21 @@
   ],
   "trackTiles": [
     {
-      "id": "tt1",
-      "market": 1,
-      "name": "2 Marchi",
-      "cost": 0,
-      "copies": 4,
-      "instant": true,
-      "effect": {
-        "verbo": "prendi",
-        "f1": {
-          "q": 2,
-          "tipo": "moneta"
-        }
-      }
-    },
-    {
-      "id": "tt2",
-      "market": 1,
-      "name": "1 marco per carta",
-      "cost": 0,
-      "copies": 4,
-      "instant": true,
-      "effect": {
-        "verbo": "perOgni",
-        "f1": {
-          "q": 1,
-          "tipo": "moneta"
-        },
-        "f2": {
-          "conta": "icona",
-          "kind": "sector",
-          "di": "carta"
-        }
-      }
-    },
-    {
       "id": "tt4",
       "market": 2,
-      "name": "1 Risorsa per icona",
+      "name": "3 ris x tens",
       "cost": 0,
       "copies": 4,
       "instant": false,
       "effect": {
         "verbo": "perOgni",
         "f1": {
-          "q": 1,
+          "q": 3,
           "tipo": "risorsa",
-          "settore": "carta"
+          "settore": "scelta"
         },
         "f2": {
-          "conta": "icona",
+          "conta": "tensione",
           "kind": "sector",
           "di": "carta"
         }
@@ -5022,16 +4875,16 @@
     {
       "id": "tt5",
       "market": 2,
-      "name": "2 risorse",
+      "name": "1 ris rep",
       "cost": 0,
       "copies": 4,
-      "instant": true,
+      "instant": false,
       "effect": {
         "verbo": "prendi",
         "f1": {
-          "q": 2,
+          "q": 1,
           "tipo": "risorsa",
-          "settore": "carta"
+          "settore": "scelta"
         }
       }
     },
@@ -5057,16 +4910,53 @@
     {
       "id": "ttb02zhl",
       "market": 3,
-      "name": "6 PV",
+      "name": "5 PV",
       "cost": 0,
       "copies": 4,
       "effect": {
         "verbo": "prendi",
         "f1": {
-          "q": 6,
+          "q": 5,
           "tipo": "punti"
         }
       }
+    },
+    {
+      "id": "ttl88wle",
+      "market": 1,
+      "name": "3 mon x tens",
+      "effect": {
+        "verbo": "perOgni",
+        "f1": {
+          "q": 3,
+          "tipo": "moneta",
+          "settore": "carta"
+        },
+        "f2": {
+          "conta": "tensione",
+          "kind": "sector",
+          "di": "carta"
+        }
+      },
+      "cost": 0,
+      "copies": 4,
+      "instant": false
+    },
+    {
+      "id": "ttytsrsn",
+      "market": 1,
+      "name": "1 mon",
+      "effect": {
+        "verbo": "prendi",
+        "f1": {
+          "q": 1,
+          "tipo": "moneta",
+          "settore": "carta"
+        }
+      },
+      "cost": 0,
+      "copies": 4,
+      "instant": false
     }
   ],
   "trackTileCap": {
@@ -5075,7 +4965,7 @@
   "clockThreshold": {
     "2": 9,
     "3": 12,
-    "4": 18
+    "4": 16
   },
   "indicatorTargets": {
     "marchi inutilizzati (quota)": [
