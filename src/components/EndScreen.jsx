@@ -57,11 +57,11 @@ function buildReport(state) {
   L.push('─────────────────────────────────────────');
   L.push(`Vince ${r[0].name} con ${r[0].total} PV.`);
   L.push('');
-  const showFac = r.some(x => x.pvFactoryMajority), showBor = r.some(x => x.pvBorsa);
-  L.push(`Classifica (PV: Commesse / Piano Ind. / Tracciati${showFac ? ' / Fabbriche' : ''}${showBor ? ' / Borsa' : ''} / Marchi / Risorse / Scioperi = Totale):`);
+  const showFac = r.some(x => x.pvFactoryMajority), showBor = r.some(x => x.pvBorsa), showRace = r.some(x => x.pvRace);
+  L.push(`Classifica (PV: Commesse / Piano Ind. / Tracciati${showFac ? ' / Fabbriche' : ''}${showBor ? ' / Borsa' : ''}${showRace ? ' / Gara' : ''} / Marchi / Risorse / Scioperi = Totale):`);
   r.forEach((x, i) => {
     const p = players[x.playerId];
-    const parts = [x.pvContracts, x.pvObjectives, x.pvTrack, ...(showFac ? [x.pvFactoryMajority || 0] : []), ...(showBor ? [x.pvBorsa || 0] : []), x.pvCoins, x.pvResources, x.pvStrikes || 0];
+    const parts = [x.pvContracts, x.pvObjectives, x.pvTrack, ...(showFac ? [x.pvFactoryMajority || 0] : []), ...(showBor ? [x.pvBorsa || 0] : []), ...(showRace ? [x.pvRace || 0] : []), x.pvCoins, x.pvResources, x.pvStrikes || 0];
     L.push(`${i + 1}° ${x.name} [${p.boardName}] — ${parts.join('/')} = ${x.total} PV · ${p.coins}ⓜ, ${totalResources(p)} risorse, ${p.activations} attivazioni rimasti`);
   });
   L.push('');
@@ -226,6 +226,7 @@ export default function EndScreen({ state, onRestart }) {
 
   const showFacPV = r.some(x => x.pvFactoryMajority);   // colonne PV opzionali: solo se qualcuno le ha
   const showBorsaPV = r.some(x => x.pvBorsa);
+  const showRacePV = r.some(x => x.pvRace);
 
   return (
     <div className="setup wide">
@@ -370,7 +371,7 @@ export default function EndScreen({ state, onRestart }) {
 
       <table className="results">
         <thead>
-          <tr><th></th><th>Giocatore</th><th>Commesse</th><th>Piano Ind.</th><th>Tracciati</th>{showFacPV && <th>Fabbriche</th>}{showBorsaPV && <th>Borsa</th>}<th>Marchi</th><th>Risorse</th><th>Scioperi</th><th>Totale PV</th>
+          <tr><th></th><th>Giocatore</th><th>Commesse</th><th>Piano Ind.</th><th>Tracciati</th>{showFacPV && <th>Fabbriche</th>}{showBorsaPV && <th>Borsa</th>}{showRacePV && <th>Gara</th>}<th>Marchi</th><th>Risorse</th><th>Scioperi</th><th>Totale PV</th>
             <th className="sep">ⓜ rimasti</th><th>Risorse rimaste</th><th>Attivazioni reparto</th></tr>
         </thead>
         <tbody>
@@ -380,7 +381,7 @@ export default function EndScreen({ state, onRestart }) {
               <tr key={x.playerId} className={i === 0 ? 'winner' : ''}>
                 <td>{i + 1}°</td><td style={{ color: p.color }}>{x.name}</td>
                 <td>{x.pvContracts}</td><td>{x.pvObjectives}</td><td>{x.pvTrack}</td>
-                {showFacPV && <td>{x.pvFactoryMajority || 0}</td>}{showBorsaPV && <td>{x.pvBorsa || 0}</td>}
+                {showFacPV && <td>{x.pvFactoryMajority || 0}</td>}{showBorsaPV && <td>{x.pvBorsa || 0}</td>}{showRacePV && <td>{x.pvRace || 0}</td>}
                 <td>{x.pvCoins}</td><td>{x.pvResources}</td>
                 <td>{x.pvStrikes || 0}</td>
                 <td><b>{x.total}</b></td>

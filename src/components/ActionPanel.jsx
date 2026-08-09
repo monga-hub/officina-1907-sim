@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { SECTORS, RESOURCE_OF, SECTOR_COLORS, NATION_FLAGS, NODE_BANKS, UNBLOCK_COST } from '../game/data.js';
-import { currentPlayer, legalCommands, WORKER_BY_ID, rankedIndices, indexValue, cellNow, expectedDividend } from '../game/engine.js';
+import { currentPlayer, legalCommands, WORKER_BY_ID, rankedIndices, indexValue, cellNow, expectedDividend, describeRace } from '../game/engine.js';
 
 import FactoryMap from './FactoryMap.jsx';
 
@@ -238,6 +238,7 @@ function BorsaActions({ state, p, legal, dispatch }) {
   const sells = legal.filter(c => c.type === 'exchange' && c.kind === 'sell');
   const converts = legal.filter(c => c.type === 'exchange' && c.kind === 'convert');
   const completes = legal.filter(c => c.type === 'completeContract');
+  const races = legal.filter(c => c.type === 'completeRace');
   const exitCmd = legal.find(c => c.type === 'borsaExit');
   const refreshes = legal.filter(c => c.type === 'refreshMarket');
   const exitPathUsed = state.borsaExitUsed || state.borsaRefreshUsed;
@@ -271,6 +272,24 @@ function BorsaActions({ state, p, legal, dispatch }) {
           );
         })}
       </div>
+      {state.raceObjectives?.enabled && (
+        <>
+          <h4>Obiettivi di gara</h4>
+          {races.length === 0 && <small>Nessun obiettivo di gara rivendicabile ora (non qualificato, già preso, o podio pieno).</small>}
+          <div className="btn-row col">
+            {races.map((c, i) => {
+              const it = state.raceObjectives.list.find(r => r.id === c.raceId);
+              const place = it.claims.length; // posto che prenderesti ora
+              const pv = state.raceObjectives.podium[place] ?? 0;
+              return (
+                <button key={i} className="primary" onClick={() => dispatch(c)}>
+                  {describeRace(it)} → {place + 1}° arrivato, {pv} PV
+                </button>
+              );
+            })}
+          </div>
+        </>
+      )}
       {(exitCmd || refreshes.length > 0) && (
         <>
           <h4>Esci senza Commesse</h4>

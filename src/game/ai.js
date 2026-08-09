@@ -71,7 +71,7 @@ export function deciderId(state) {
 }
 
 // ---------- Valutazione di stato ----------
-function evaluate(state, playerId) {
+export function evaluate(state, playerId) {
   const __t0 = performance.now();
   rolloutStats.evaluateCalls++;
   const v = evaluateInner(state, playerId);
@@ -84,6 +84,14 @@ function evaluateInner(state, playerId) {
   let v = 0;
   v += p.contractsWon.reduce((a, c) => a + c.pv, 0) * 10 * w.wContract;
   v += p.tile.objectives.reduce((a, o, i) => a + (p.achieved[i] ? o.pv : 0), 0) * 9 * w.wObjective;
+  // Obiettivi di gara già rivendicati: PV del posto sul podio. Greedy: dopo un 'completeRace' v sale → l'IA
+  // rivendica quando è qualificata. Scala ×10 come le commesse (podio PV direttamente confrontabile).
+  if (state.raceObjectives?.enabled) {
+    v += state.raceObjectives.list.reduce((a, it) => { const pl = it.claims.indexOf(playerId); return a + (pl >= 0 ? (state.raceObjectives.podium[pl] ?? 0) : 0); }, 0) * 10 * w.wObjective;
+    // Progresso VERSO una race (knob di sistema raceIncentive, default 0 = non insegue). Distinto dal PV del
+    // claim sopra: questo lure l'IA ad avvicinarsi (costruire i Sopra giusti), il claim blocca i PV.
+    if (state.raceIncentive) v += raceProgress(state, p) * state.raceIncentive * w.wObjective;
+  }
   // Borsa a indici: un'azione in mano vale il dividendo che incasserebbe se il quadrimestre chiudesse ORA
   // (casella al rango attuale ÷ investitori attuali). Stessa scala PV delle commesse (×10).
   // Deliberatamente NON è una costante euristica: è la formula del gioco letta dallo stato — così qui non si
@@ -214,6 +222,30 @@ function allWorkers(p) {
   return out;
 }
 function countNation(p, nation) { return allWorkers(p).filter(w => w.nation === nation).length; }
+
+// Progresso frazionario (0..1 per obiettivo) verso le race ancora rivendicabili — contano SOLO i Sopra,
+// come raceCondMet nell'engine. Somma sugli obiettivi aperti. Marginale: evaluate confronta stati prima/dopo
+// una mossa, quindi un Sopra che avvicina alza v. NON dà i PV (quelli arrivano col claim).
+function sopraWorkers(p) {
+  const out = [];
+  for (const role of DEPT_ROLES) for (const id of p.depts[role].sopra) out.push(WORKER_BY_ID[id]);
+  return out;
+}
+function raceProgress(state, p) {
+  const ro = state.raceObjectives;
+  if (!ro?.enabled) return 0;
+  const sopra = sopraWorkers(p);
+  const frac = (x, n) => Math.min(x / n, 1);
+  let prog = 0;
+  for (const it of ro.list) {
+    if (state.raceExclude === it.id) continue; // contrafattuale per-race: ignora questo obiettivo (misura #7 isolata)
+    if (it.claims.includes(p.id) || it.claims.length >= ro.podium.length) continue; // già preso o podio pieno → non insegue
+    if (it.type === 'sopra_same_nation') prog += frac(Math.max(0, ...state.nations.map(nat => sopra.filter(w => w.nation === nat).length)), it.n);
+    else if (it.type === 'sopra_distinct_nations') prog += frac(new Set(sopra.map(w => w.nation)).size, it.n);
+    else if (it.type === 'sopra_each_sector') prog += frac(SECTORS.reduce((a, s) => a + Math.min(sopra.filter(w => w.sector === s).length, it.n), 0), it.n * SECTORS.length);
+  }
+  return prog;
+}
 
 // ---------- Scelta comando ----------
 export function chooseCommand(state) {
@@ -618,6 +650,14 @@ function bestExchange(legal, kind, give, take) {
 // ----- Borsa: comandi effettivi -----
 function chooseBorsa(state, p) {
   const legal = legalCommands(state);
+  // 0. obiettivi di gara: PV gratis (non costano risorse), rivendica sempre il più remunerativo prima.
+  // Chiude la via "esci con bonus", come le commesse — ma vale molto più di 2 marchi, quindi ha la precedenza.
+  const races = legal.filter(c => c.type === 'completeRace');
+  if (races.length > 0) {
+    const racePV = c => { const it = state.raceObjectives.list.find(r => r.id === c.raceId); return state.raceObjectives.podium[it.claims.length] ?? 0; };
+    races.sort((a, b) => racePV(b) - racePV(a));
+    return races[0];
+  }
   // 1. completa la commessa più remunerativa
   const completes = legal.filter(c => c.type === 'completeContract');
   if (completes.length > 0) {

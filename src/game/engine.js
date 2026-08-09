@@ -44,6 +44,41 @@ const BORSA_REFRESH_DEFAULT = { enabled: true };
 function mergeBorsaExit(cfg) { return { ...BORSA_EXIT_DEFAULT, ...(cfg || {}) }; }
 function mergeBorsaRefresh(cfg) { return { ...BORSA_REFRESH_DEFAULT, ...(cfg || {}) }; }
 
+// Obiettivi "RACE" (gara): obiettivi CONDIVISI sui lavoratori Sopra, completabili solo in Città (Borsa),
+// sulla via "resto e completo le commesse" (esclusi dalla via "esci con bonus"). Chi li completa prima prende
+// più PV: podium[0]=1° arrivato, [1]=2°, [2]=3°. Diversi dal Piano Industriale (obiettivi PRIVATI per-tessera).
+// Default enabled:false (sperimentale, come le altre meccaniche nuove — si accende dall'editor Città).
+const RACE_DEFAULT = {
+  enabled: false,
+  podium: [7, 5, 3], // PV per ordine di arrivo (1°/2°/3°); la lunghezza = quanti posti sul podio
+  list: [
+    { id: 'race_same', type: 'sopra_same_nation', n: 3, enabled: true },     // 3 lavoratori Sopra stessa nazionalità
+    { id: 'race_dist', type: 'sopra_distinct_nations', n: 4, enabled: true }, // 4 lavoratori Sopra nazionalità diverse
+    { id: 'race_each', type: 'sopra_each_sector', n: 2, enabled: true },      // 2 lavoratori Sopra per OGNI settore
+  ],
+};
+// Stato runtime: ogni obiettivo porta `claims` (array ordinato di seat id = ordine di arrivo). I disabilitati
+// per-voce vengono filtrati qui, così borsaCommands/scorePlayer iterano solo su quelli attivi.
+function mergeRace(cfg) {
+  const src = cfg && Array.isArray(cfg.list) ? cfg : RACE_DEFAULT;
+  return {
+    enabled: !!(cfg?.enabled),
+    podium: (cfg?.podium || RACE_DEFAULT.podium).slice(),
+    // claims = seat id per posto (ordine di arrivo); claimTurns = turno di ogni claim (parallelo a claims);
+    // qualified = seat che si sono qualificati almeno una volta in partita (pool di competizione, anche senza claim).
+    list: src.list.filter(it => it.enabled !== false).map(it => ({ id: it.id, type: it.type, n: it.n, claims: [], claimTurns: [], qualified: [] })),
+  };
+}
+// Testo generato dell'obiettivo di gara (UI/log) — unica fonte è il tipo, come describeCond per il Piano.
+export function describeRace(it) {
+  switch (it.type) {
+    case 'sopra_same_nation': return `${it.n} lavoratori Sopra della stessa nazionalità`;
+    case 'sopra_distinct_nations': return `${it.n} lavoratori Sopra di nazionalità diverse`;
+    case 'sopra_each_sector': return `${it.n} lavoratori Sopra per ogni settore`;
+    default: return it.type;
+  }
+}
+
 // Modalità scambi Borsa: 'illimitati' (default, comportamento storico, tariffe base+M1+M2 come sopra) oppure
 
 // ===== Borsa a indici (17/07/2026) =====
@@ -341,6 +376,9 @@ export function initGame(config) {
   const n = config.players.length;
   if (n < 2 || n > 4) throw new Error('2-4 giocatori');
 
+  // Piano Industriale attivo? Default OFF (spento): la tessera pescata resta ma senza obiettivi, così l'intera
+  // catena scoring/AI/endGame (che itera p.tile.objectives) si azzera da sola senza guardie sparse.
+  const pianoEnabled = config.pianoEnabled ?? false;
   // Tessere Piano Industriale: editabili via config.tiles (testo/PV/condizione obiettivi), altrimenti default OBJECTIVE_TILES.
   const tileDeck = (config.tiles && config.tiles.length) ? config.tiles : OBJECTIVE_TILES;
   // config.forcedTile/forcedSeat: per il "Ricalcola" dell'editor — forza una tessera su un posto fisso invece di pescarla a caso,
@@ -360,6 +398,8 @@ export function initGame(config) {
       };
     }
     const resources = { Tessuti: 0, Acciaio: 0, Coloranti: 0 };
+    const drawnTile = (config.forcedTile && i === (config.forcedSeat ?? 0)) ? config.forcedTile : tiles.pop();
+    const tile = pianoEnabled ? drawnTile : { ...drawnTile, objectives: [] }; // Piano OFF → tessera senza obiettivi privati
     return {
       id: i, name: pc.name || `Giocatore ${i + 1}`, isAI: !!pc.isAI,
       personality: pc.personality || 'neutro', // profilo AI (vedi PROFILES in ai.js)
@@ -392,8 +432,8 @@ export function initGame(config) {
       depts,
       direzione: { sopra: [], sotto: [], slotTurn: { sopra: [null, null], sotto: [null, null] } }, // sotto: [{id, usesLeft}]
       contractEngines: [], // commesse completate messe sotto la Direzione: ogni turno danno 1 risorsa del settore dominante × fabbriche che toccano quel colore (config contractEngine)
-      tile: (config.forcedTile && i === (config.forcedSeat ?? 0)) ? config.forcedTile : tiles.pop(),
-      achieved: [false, false, false],
+      tile,
+      achieved: tile.objectives.map(() => false),
       contractsWon: [], // {cardId, size, place(0|1), pv}
       maxActivationCoins: 0,
       activations: 0,             // quante volte ha usato "Attiva reparto"
@@ -544,6 +584,12 @@ export function initGame(config) {
     borsa: mergeBorsa(config.borsa), // azioni Città configurabili (enabled/give/get)
     borsaExit: mergeBorsaExit(config.borsaExit), // uscita con bonus fisso invece delle Commesse
     borsaRefresh: mergeBorsaRefresh(config.borsaRefresh), // refresh gratuito (Welfare o banchi) invece delle Commesse
+    pianoEnabled, // Piano Industriale (obiettivi privati per-tessera) attivo? default OFF
+    raceObjectives: mergeRace(config.raceObjectives), // obiettivi di gara condivisi (podio) completabili in Città
+    // Valore marginale del PROGRESSO verso una race nell'IA-evaluate (knob di SISTEMA: cambia le decisioni).
+    // Default 0 = l'IA rivendica se si qualifica per caso ma NON devia per costruirla. Alzarlo (sweep 0/X/2X/4X)
+    // per misurare se la meccanica crea decisioni. Distinto dai PV del claim (sempre valutati, non è l'incentivo).
+    raceIncentive: Math.max(0, config.raceIncentive ?? 0),
     // Borsa a indici: id nodo 'Servizi' = "Borsa" a schermo (NODE_LABEL). Default enabled:false → invariato.
     borsaIndici: mergeBorsaIndici(config.borsaIndici),
     quad: 0, // quadrimestre corrente (0..3), avanza alle soglie di Clock in borsaIndici.quadBounds
@@ -563,6 +609,7 @@ export function initGame(config) {
     turn: 1, current: 0, roundStart: 0, roundTurns: 0, dir: 1,
     phase: 'move', // move | action | borsa | done (fine turno in attesa di endTurn implicito)
     contractsThisVisit: 0,
+    racesThisVisit: 0, // obiettivi di gara completati nella visita corrente (chiude la via "esci con bonus")
     borsaExitUsed: false, borsaRefreshUsed: false, // esclusivi con completare Commesse nella stessa visita
     // Sindacato (decisione autore 28/07/2026): al nodo Sindacato le sotto-azioni sono combinabili nella
     // stessa visita invece che una sola a testa. Impostato al 'move' verso Sindacato, azzerato altrove.
@@ -995,6 +1042,17 @@ function condMet(state, player, cond) {
   }
 }
 
+// Obiettivi di gara (RACE): contano SOLO i lavoratori Sopra (nei 3 reparti, non la Direzione) — sono
+// pubblici e visibili sul tavolo, coerente con "tra i lavoratori sopra". Riusa i conteggi sopraOnly.
+function raceCondMet(state, player, it) {
+  switch (it.type) {
+    case 'sopra_same_nation': return state.nations.some(nat => nationCount(player, nat, true) >= it.n);
+    case 'sopra_distinct_nations': return distinctNations(player, true) >= it.n;
+    case 'sopra_each_sector': return SECTORS.every(s => installedWorkerCards(player, true).filter(w => w.sector === s).length >= it.n);
+    default: return false;
+  }
+}
+
 // Testo dell'obiettivo, generato dalla condizione — non un campo salvato: editarlo a mano su 96 obiettivi
 // (32 tessere × 3) non regge, e un testo salvato può disallinearsi dalla condizione appena la cambi (era già
 // successo). Unica fonte di verità: `cond`.
@@ -1142,8 +1200,11 @@ export function scorePlayer(state, p) {
   const pvFactoryMajority = factoryMajorityPV(state, p);
   // PV per reparto completo (5/5 slot): default 0. Leva di payoff FINALE della fabbrica (distinta dal rendimento in partita).
   const pvDeptComplete = (state.deptCompletePV || 0) * DEPT_ROLES.reduce((a, r) => a + (p.depts[r].sopra.length >= state.slots[r].sopra && p.depts[r].sotto.length >= state.slots[r].sotto ? 1 : 0), 0);
-  const total = pvContracts + pvObjectives + pvTrack + pvCoins + pvResources + pvStrikes + pvBorsa + pvFactoryMajority + pvDeptComplete;
-  return { playerId: p.id, name: p.name, pvContracts, pvObjectives, pvTrack, pvCoins, pvResources, pvStrikes, pvBorsa, pvFactoryMajority, pvDeptComplete, blockedCount, total, coins: p.coins, nContracts: p.contractsWon.length };
+  // Obiettivi di gara: PV dal posto sul podio (indice del claim = ordine di arrivo). 0 se la meccanica è spenta.
+  const ro = state.raceObjectives;
+  const pvRace = ro?.enabled ? ro.list.reduce((a, it) => { const pl = it.claims.indexOf(p.id); return a + (pl >= 0 ? (ro.podium[pl] ?? 0) : 0); }, 0) : 0;
+  const total = pvContracts + pvObjectives + pvTrack + pvCoins + pvResources + pvStrikes + pvBorsa + pvFactoryMajority + pvDeptComplete + pvRace;
+  return { playerId: p.id, name: p.name, pvContracts, pvObjectives, pvTrack, pvCoins, pvResources, pvStrikes, pvBorsa, pvFactoryMajority, pvDeptComplete, pvRace, blockedCount, total, coins: p.coins, nContracts: p.contractsWon.length };
 }
 
 function endGame(state) {
@@ -1181,6 +1242,7 @@ function startTurn(state) {
   const p = currentPlayer(state);
   state.phase = 'move';
   state.contractsThisVisit = 0;
+  state.racesThisVisit = 0;
   state.borsaExitUsed = false;
   state.borsaRefreshUsed = false;
   state.sellUsedThisVisit = 0;
@@ -1228,6 +1290,13 @@ function finishTurn(state) {
   p.coinsHistory.push(p.coins);
   p.resHistory.push(totalResources(p));
   checkObjectivesAll(state);
+  // Pool di competizione delle race: registra ogni giocatore che è qualificato ORA per un obiettivo (anche se
+  // non lo rivendica — potrebbe non passare in Città, o il podio riempirsi prima). Serve alla metrica #4.
+  if (state.raceObjectives?.enabled) {
+    for (const it of state.raceObjectives.list) {
+      for (const q of state.players) if (!it.qualified.includes(q.id) && raceCondMet(state, q, it)) it.qualified.push(q.id);
+    }
+  }
   state.roundTurns += 1;
   const lastOfRound = state.roundTurns >= state.nPlayers;
   if (state.endImmediate || (state.finalRound && lastOfRound)) {
@@ -1466,8 +1535,8 @@ function borsaCommands(state, p) {
     }
   }
   // Alternativa alle Commesse: uscire con un bonus fisso e/o rinfrescare un mercato — esclusiva con
-  // completare Commesse nella stessa visita (in entrambe le direzioni, vedi sotto).
-  const exitPathOpen = state.contractsThisVisit === 0;
+  // completare Commesse E con gli obiettivi di gara nella stessa visita (in entrambe le direzioni).
+  const exitPathOpen = state.contractsThisVisit === 0 && state.racesThisVisit === 0;
   if (state.borsaExit.enabled && exitPathOpen && !state.borsaExitUsed) {
     cmds.push({ type: 'borsaExit', coins: state.borsaExit.coins });
   }
@@ -1486,6 +1555,15 @@ function borsaCommands(state, p) {
           if (canPay(p, req)) cmds.push({ type: 'completeContract', size, slotIndex, reqIndex });
         });
       });
+    }
+  }
+  // Obiettivi di gara: come le Commesse, si completano restando in Città (non sulla via "esci con bonus").
+  // Podio a posti: disponibili finché restano posti liberi e il giocatore non ne ha già preso uno.
+  const ro = state.raceObjectives;
+  if (ro.enabled && !state.borsaExitUsed && !state.borsaRefreshUsed) {
+    for (const it of ro.list) {
+      if (it.claims.length >= ro.podium.length || it.claims.includes(p.id)) continue;
+      if (raceCondMet(state, p, it)) cmds.push({ type: 'completeRace', raceId: it.id });
     }
   }
   cmds.push({ type: 'endTurn' });
@@ -1656,6 +1734,17 @@ export function applyCommand(prev, cmd) {
     }
     case 'completeContract':
       return doContract(state, p, cmd);
+    case 'completeRace': {
+      const it = state.raceObjectives.list.find(r => r.id === cmd.raceId);
+      const place = it.claims.length; // ordine di arrivo: 0=1°, 1=2°, ...
+      it.claims.push(p.id);
+      it.claimTurns.push(state.turn);
+      state.racesThisVisit += 1;
+      const pv = state.raceObjectives.podium[place] ?? 0;
+      log(state, `${p.name} completa l'obiettivo di gara «${describeRace(it)}» (${place + 1}° arrivato, ${pv} PV).`);
+      checkObjectives(state, p);
+      return state;
+    }
     case 'borsaExit':
       addCoins(state, p, cmd.coins, 'scambio');
       state.borsaExitUsed = true;

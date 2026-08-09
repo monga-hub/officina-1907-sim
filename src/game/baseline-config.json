@@ -1663,6 +1663,7 @@
   },
   "contractEngine": true,
   "sottoInstantEffect": true,
+  "pianoEnabled": false,
   "workers": [
     {
       "id": "nw_gr5",

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { TRACK_MODELS, TRACK_MODEL_DEFAULT, BORSA_FABBRICHE_DEFAULT, FACTORY_MAP, DEFAULT_FACTORY_MAPS, SECTORS, SECTOR_COLORS, CONTRACTS, expandContracts, CLOCK_THRESHOLD, NATIONS, NATIONS_NUOVO, NEW_NODE_BANKS, TENSION_LIMIT, nodeLabel } from '../game/data.js';
-import { describeCond } from '../game/engine.js';
+import { describeCond, describeRace } from '../game/engine.js';
 import { INDICATOR_TARGETS, INDICATOR_UNITS, recalcTile, starsFor, winZ } from '../game/batchsim.js';
 import TrackEditor, {
   loadEditorTrack, toGameTracks, saveEditorTrack,
@@ -572,8 +572,9 @@ export function buildShowcaseTiles(families) {
   return Array.from({ length: n }, (_, i) => ({ id: `pfshow${i + 1}`, name: `Piano Nuovo ${i + 1}`, objectives: families.map(fam => fam[i]) }));
 }
 
-function FamilyEditor({ families, setFamilies, baseCfg }) {
+function FamilyEditor({ families, setFamilies, baseCfg, pianoEnabled, setPianoEnabled }) {
   const save = next => { setFamilies(next); saveLS(FAMILIES_LS_KEY, next); };
+  const updPiano = v => { setPianoEnabled(v); saveLS('officina1907-pianoenabled-v1', v); };
   const updObj = (fi, oi, patch) => save(families.map((fam, i) => i !== fi ? fam : fam.map((o, j) => j !== oi ? o : { ...o, ...patch })));
   const showcase = buildShowcaseTiles(families);
   const [recalc, setRecalc] = useState({});
@@ -584,6 +585,14 @@ function FamilyEditor({ families, setFamilies, baseCfg }) {
   };
   return (
     <div className="track-editor">
+      <label style={{ display: 'block', margin: '0 0 10px' }}>
+        <button className={pianoEnabled ? 'sel' : ''} onClick={() => updPiano(true)}>Attiva Piano Industriale</button>
+        <button className={!pianoEnabled ? 'sel' : ''} onClick={() => updPiano(false)}>Disattiva</button>
+        <span className="hint" style={{ marginLeft: 8 }}>{pianoEnabled
+          ? 'gli obiettivi privati qui sotto valgono PV a fine partita.'
+          : 'SPENTO (default): le tessere non danno obiettivi né PV. Gli obiettivi qui sotto restano solo per l\'editing.'}</span>
+      </label>
+      <hr />
       <p className="hint">{FAMILY_LABELS.length} famiglie ({families.map(f => f.length).join(' × ')}) = {families.reduce((a, f) => a + f.length, 0)} mattoni. Ogni Piano Industriale nuovo pesca 1 obiettivo per famiglia — {families.reduce((a, f) => a * f.length, 1)} combinazioni generate automaticamente, non editabili una per una: modifica qui i mattoni e si propaga a tutte le tessere che li usano. Testo generato dalla condizione. Salvato nel browser.</p>
       <div style={{ maxHeight: 420, overflowY: 'auto' }}>
         <table className="pv-editor">
@@ -718,6 +727,23 @@ const BORSA_EXIT_DEFAULT = { enabled: true, coins: 2 };
 const BORSA_REFRESH_DEFAULT = { enabled: true };
 export const loadBorsaExit = () => loadLS('officina1907-borsaexit-v1', BORSA_EXIT_DEFAULT);
 export const loadBorsaRefresh = () => loadLS('officina1907-borsarefresh-v1', BORSA_REFRESH_DEFAULT);
+
+// Obiettivi di gara (RACE): condivisi, si completano in Città sulla via "resto e completo le commesse".
+// Podio a posti (1°/2°/3°) → più PV a chi arriva prima. Default spento (sperimentale). Mirror di RACE_DEFAULT
+// in engine.js: qui SENZA `claims` (stato runtime), solo template config editabile.
+const RACE_DEFAULT = {
+  enabled: false,
+  podium: [7, 5, 3],
+  incentive: 0, // valore IA del progresso verso una race (0 = rivendica ma non insegue; alza per testare le decisioni)
+  list: [
+    { id: 'race_same', type: 'sopra_same_nation', n: 3, enabled: true },
+    { id: 'race_dist', type: 'sopra_distinct_nations', n: 4, enabled: true },
+    { id: 'race_each', type: 'sopra_each_sector', n: 2, enabled: true },
+  ],
+};
+export const loadRace = () => loadLS('officina1907-race-v1', RACE_DEFAULT, v => v && Array.isArray(v.list) && Array.isArray(v.podium));
+// Piano Industriale (obiettivi privati per-tessera) attivo? Default OFF (decisione utente 09/08/2026).
+export const loadPianoEnabled = () => loadLS('officina1907-pianoenabled-v1', false);
 
 
 // --- Editor mappa esagoni (pointy-top odd-r): clic per aggiungere/cambiare, adiacenza calcolata dalla griglia ---
@@ -952,8 +978,12 @@ function BorsaFabbricheEditor({ bf, setBf }) {
   );
 }
 
-function BorsaEditor({ borsa, setBorsa, borsaExit, setBorsaExit, borsaRefresh, setBorsaRefresh, starMovement, setStarMovement }) {
+function BorsaEditor({ borsa, setBorsa, borsaExit, setBorsaExit, borsaRefresh, setBorsaRefresh, starMovement, setStarMovement, race, setRace }) {
   const updStar = v => { setStarMovement(v); saveLS('officina1907-starmovement-v1', v); };
+  const saveRace = next => { setRace(next); saveLS('officina1907-race-v1', next); };
+  const updRace = patch => saveRace({ ...race, ...patch });
+  const updPodium = (i, val) => saveRace({ ...race, podium: race.podium.map((p, j) => j === i ? Math.max(0, Math.min(50, Number(val) || 0)) : p) });
+  const updRaceItem = (i, patch) => saveRace({ ...race, list: race.list.map((it, j) => j === i ? { ...it, ...patch } : it) });
   const upd = (key, field, value) => {
     const next = structuredClone(borsa);
     next[key][field] = field === 'enabled' ? value : Math.max(0, Math.min(20, Number(value) || 0));
@@ -1012,6 +1042,36 @@ function BorsaEditor({ borsa, setBorsa, borsaExit, setBorsaExit, borsaRefresh, s
           </tr>
         </tbody>
       </table>
+
+      <h4 style={{ marginTop: 20 }}>Obiettivi di gara (RACE, homebrew)</h4>
+      <p className="hint">Obiettivi CONDIVISI sui lavoratori Sopra. Si completano restando in Città (stessa via delle Commesse, esclusa dalla via "esci con bonus"). Chi arriva prima prende più PV: podio 1°/2°/3°. Diversi dal Piano Industriale (privati per giocatore). Salvato nel browser.</p>
+      <label style={{ display: 'block', margin: '4px 0 10px' }}>
+        <button className={race.enabled ? 'sel' : ''} onClick={() => updRace({ enabled: true })}>Attiva</button>
+        <button className={!race.enabled ? 'sel' : ''} onClick={() => updRace({ enabled: false })}>Disattiva</button>
+        <span className="hint" style={{ marginLeft: 8 }}>PV per ordine di arrivo:
+          {race.podium.map((p, i) => (
+            <input key={i} type="number" min="0" max="50" value={p} disabled={!race.enabled} onChange={e => updPodium(i, e.target.value)} style={{ width: 44, marginLeft: 6 }} title={`${i + 1}° arrivato`} />
+          ))}
+        </span>
+      </label>
+      <label style={{ display: 'block', margin: '0 0 10px' }}>
+        <span className="hint">Incentivo IA (progresso verso una race): </span>
+        <input type="number" min="0" max="20" value={race.incentive ?? 0} disabled={!race.enabled} onChange={e => updRace({ incentive: Math.max(0, Math.min(20, Number(e.target.value) || 0)) })} style={{ width: 48 }} />
+        <span className="hint" style={{ marginLeft: 6 }}>0 = l'IA rivendica solo se si qualifica per caso, non devia per costruirla. &gt;0 = insegue (test "crea decisioni", vedi scripts/race-causality.js).</span>
+      </label>
+      <table className="pv-editor">
+        <thead><tr><th>Attivo</th><th style={{ textAlign: 'left' }}>Obiettivo (generato)</th><th>N</th></tr></thead>
+        <tbody>
+          {race.list.map((it, i) => (
+            <tr key={it.id}>
+              <td><input type="checkbox" checked={it.enabled !== false} disabled={!race.enabled} onChange={e => updRaceItem(i, { enabled: e.target.checked })} /></td>
+              <td style={{ textAlign: 'left', maxWidth: 320 }}><small>{describeRace(it)}</small></td>
+              <td><input type="number" min="1" max="12" value={it.n} disabled={!race.enabled} onChange={e => updRaceItem(i, { n: Math.max(1, Math.min(12, Number(e.target.value) || 1)) })} style={{ width: 48 }} /></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <button className="ghost" onClick={() => saveRace(structuredClone(RACE_DEFAULT))}>Ripristina obiettivi di gara</button>
     </div>
   );
 }
@@ -1058,6 +1118,8 @@ const IMPORT_FIELDS = [
   ['indicatorTargets', 'officina1907-targets-v1'],
   ['newWorkers', NEWWORKERS_KEY], // stessa chiave dell'editor (bumpata a ogni cambio di formato): duplicarla qui la fa divergere in silenzio
   ['families', 'officina1907-families-v2'],
+  ['pianoEnabled', 'officina1907-pianoenabled-v1'],
+  ['raceObjectives', 'officina1907-race-v1'],
 ];
 // Scrive un JSON di configurazione esportata nelle chiavi localStorage (senza toccare lo stato React).
 // Usata sia dall'import manuale sia dal bootstrap baseline (main.jsx). Ritorna i campi scritti.
@@ -1137,6 +1199,8 @@ export default function SetupScreen({ onStart }) {
   const [contractEngine, setContractEngine] = useState(() => loadLS('officina1907-contractengine-v1', false));
   const [sottoInstantEffect, setSottoInstantEffect] = useState(() => loadLS('officina1907-sottoinstant-v1', true));
   const [families, setFamilies] = useState(loadFamilies);
+  const [pianoEnabled, setPianoEnabled] = useState(loadPianoEnabled);
+  const [race, setRace] = useState(loadRace);
   const [clocks, setClocks] = useState(loadClocks);
   const [targets, setTargets] = useState(loadTargets);
   const [welfareEnabled, setWelfareEnabled] = useState(loadWelfareEnabled);
@@ -1164,6 +1228,9 @@ export default function SetupScreen({ onStart }) {
     nations: NATIONS_NUOVO,
     nodeBanks: NEW_NODE_BANKS,
     tiles: buildFamilyTiles(families), // Piano Industriale = sempre le famiglie (prodotto cartesiano)
+    pianoEnabled, // Piano Industriale attivo? default OFF — le tessere restano ma senza obiettivi/PV
+    raceObjectives: race, // obiettivi di gara condivisi (podio) completabili in Città
+    raceIncentive: race.incentive || 0, // valore IA del progresso verso una race (knob di sistema, letto da initGame)
     // Welfare/Macchinari rimossi dal design (Officina 2.0, poi esteso al mazzo Classico): Direzione contiene
     // solo Impiegati (sempre Sopra, cap in `slots.direzione.sopra`, default 3) + tile R&D. Sempre off, non
     // più un toggle per-partita. Mercato tile (trackTiles/trackTileCap) ora si compra alla Borsa (Ricerca
@@ -1251,13 +1318,13 @@ export default function SetupScreen({ onStart }) {
         {open === 'plancia' && <PlanciaEditor slots={slots} setSlots={setSlots} tension={tension} setTension={setTension} track={track} setTrack={setTrack} trackModel={trackModel} setTrackModel={setTrackModel} />}
         {open === 'commesse' && <CommesseEditor count={count} setCount={setCount} market={market} setMarket={setMarket} pv={contractPV} setPV={setContractPV} milestoneReq={milestoneReq} setMilestoneReq={setMilestoneReq} contractEngine={contractEngine} setContractEngine={setContractEngine} contracts={contracts} setContracts={setContracts} />}
         {open === 'tratt' && <TrattativaEditor tratt={trattativa} setTratt={setTrattativa} />}
-        {open === 'borsa' && <BorsaEditor borsa={borsa} setBorsa={setBorsa} borsaExit={borsaExit} setBorsaExit={setBorsaExit} borsaRefresh={borsaRefresh} setBorsaRefresh={setBorsaRefresh} starMovement={starMovement} setStarMovement={setStarMovement} />}
+        {open === 'borsa' && <BorsaEditor borsa={borsa} setBorsa={setBorsa} borsaExit={borsaExit} setBorsaExit={setBorsaExit} borsaRefresh={borsaRefresh} setBorsaRefresh={setBorsaRefresh} starMovement={starMovement} setStarMovement={setStarMovement} race={race} setRace={setRace} />}
         {open === 'borsafabbriche' && <BorsaFabbricheEditor bf={borsaFabbriche} setBf={setBorsaFabbriche} />}
         {open === 'conv' && <ConversionsEditor conv={conversions} setConv={setConversions} strikePV={strikePV} setStrikePV={setStrikePV} deptPV={deptPV} setDeptPV={setDeptPV} />}
         {open === 'monete' && <StartCoinsEditor coins={startCoins} setCoins={setStartCoins} n={n} />}
         {open === 'newdeck' && <NewDeckEditor newWorkers={newWorkers} setNewWorkers={setNewWorkers} sottoInstantEffect={sottoInstantEffect} setSottoInstantEffect={setSottoInstantEffect} />}
         {open === 'impiegati' && <ImpiegatiDeckEditor newWorkers={newWorkers} setNewWorkers={setNewWorkers} />}
-        {open === 'families' && <FamilyEditor families={families} setFamilies={setFamilies} baseCfg={{ ...cfg(), nPlayers: 4 }} />}
+        {open === 'families' && <FamilyEditor families={families} setFamilies={setFamilies} baseCfg={{ ...cfg(), nPlayers: 4 }} pianoEnabled={pianoEnabled} setPianoEnabled={setPianoEnabled} />}
         {open === 'tracktiles' && <TrackTileEditor tiles={trackTiles} setTiles={setTrackTiles} cap={trackTileCap} setCap={setTrackTileCap} />}
         {open === 'target' && <TargetEditor targets={targets} setTargets={setTargets} />}
         {open === 'clock' && <ClockEditor clocks={clocks} setClocks={setClocks} />}
@@ -1270,6 +1337,7 @@ export default function SetupScreen({ onStart }) {
           trackTiles: setTrackTiles, trackTileCap: setTrackTileCap,
           clockThreshold: setClocks, indicatorTargets: setTargets, tracks: setTrack,
           newWorkers: setNewWorkers, families: setFamilies,
+          pianoEnabled: setPianoEnabled, raceObjectives: setRace,
         }} />}
         {open === 'sim' && <SimulationPanel {...cfg()} />}
         <button className="primary" onClick={start}>Inizia la partita</button>

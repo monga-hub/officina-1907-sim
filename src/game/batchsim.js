@@ -1,6 +1,6 @@
 // Simulazione in serie nel browser: N partite tra AI + report testuale copiabile.
-import { initGame, applyCommand, scorePlayer, WORKER_BY_ID, formulaOf, convBucketOf, describeCond, tileValue, tileEffect, bankMarket, legalCommands, indexNames, indexValue, factoryMajorityWinner, factorySectorMajorityWinner } from './engine.js';
-import { chooseCommand } from './ai.js';
+import { initGame, applyCommand, scorePlayer, WORKER_BY_ID, formulaOf, convBucketOf, describeCond, describeRace, tileValue, tileEffect, bankMarket, legalCommands, indexNames, indexValue, factoryMajorityWinner, factorySectorMajorityWinner } from './engine.js';
+import { chooseCommand, evaluate } from './ai.js';
 import { SECTORS, OBJECTIVE_TILES, WELFARE, TRACK_TILES, IMPIEGATI_BANK, RESOURCE_OF, FACTORY_MAP } from './data.js';
 
 
@@ -105,6 +105,10 @@ export function runOneGame(config) {
     // stato del tracciato prima, avanzamenti REALI (il tracciato satura a trackMax: la potenza nominale
     // può andare in parte sprecata) e milestone attraversate in quella singola salita.
     impiegatiBuys: [], // {turn, seat, cardId, nation, coinsBefore, steps:[{sector, role, nominal, from, to, gained, sopra, ms:[1..3]}]}
+    // Causalità race (#5/#7): contrafattuale a livello di decisione. Popolato solo con config.raceCausality
+    // + raceIncentive>0. decisions/changed = tutte le decisioni; hire* = solo le assunzioni (piazzamenti);
+    // costSum = valore NORMALE (raceIncentive=0) sacrificato quando l'incentivo race ha cambiato la scelta.
+    raceCausal: { decisions: 0, changed: 0, hireDecisions: 0, hireChanged: 0, costSum: 0, byRace: {} },
   };
   // apparizioni per carta: quante volte una carta ENTRA nel mercato di un banco (cima per i banchi
   // lavoratori, una delle 3 scoperte per gli Impiegati), non quanti turni ci resta — così "apparsa"
@@ -185,6 +189,32 @@ export function runOneGame(config) {
     }
     const cmd = chooseCommand(s);
     if (!cmd) break;
+    // Contrafattuale a livello di decisione (#5/#7): la scelta cambia se azzero l'incentivo race? Costoso
+    // (2× chooseCommand a decisione) → gated. Misura solo quando l'IA PUÒ inseguire (raceIncentive>0).
+    if (config.raceCausality && s.raceObjectives?.enabled && s.raceIncentive > 0) {
+      const rc = tel.raceCausal;
+      const isHire = cmd.type === 'hire';
+      const cmdStr = JSON.stringify(cmd);
+      rc.decisions++; if (isHire) rc.hireDecisions++;
+      const nChosen = evaluate({ ...applyCommand(s, cmd), raceIncentive: 0 }, s.current);
+      // aggregato: tutte le race off
+      const cfAll = chooseCommand({ ...s, raceIncentive: 0 });
+      if (!cfAll || JSON.stringify(cfAll) !== cmdStr) {
+        rc.changed++; if (isHire) rc.hireChanged++;
+        const nCf = cfAll ? evaluate({ ...applyCommand(s, cfAll), raceIncentive: 0 }, s.current) : nChosen;
+        rc.costSum += Math.max(0, nCf - nChosen);
+      }
+      // per-race: escludi UN obiettivo alla volta (isola l'effetto causale della singola race)
+      for (const it of s.raceObjectives.list) {
+        const b = rc.byRace[it.id] ??= { changed: 0, hireChanged: 0, costSum: 0 };
+        const cfR = chooseCommand({ ...s, raceExclude: it.id });
+        if (!cfR || JSON.stringify(cfR) !== cmdStr) {
+          b.changed++; if (isHire) b.hireChanged++;
+          const nCf = cfR ? evaluate({ ...applyCommand(s, cfR), raceIncentive: 0 }, s.current) : nChosen;
+          b.costSum += Math.max(0, nCf - nChosen);
+        }
+      }
+    }
     if (shareOffered) {
       tel.shareOffer.total++;
       if (cmd.type === 'buyShare') tel.shareOffer.taken++;
@@ -375,6 +405,14 @@ export function runOneGame(config) {
   tel.slotCap = ['terziario', 'secondario', 'primario'].map(r => s.slots[r].sopra + s.slots[r].sotto);
   tel.activationLog = s.activationLog; // potenza di produzione per attivazione (idea utente 30/07/2026) — NB: non sovrascrivere tel.activations (numeri per-seat, riga sopra), serve intatto a EFFICIENZA MEDIA
   tel.strikes = s.strikeLog; // scioperi (idea utente 08/08/2026) — un evento per ogni Tensione a limite, a prescindere dallo sblocco successivo
+  // Obiettivi di gara (09/08/2026): snapshot finale del podio condiviso. null se la meccanica è spenta.
+  tel.race = s.raceObjectives?.enabled ? {
+    podium: s.raceObjectives.podium.slice(),
+    list: s.raceObjectives.list.map(it => ({ id: it.id, type: it.type, n: it.n, claims: it.claims.slice(), claimTurns: it.claimTurns.slice(), qualified: it.qualified.slice() })),
+    winnerSeat: s.results[0].playerId,
+    incentive: s.raceIncentive,
+    lastTurn: s.turn,
+  } : null;
   // Chiusura Impiegati: stato finale di ogni reparto + quanta parte del tracciato è arrivata da Impiegati.
   // Serve alle due domande di fine partita: "gap di sviluppo compensato" (poche carte Sopra + tanti
   // Impiegati = la carta sta tappando un buco di offerta carte) e milestone marginali (sotto, nel report).
@@ -796,6 +834,7 @@ const REPORT_MAP = [
   ['WIN RATE PER TESSERA', 6, '🔵', 'Obiettivi'], ['SCHEDA TESSERE', 6, '🔵', 'Obiettivi'],
   ['DISTRIBUZIONE TESSERE', 6, '🔵', 'Obiettivi'], ['OBIETTIVI PIANO INDUSTRIALE', 6, '🟢', 'Obiettivi'],
   ['FAMIGLIE DI OBIETTIVO', 6, '🟢', 'Obiettivi'], ['CLASSIFICA FACILITÀ', 6, '🔵', 'Obiettivi'],
+  ['OBIETTIVI DI GARA', 6, '🟢', 'Obiettivi'],
   ['BONUS LAVORATORE', 6, '🔵', 'Carte'], ['PICK-RATE ALTO', 6, '🔵', 'Carte'],
   ['IDENTITÀ NAZIONALE', 6, '🔵', 'Carte'], ['VALORE REALE DELLE TILE', 6, '🔵', 'Tile'],
   ['BORSA A INDICI', 6, '⚪', 'Posizione'],
@@ -1728,6 +1767,58 @@ export function formatReport(games, cfg) {
     L.push(`  PV persi per scioperi: totali ${pvStrikesTot.toFixed(0)} · per giocatore ${(pvStrikesTot / (nGP || 1)).toFixed(2)}  (a −${cfg.strikePenaltyPV ?? '?'} PV/carta bloccata ANCORA attiva a fine partita — uno sciopero sbloccato in tempo dal Sindacato non conta qui)`);
   }
   L.push('');
+
+  // OBIETTIVI DI GARA (09/08/2026): podio condiviso completabile in Città. Solo se la meccanica è attiva.
+  {
+    const rg = ok.filter(g => g.race);
+    if (rg.length) {
+      L.push('— OBIETTIVI DI GARA (podio condiviso, PV per ordine di arrivo) —');
+      const podium = rg[0].race.podium;
+      const incentives = [...new Set(rg.map(g => g.race.incentive || 0))].sort((a, b) => a - b);
+      L.push(`podio PV: ${podium.join('/')} · partite con gara: ${rg.length} · incentivo IA: ${incentives.join('/')} (0 = l'IA rivendica ma non insegue)`);
+      // Per obiettivo: aggrego claim, turni, pool di competizione, PV.
+      const byId = {};
+      for (const g of rg) for (const it of g.race.list) {
+        const b = byId[it.id] ??= { type: it.type, n: it.n, appear: 0, completedGames: 0, allTurns: [], turnByPlace: podium.map(() => []), qualSum: 0, claimSum: 0, lockedOut: 0, pvSum: 0 };
+        b.appear++;
+        if (it.claims.length) b.completedGames++;
+        it.claims.forEach((seat, place) => { const t = it.claimTurns[place]; if (t != null) { b.allTurns.push(t); if (place < b.turnByPlace.length) b.turnByPlace[place].push(t); } b.pvSum += podium[place] ?? 0; });
+        b.claimSum += it.claims.length;
+        b.qualSum += it.qualified.length;
+        b.lockedOut += it.qualified.filter(q => !it.claims.includes(q)).length; // qualificati che NON hanno rivendicato (podio pieno o mai in Città)
+      }
+      for (const id of Object.keys(byId)) {
+        const b = byId[id];
+        const placeTurns = b.turnByPlace.map((ts, i) => `${i + 1}°${ts.length ? avg(ts).toFixed(1) : '—'}`).join('/');
+        L.push(`  ${describeRace(b)}`);
+        L.push(`     1.completata ${pct(b.completedGames / b.appear)}  2.turno medio ${b.allTurns.length ? avg(b.allTurns).toFixed(1) : '—'}  3.turno per posto ${placeTurns}`);
+        L.push(`     4.competono ${(b.qualSum / b.appear).toFixed(2)}/partita (di cui ${(b.lockedOut / b.appear).toFixed(2)} qualificati ma non rivendicano)  6.PV medi ${(b.pvSum / b.appear).toFixed(2)}/partita`);
+      }
+      const pvRaceTot = rg.reduce((a, g) => a + g.results.reduce((b, r) => b + (r.pvRace || 0), 0), 0);
+      L.push(`  PV di gara totali: ${pvRaceTot} · per giocatore ${(pvRaceTot / (rg.length * P || 1)).toFixed(2)}`);
+      // Correlazione con la vittoria (NON causa: rivendicare richiede già Sopra forti — la causa vera è #7 sotto).
+      let claimers = 0, claimerWins = 0, nonClaimers = 0, nonWins = 0;
+      for (const g of rg) {
+        const claimed = new Set(g.race.list.flatMap(it => it.claims));
+        for (const r of g.results) {
+          const won = r.playerId === g.race.winnerSeat ? 1 : 0;
+          if (claimed.has(r.playerId)) { claimers++; claimerWins += won; } else { nonClaimers++; nonWins += won; }
+        }
+      }
+      L.push(`  win% rivendica ≥1 gara: ${pct(claimerWins / (claimers || 1))} (n=${claimers}) · non rivendica: ${pct(nonWins / (nonClaimers || 1))} (n=${nonClaimers})  [correlazione, non causa]`);
+      // #5/#7 CAUSALITÀ: contrafattuale a livello di decisione (richiede raceCausality + raceIncentive>0).
+      const rcGames = rg.filter(g => g.raceCausal && g.raceCausal.decisions > 0);
+      if (rcGames.length) {
+        const sum = k => rcGames.reduce((a, g) => a + g.raceCausal[k], 0);
+        const hd = sum('hireDecisions'), hc = sum('hireChanged'), dec = sum('decisions'), ch = sum('changed'), cost = sum('costSum');
+        L.push(`  #7 IMPATTO CAUSALE (incentivo ${incentives.filter(x => x > 0).join('/')}): piazzamenti race-attributable ${pct(hc / (hd || 1))} (${hc}/${hd} assunzioni) · decisioni totali cambiate ${pct(ch / (dec || 1))} (${ch}/${dec})`);
+        L.push(`  #5 COSTO DEVIAZIONE: valore normale medio sacrificato per decisione race-driven ${ch ? (cost / ch).toFixed(2) : '—'}  (0 = insegue solo quando è gratis; alto = rinuncia a molto per la race)`);
+      } else if (incentives.every(x => x === 0)) {
+        L.push('  #5/#7: incentivo IA = 0 → l\'IA non insegue, causalità non misurabile. Alza raceIncentive (o usa scripts/race-causality.js) per il test contrafattuale.');
+      }
+      L.push('');
+    }
+  }
 
   L.push(`— COMMESSE — prima della partita: piccola ${pct(firstSize.small / ok.length)} · media ${pct(firstSize.medium / ok.length)} · grande ${pct(firstSize.large / ok.length)}`);
   for (const [size, label] of [['small', 'piccole'], ['medium', 'medie'], ['large', 'grandi']]) {
