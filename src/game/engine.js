@@ -1042,13 +1042,26 @@ function condMet(state, player, cond) {
   }
 }
 
-// Obiettivi di gara (RACE): contano SOLO i lavoratori Sopra (nei 3 reparti, non la Direzione) — sono
-// pubblici e visibili sul tavolo, coerente con "tra i lavoratori sopra". Riusa i conteggi sopraOnly.
+// Obiettivi di gara (RACE): contano le carte installate SOPRA e visibili — i Lavoratori nei 3 reparti E gli
+// Impiegati in Direzione (sempre Sopra, "impiegati compresi"). Le Sotto sono coperte, non contano. Ogni item
+// porta nazione + settori (il Lavoratore 1, l'Impiegato entrambi i suoi power-settori, come per l'icona).
+function raceSopraItems(player) {
+  const items = [];
+  for (const role of DEPT_ROLES) for (const id of player.depts[role].sopra) {
+    const w = WORKER_BY_ID[id]; if (w) items.push({ nation: w.nation, sectors: [w.sector] });
+  }
+  for (const id of player.direzione.sopra) {
+    const imp = WORKER_BY_ID[id];
+    if (imp) items.push({ nation: imp.nation, sectors: imp.power ? Object.keys(imp.power).filter(s => imp.power[s] > 0) : (imp.sector ? [imp.sector] : []) });
+  }
+  return items;
+}
 function raceCondMet(state, player, it) {
+  const items = raceSopraItems(player);
   switch (it.type) {
-    case 'sopra_same_nation': return state.nations.some(nat => nationCount(player, nat, true) >= it.n);
-    case 'sopra_distinct_nations': return distinctNations(player, true) >= it.n;
-    case 'sopra_each_sector': return SECTORS.every(s => installedWorkerCards(player, true).filter(w => w.sector === s).length >= it.n);
+    case 'sopra_same_nation': return state.nations.some(nat => items.filter(x => x.nation === nat).length >= it.n);
+    case 'sopra_distinct_nations': return new Set(items.map(x => x.nation)).size >= it.n;
+    case 'sopra_each_sector': return SECTORS.every(s => items.filter(x => x.sectors.includes(s)).length >= it.n);
     default: return false;
   }
 }

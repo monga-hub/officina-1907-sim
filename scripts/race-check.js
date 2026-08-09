@@ -73,6 +73,22 @@ ok(s2.raceObjectives.list[0].claims.join(',') === '0,1', 'ordine di arrivo regis
 ok(scorePlayer(s2, s2.players[1]).pvRace === 5, 'P1 2° arrivato → 5 PV di gara');
 ok(scorePlayer(s2, s2.players[0]).pvRace === 7, 'P0 mantiene i 7 PV del 1° posto');
 
+// "Impiegati compresi": 2 Lavoratori Sopra + 1 Impiegato della stessa nazione in Direzione → qualifica same_nation n=3
+{
+  const s = initGame(raceCfg);
+  // trova un Impiegato (ha .power) e 2 Lavoratori (no .power) della sua stessa nazione
+  const all = Object.values(WORKER_BY_ID);
+  const imp = all.find(w => w.power && all.filter(x => !x.power && x.nation === w.nation).length >= 2);
+  ok(!!imp, 'trovato un Impiegato con ≥2 Lavoratori della stessa nazione');
+  const wIds = all.filter(x => !x.power && x.nation === imp.nation).slice(0, 2).map(x => x.id);
+  s.current = 0; s.phase = 'borsa'; s.players[0].node = 'Borsa';
+  s.players[0].depts.terziario.sopra = [...wIds];       // 2 Lavoratori stessa nazione
+  ok(!legalCommands(s).some(c => c.type === 'completeRace'), 'con soli 2 Sopra non è ancora qualificato');
+  s.players[0].direzione.sopra = [imp.id];               // +1 Impiegato stessa nazione (Sopra in Direzione)
+  ok(legalCommands(s).some(c => c.type === 'completeRace' && c.raceId === 'race_same'),
+    'Impiegati compresi: 2 Lavoratori + 1 Impiegato stessa nazione qualifica «3 stessa nazionalità»');
+}
+
 // meccanica spenta → nessun PV di gara anche se ci sarebbero claims
 const sOff = initGame({ ...bl, players, raceObjectives: { enabled: false } });
 ok(scorePlayer(sOff, sOff.players[0]).pvRace === 0, 'race spento: pvRace = 0');

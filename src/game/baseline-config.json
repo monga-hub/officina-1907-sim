@@ -200,11 +200,11 @@
     "enabled": true,
     "costCurve": [
       0,
-      0,
-      2,
+      1,
       2,
       3,
-      3
+      4,
+      5
     ],
     "setupBalance": "perColorePerIsola",
     "passiveIncome": false,
@@ -214,7 +214,7 @@
     "milestoneGate": false,
     "foundingResource": true,
     "majorityBonus": {
-      "pv": 7,
+      "pv": 10,
       "enabled": true
     },
     "maps": {

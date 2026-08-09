@@ -226,23 +226,26 @@ function countNation(p, nation) { return allWorkers(p).filter(w => w.nation === 
 // Progresso frazionario (0..1 per obiettivo) verso le race ancora rivendicabili — contano SOLO i Sopra,
 // come raceCondMet nell'engine. Somma sugli obiettivi aperti. Marginale: evaluate confronta stati prima/dopo
 // una mossa, quindi un Sopra che avvicina alza v. NON dà i PV (quelli arrivano col claim).
-function sopraWorkers(p) {
-  const out = [];
-  for (const role of DEPT_ROLES) for (const id of p.depts[role].sopra) out.push(WORKER_BY_ID[id]);
-  return out;
+// carte Sopra che contano per le race: Lavoratori nei reparti + Impiegati in Direzione (impiegati compresi),
+// ognuno con nazione + settori (Lavoratore 1, Impiegato entrambi i suoi power-settori). Allineato a raceSopraItems in engine.
+function raceItems(p) {
+  const items = [];
+  for (const role of DEPT_ROLES) for (const id of p.depts[role].sopra) { const w = WORKER_BY_ID[id]; if (w) items.push({ nation: w.nation, sectors: [w.sector] }); }
+  for (const id of p.direzione.sopra) { const imp = WORKER_BY_ID[id]; if (imp) items.push({ nation: imp.nation, sectors: imp.power ? Object.keys(imp.power).filter(s => imp.power[s] > 0) : [] }); }
+  return items;
 }
 function raceProgress(state, p) {
   const ro = state.raceObjectives;
   if (!ro?.enabled) return 0;
-  const sopra = sopraWorkers(p);
+  const items = raceItems(p);
   const frac = (x, n) => Math.min(x / n, 1);
   let prog = 0;
   for (const it of ro.list) {
     if (state.raceExclude === it.id) continue; // contrafattuale per-race: ignora questo obiettivo (misura #7 isolata)
     if (it.claims.includes(p.id) || it.claims.length >= ro.podium.length) continue; // già preso o podio pieno → non insegue
-    if (it.type === 'sopra_same_nation') prog += frac(Math.max(0, ...state.nations.map(nat => sopra.filter(w => w.nation === nat).length)), it.n);
-    else if (it.type === 'sopra_distinct_nations') prog += frac(new Set(sopra.map(w => w.nation)).size, it.n);
-    else if (it.type === 'sopra_each_sector') prog += frac(SECTORS.reduce((a, s) => a + Math.min(sopra.filter(w => w.sector === s).length, it.n), 0), it.n * SECTORS.length);
+    if (it.type === 'sopra_same_nation') prog += frac(Math.max(0, ...state.nations.map(nat => items.filter(x => x.nation === nat).length)), it.n);
+    else if (it.type === 'sopra_distinct_nations') prog += frac(new Set(items.map(x => x.nation)).size, it.n);
+    else if (it.type === 'sopra_each_sector') prog += frac(SECTORS.reduce((a, s) => a + Math.min(items.filter(x => x.sectors.includes(s)).length, it.n), 0), it.n * SECTORS.length);
   }
   return prog;
 }
