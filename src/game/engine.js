@@ -173,6 +173,8 @@ function payoutQuad(state) {
 function mergeBorsaFabbriche(cfg) {
   const m = { ...BORSA_FABBRICHE_DEFAULT, ...(cfg || {}) };
   m.costCurve = (cfg?.costCurve || BORSA_FABBRICHE_DEFAULT.costCurve).slice();
+  m.resourceCap = { ...BORSA_FABBRICHE_DEFAULT.resourceCap, ...(cfg?.resourceCap || {}) };
+  m.resourceCap.perFactory = (cfg?.resourceCap?.perFactory || BORSA_FABBRICHE_DEFAULT.resourceCap.perFactory).slice();
   return m;
 }
 export function factoryIslands(nPlayers) { return nPlayers <= 2 ? ['R'] : ['L', 'R']; }
@@ -416,6 +418,7 @@ export function initGame(config) {
       factoryCredits: { ...Object.fromEntries(SECTORS.map(s => [s, 0])) },
       factoryCreditsEarned: 0, // milestone attraversate totali = crediti guadagnati (per il tasso "guadagnati vs costruiti")
       factories: [],   // { hex, sector, turn }
+      resCapLost: 0,   // risorse scartate perché sopra il tetto (borsaFabbriche.resourceCap); 0 se il tetto è OFF
       // valore dalle carte Sotto: passata base (1×) vs passate EXTRA da factoryActivates (2ª/3ª). Per misurare
       // l'IMPATTO del moltiplicatore, non solo la frequenza: quanto del valore Sotto nasce dalle attivazioni-fabbrica.
       sottoVal: { baseC: 0, baseR: 0, extraC: 0, extraR: 0 },
@@ -625,6 +628,7 @@ export function initGame(config) {
     log: [],
   };
   log(state, `Partita a ${n}: ${players.map(p => `${p.name} (${p.boardName}${p.isAI ? ', AI' : ''})`).join(' · ')}. Seed ${seed}.`);
+  for (const p of state.players) p.resCap = state.borsaFabbriche.resourceCap; // config statica: tetto risorse calcolato dal solo player (vedi capRoom)
   if (state.borsaFabbriche.enabled) setupFactoryResources(state, rnd); // assegna i colori random alle caselle-risorsa
   if (state.borsaFabbriche.enabled && state.borsaFabbriche.setupPlacement) setupInitialFactories(state); // 1ª fabbrica al turno 0, ordine inverso
   startTurn(state);
@@ -708,16 +712,31 @@ function spendCoins(player, cat, amount) {
   player.coins -= amount;
   if (player.coinsSpentBy && amount > 0) player.coinsSpentBy[cat] += amount;
 }
+// Spazio residuo nel tetto risorse (borsaFabbriche.resourceCap): base + Σ incrementi per fabbrica posseduta,
+// meno quanto già in mano. Illimitato se il tetto è OFF. Config statica letta dal player (vedi initGame).
+function capRoom(player) {
+  const rc = player.resCap;
+  if (!rc?.enabled) return Infinity;
+  const curve = rc.perFactory || [];
+  let cap = rc.base;
+  const n = (player.factories || []).length;
+  for (let i = 0; i < n; i++) cap += curve.length ? curve[Math.min(i, curve.length - 1)] : 0;
+  return Math.max(0, cap - totalResources(player));
+}
 // channel = canale di produzione (produzione | tracciati | macchinari | bonus) per il bilancio risorse
 function addRes(player, sector, amount, channel) {
-  player.resources[RESOURCE_OF[sector]] += amount;
-  if (player.resGen) player.resGen[sector] += amount; // telemetria: produzione per settore
-  if (channel && player.resGainedBy) player.resGainedBy[channel] += amount; // da dove nasce la risorsa
+  const kept = Math.min(amount, capRoom(player)); // clamp al tetto: l'eccesso è scartato (non entra in mano né in telemetria)
+  if (amount - kept > 0) player.resCapLost += amount - kept;
+  player.resources[RESOURCE_OF[sector]] += kept;
+  if (player.resGen) player.resGen[sector] += kept; // telemetria: produzione per settore
+  if (channel && player.resGainedBy) player.resGainedBy[channel] += kept; // da dove nasce la risorsa
 }
 // risorsa entrata per CONVERSIONE (scambio/acquisto): NON è produzione → fuori da resGen (non falsa "risorse sprecate")
 function convRes(player, sector, amount, channel) {
-  player.resources[RESOURCE_OF[sector]] += amount;
-  if (player.resGainedBy) player.resGainedBy[channel] += amount;
+  const kept = Math.min(amount, capRoom(player));
+  if (amount - kept > 0) player.resCapLost += amount - kept;
+  player.resources[RESOURCE_OF[sector]] += kept;
+  if (player.resGainedBy) player.resGainedBy[channel] += kept;
   if (player.convCount) player.convCount[channel === 'acquisto' ? 'marchiRisorsa' : 'risorsaRisorsa']++;
 }
 // consuma risorse contando la spesa per settore (telemetria) e per categoria d'impiego (bilancio)
@@ -822,7 +841,7 @@ function tileProduce(state, player, dept, tile) {
   const eff = tileEffect(tile);
   if (eff.f1?.tipo === 'punti') return { coins: 0, res: 0 };
   const c0 = player.coins, r0 = totalResources(player);
-  applyCardEffect(state, player, dept, { effect: eff, sector: dept.sector });
+  applyCardEffect(state, player, dept, { id: tile.id, effect: eff, sector: dept.sector, effectText: describeTileEffect(tile) });
   return { coins: player.coins - c0, res: totalResources(player) - r0 };
 }
 
@@ -934,7 +953,12 @@ export function tileForecast(state, player, role, tile) {
   const eff = tileEffect(tile);
   // stima della resa: prendi = f1, perOgni = f1 × contatore, scambia = ciò che ricevi (f2) al netto approssimato
   const g = eff.verbo === 'scambia' ? eff.f2 : eff.f1;
-  const mult = eff.verbo === 'perOgni' ? countOf(eff.f2, player, d, state.welfareById) : 1;
+  // conta:tensione — la tile è ricorrente e la produzione legge la tensione DOPO il +1 dell'attivazione (mai <1),
+  // ma la scelta scatta assumendo (advanceTrack, tensione spesso 0). Usare la tensione istantanea la sottovaluta a 0.
+  // Stima con la tensione ATTESA su un ciclo (media vista = 2 con TENSION_LIMIT 3), o quella corrente se già più alta.
+  const mult = eff.verbo === 'perOgni'
+    ? (eff.f2.conta === 'tensione' ? Math.max(2, d.tension) : countOf(eff.f2, player, d, state.welfareById))
+    : 1;
   const amt = (g.q || 0) * mult;
   return { coins: g.tipo === 'moneta' ? amt : 0, res: g.tipo === 'risorsa' ? amt : 0, pv: 0 };
 }
@@ -1387,7 +1411,7 @@ export function legalCommands(state) {
     } else if (pend.type === 'effect') {
       cmds.push({ type: 'resolveEffect', use: false });
       const owner = state.players[pend.playerId];
-      const F = formulaOf(WORKER_BY_ID[pend.cardId]);
+      const F = formulaOf(pend.card || WORKER_BY_ID[pend.cardId]);
       const giveScelta = F.f1?.tipo === 'risorsa' && F.f1?.settore === 'scelta';
       const takeScelta = F.f2?.tipo === 'risorsa' && F.f2?.settore === 'scelta';
       const canCoins = F.f1?.tipo === 'moneta' ? owner.coins >= F.f1.q : true;
@@ -1677,7 +1701,7 @@ export function applyCommand(prev, cmd) {
     case 'resolveEffect': {
       const pend = state.pending;
       const owner = state.players[pend.playerId];
-      const w = WORKER_BY_ID[pend.cardId];
+      const w = pend.card || WORKER_BY_ID[pend.cardId];
       const F = formulaOf(w);
       if (cmd.use) {
         const giveSec = F.f1.tipo === 'risorsa' ? (F.f1.settore === 'scelta' ? cmd.give : sectorOf(F.f1, w)) : null;
@@ -1961,7 +1985,7 @@ function applyCardEffect(state, owner, dept, w) {
   // effetto con scelta di settore (risorsa 'scelta') → il giocatore risolve via pending
   if (F.verbo === 'scambia' && (F.f1?.settore === 'scelta' || F.f2?.settore === 'scelta')) {
     if (owner.convAttempts) owner.convAttempts[convBucketOf(F)]++; // pending offerto: opportunità, indipendente dall'uso
-    state.pendingQueue.push({ type: 'effect', playerId: owner.id, cardId: w.id, role: dept.role });
+    state.pendingQueue.push({ type: 'effect', playerId: owner.id, cardId: w.id, card: w, role: dept.role });
     advancePending(state);
     return;
   }

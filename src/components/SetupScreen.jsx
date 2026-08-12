@@ -818,6 +818,8 @@ function BorsaFabbricheEditor({ bf, setBf }) {
   const upd = patch => { const next = { ...structuredClone(bf), ...patch }; setBf(next); saveLS(BORSA_FABBRICHE_KEY, next); };
   const updCost = (i, val) => { const c = [...bf.costCurve]; c[i] = Math.max(0, Math.min(99, Number(val) || 0)); upd({ costCurve: c }); };
   const num = (v, on) => <input type="number" value={v} onChange={e => on(e.target.value)} style={{ width: 46 }} />;
+  const rc = bf.resourceCap || { enabled: false, base: 10, perFactory: [1, 1, 2] };
+  const updCap = (i, val) => { const c = [...(rc.perFactory || [])]; c[i] = Math.max(0, Math.min(99, Number(val) || 0)); upd({ resourceCap: { ...rc, perFactory: c } }); };
   return (
     <div className="track-editor">
       <p className="hint">
@@ -835,6 +837,36 @@ function BorsaFabbricheEditor({ bf, setBf }) {
         Limite fabbriche per giocatore: {num(bf.maxFactories ?? 0, v => upd({ maxFactories: Math.max(0, Math.min(20, Number(v) || 0)) }))}
         <span className="hint" style={{ marginLeft: 8 }}>{(bf.maxFactories ?? 0) === 0 ? 'nessun tetto: costruisci quante fabbriche vuoi (attuale)' : `ogni giocatore può costruire al massimo ${bf.maxFactories} fabbriche`} · 0 = illimitato</span>
       </label>
+      <h4>Tetto risorse per giocatore</h4>
+      <label style={{ display: 'block', margin: '4px 0' }}>
+        <button className={rc.enabled ? 'sel' : ''} onClick={() => upd({ resourceCap: { ...rc, enabled: true } })}>Attiva</button>
+        <button className={!rc.enabled ? 'sel' : ''} onClick={() => upd({ resourceCap: { ...rc, enabled: false } })}>Disattiva</button>
+        <span className="hint" style={{ marginLeft: 8 }}>{rc.enabled
+          ? 'un giocatore può tenere in mano al massimo il tetto: risorse prodotte/convertite oltre sono scartate'
+          : 'nessun tetto: risorse illimitate in mano (attuale)'}</span>
+      </label>
+      {rc.enabled && (
+        <label style={{ display: 'block', margin: '4px 0' }}>
+          Tetto base (senza fabbriche): {num(rc.base ?? 0, v => upd({ resourceCap: { ...rc, base: Math.max(0, Math.min(99, Number(v) || 0)) } }))}
+        </label>
+      )}
+      {rc.enabled && (
+        <>
+          <label style={{ display: 'block', margin: '4px 0' }}>Spazio aggiunto dalla n-esima fabbrica:</label>
+          <table className="mini"><tbody><tr>
+            {(rc.perFactory || []).map((c, i) => <td key={i} style={{ textAlign: 'center' }}>{i + 1}ª<br />+{num(c, v => updCap(i, v))}</td>)}
+          </tr></tbody></table>
+          <p className="hint">Tetto = base + somma degli incrementi delle fabbriche possedute. L'ultima cifra vale anche oltre (es. base 10, curva 1/1/2 → 3 fabbriche = 10+1+1+2 = 14).</p>
+          <label style={{ display: 'block', margin: '4px 0' }}>
+            IA valuta lo scarto:{' '}
+            <button className={rc.aiValueWaste !== false ? 'sel' : ''} onClick={() => upd({ resourceCap: { ...rc, aiValueWaste: true } })}>Attiva</button>
+            <button className={rc.aiValueWaste === false ? 'sel' : ''} onClick={() => upd({ resourceCap: { ...rc, aiValueWaste: false } })}>Disattiva</button>
+            <span className="hint" style={{ marginLeft: 8 }}>{rc.aiValueWaste !== false
+              ? "l'IA penalizza le risorse scartate dal tetto: non sovra-produce, scarica prima, valuta le fabbriche anche per il tetto che alzano"
+              : "l'IA ignora lo scarto (produce come se non ci fosse tetto) — per misurare l'impatto grezzo del tetto in A/B"}</span>
+          </label>
+        </>
+      )}
       <h4>Modello fabbrica (dipendenza dalle milestone)</h4>
       <label style={{ display: 'block', margin: '4px 0' }}>
         <button className={bf.neutralFactory !== false ? 'sel' : ''} onClick={() => upd({ neutralFactory: true })}>Neutra — NO milestone</button>

@@ -171,7 +171,7 @@ export function runOneGame(config) {
         .flatMap(bank => bankMarket(s, bank).map(cardId => ({ bank, cardId })))
         .filter(x => cp.coins >= WORKER_BY_ID[x.cardId].v)
       : [];
-    const pendingBucket = s.pending?.type === 'effect' ? convBucketOf(formulaOf(WORKER_BY_ID[s.pending.cardId])) : null;
+    const pendingBucket = s.pending?.type === 'effect' ? convBucketOf(formulaOf(s.pending.card || WORKER_BY_ID[s.pending.cardId])) : null;
     // Borsa a indici: al nodo, con un'azione pagabile, ha comprato o no? (non-vuole vs non-può: qui PUÒ,
     // quindi ogni "no" è una scelta). Campiono PRIMA di chooseCommand come per hireOffer.
     const shareOffered = s.borsaIndici?.enabled && legalCommands(s).some(c => c.type === 'buyShare');

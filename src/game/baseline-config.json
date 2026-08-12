@@ -8,11 +8,9 @@
     "terziario": [
       null,
       {
-        "coins": 2
+        "coins": 4
       },
-      {
-        "coins": 2
-      },
+      null,
       null,
       {
         "res": 1
@@ -46,17 +44,15 @@
       },
       null,
       {
-        "pv": 3
+        "pv": 7
       }
     ],
     "secondario": [
       null,
       {
-        "coins": 2
+        "coins": 4
       },
-      {
-        "coins": 2
-      },
+      null,
       null,
       {
         "res": 1
@@ -90,17 +86,15 @@
       },
       null,
       {
-        "pv": 3
+        "pv": 7
       }
     ],
     "primario": [
       null,
       {
-        "coins": 2
+        "coins": 4
       },
-      {
-        "coins": 2
-      },
+      null,
       null,
       {
         "res": 1
@@ -134,7 +128,7 @@
       },
       null,
       {
-        "pv": 3
+        "pv": 7
       }
     ]
   },
@@ -157,10 +151,10 @@
     "resPerPV": 2
   },
   "startingCoins": [
-    10,
-    10,
-    10,
-    10
+    15,
+    15,
+    15,
+    15
   ],
   "trattativa": {
     "resetOwn": {
@@ -214,7 +208,7 @@
     "milestoneGate": false,
     "foundingResource": true,
     "majorityBonus": {
-      "pv": 10,
+      "pv": 7,
       "enabled": true
     },
     "maps": {
@@ -4859,11 +4853,11 @@
       "name": "3 ris x tens",
       "cost": 0,
       "copies": 4,
-      "instant": false,
+      "instant": true,
       "effect": {
         "verbo": "perOgni",
         "f1": {
-          "q": 3,
+          "q": 1,
           "tipo": "risorsa",
           "settore": "scelta"
         },
@@ -4880,13 +4874,18 @@
       "name": "1 ris rep",
       "cost": 0,
       "copies": 4,
-      "instant": false,
+      "instant": true,
       "effect": {
-        "verbo": "prendi",
+        "verbo": "perOgni",
         "f1": {
           "q": 1,
           "tipo": "risorsa",
           "settore": "scelta"
+        },
+        "f2": {
+          "conta": "fabbrica",
+          "kind": "sector",
+          "di": "carta"
         }
       }
     },
@@ -4930,7 +4929,7 @@
       "effect": {
         "verbo": "perOgni",
         "f1": {
-          "q": 3,
+          "q": 1,
           "tipo": "moneta",
           "settore": "carta"
         },
@@ -4942,23 +4941,28 @@
       },
       "cost": 0,
       "copies": 4,
-      "instant": false
+      "instant": true
     },
     {
       "id": "ttytsrsn",
       "market": 1,
       "name": "1 mon",
       "effect": {
-        "verbo": "prendi",
+        "verbo": "perOgni",
         "f1": {
           "q": 1,
           "tipo": "moneta",
           "settore": "carta"
+        },
+        "f2": {
+          "conta": "icona",
+          "kind": "sector",
+          "di": "carta"
         }
       },
       "cost": 0,
       "copies": 4,
-      "instant": false
+      "instant": true
     }
   ],
   "trackTileCap": {
@@ -4967,7 +4971,7 @@
   "clockThreshold": {
     "2": 9,
     "3": 12,
-    "4": 16
+    "4": 18
   },
   "indicatorTargets": {
     "marchi inutilizzati (quota)": [
@@ -4991,5 +4995,35 @@
       35
     ]
   },
-  "nPlayers": 4
+  "nPlayers": 4,
+  "raceObjectives": {
+    "enabled": true,
+    "podium": [
+      7,
+      5,
+      3
+    ],
+    "incentive": 0,
+    "list": [
+      {
+        "id": "race_same",
+        "type": "sopra_same_nation",
+        "n": 3,
+        "enabled": true
+      },
+      {
+        "id": "race_dist",
+        "type": "sopra_distinct_nations",
+        "n": 4,
+        "enabled": true
+      },
+      {
+        "id": "race_each",
+        "type": "sopra_each_sector",
+        "n": 2,
+        "enabled": true
+      }
+    ]
+  },
+  "raceIncentive": 0
 }

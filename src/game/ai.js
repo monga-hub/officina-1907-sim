@@ -119,6 +119,11 @@ function evaluateInner(state, playerId) {
   } else {
     v += totalResources(p) * 1.5 * (2 / state.rules.resPerPV) * w.wRes;
   }
+  // Tetto risorse (borsaFabbriche.resourceCap): penalizza ogni risorsa scartata perché sopra il tetto.
+  // Inerte se il tetto è OFF (resCapLost resta 0). Nel greedy (evaluate(s2)-base) colpisce solo lo spreco
+  // causato dalla mossa → l'IA non sovra-produce a vuoto, scarica prima; nel rollout l'intera linea, così
+  // valuta anche le fabbriche per il tetto che alzano (meno spreco futuro). Scala come una risorsa persa.
+  if (p.resCap?.aiValueWaste !== false) v -= (p.resCapLost || 0) * 1.5 * (2 / state.rules.resPerPV) * w.wRes;
   // Borsa a fabbriche: valore-proxy del flusso passivo futuro. Il greedy 1-ply vede solo la risorsa immediata
   // (già contata sopra), non lo stream — come per `perUse`/tile. Proxy: ogni fabbrica ≈ risorse residue attese,
   // stimate dai turni che restano (clock che sale = fine vicina), scontate. ponytail: è un proxy per far
@@ -295,7 +300,7 @@ function resolvePending(state) {
     return { type: 'strikeBlock', cardId: sotto[0] };
   }
   // effetti opzionali con scelta di settore — euristica per FORMA dello scambio, non per tipo
-  const F = formulaOf(WORKER_BY_ID[pend.cardId]);
+  const F = formulaOf(pend.card || WORKER_BY_ID[pend.cardId]);
   const needs = resourceNeeds(state, owner);
   const f1res = F.f1?.tipo === 'risorsa', f2res = F.f2?.tipo === 'risorsa';
   if (f1res && F.f2?.tipo === 'moneta') { // vendo risorsa → monete (es. swap_res_3m)
